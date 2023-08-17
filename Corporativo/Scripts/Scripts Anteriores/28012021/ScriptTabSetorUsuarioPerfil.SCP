@@ -1,0 +1,62 @@
+use master
+go
+
+/*  Database 'Prot'  */
+use dbvcen
+go
+
+/*
+  Table(s)
+*/
+
+if exists (select 1 
+            from  sysobjects c 
+            join  sysconstraints s on (s.constrid = c.id and s.tableid = object_id('SetorUsuarioPerfil'))
+            where name = 'fkSetorUsuarioPerfilSetor' and type = 'RI')
+   alter table SetorUsuarioPerfil
+      drop constraint fkSetorUsuarioPerfilSetor
+go
+
+if exists (select 1 
+            from  sysobjects c 
+            join  sysconstraints s on (s.constrid = c.id and s.tableid = object_id('SetorUsuarioPerfil'))
+            where name = 'fkSetorUsuarioPerfilUsuario' and type = 'RI')
+   alter table SetorUsuarioPerfil
+      drop constraint fkSetorUsuarioPerfilUsuario
+go
+
+if exists (select 1
+            from  sysobjects
+            where id = object_id('SetorUsuarioPerfil')
+            and   type = 'U')
+   drop table SetorUsuarioPerfil
+go
+
+/*==============================================================*/
+/* Table: SetorUsuarioPerfil                                    */
+/*==============================================================*/
+create table SetorUsuarioPerfil (
+   Setor                varchar(20)                    not null,
+   Usuario              char(8)                        not null,
+   DataInclusao         datetime                       null,
+   UsuInclusao          char(8)                        null,
+   constraint pkSetorUsuarioPerfil primary key (Setor, Usuario)
+)
+go
+
+alter table SetorUsuarioPerfil
+   add constraint fkSetorUsuarioPerfilSetor foreign key (Setor)
+      references dbo.Setor (Cod)
+go
+
+alter table SetorUsuarioPerfil
+   add constraint fkSetorUsuarioPerfilUsuario foreign key (Usuario)
+      references dbo.Usuario (Cod)
+go
+
+
+Grant select on SetorUsuarioPerfil to desenvolvimento
+go
+
+Grant select on SetorUsuarioPerfil to veiculo
+go

@@ -1,0 +1,194 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/12.5.0.3/EBF 10975 ESD#1/P/RS6000/AIX 5.1/rel12503/1919/64-bit/FBO/Tue Mar 25 00:12:06 2003) on rs6000
+*/
+
+/*  database 'dbarrecadacao'  */
+use dbarrecadacao
+GO
+
+
+/*
+  procedure(s)
+*/
+
+print 'STORED procedure : dbo.FinalDeAnoCalendarioCircular'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.FinalDeAnoCalendarioCircular') and (type = 'P' or type = 'RF'))
+begin
+ 	drop proc dbo.FinalDeAnoCalendarioCircular
+end
+
+GO
+
+create proc dbo.FinalDeAnoCalendarioCircular /*    
+	-----------------------------------------------------------------------------------------------------------------------------
+	Aplicativo	    : Procedimentos de Final de Ano - DUI 
+	Analista Responsável: [faml] FlavioLago@detran.pe.gov.br
+	Versão Inicial 	    : Virada 2015-2016
+	-----------------------------------------------------------------------------------------------------------------------------
+	Função    	    : Executar o procedimento 'Rotinas da Virada Aplicar o Calendário do Limite para Circular'
+	Autor-Data	    : [faml] FlavioLago@detran.pe.gov.br - 27/12/2018
+	Observação	    : Essa rotina tem que ser aplicada no novo exercício; ou seja, APÓS a virada	
+	-----------------------------------------------------------------------------------------------------------------------------
+	Autor-Data	    : [afs] - 28/20/2020
+	Observação	    : foi colocados dois novos campos para serem inseridos na tabela dbvcenn.CalendarioLimiteCircular
+	-----------------------------------------------------------------------------------------------------------------------------
+
+
+	Alteração	    : 
+*/
+(
+	@NovoExercicio	numeric(4,0)
+)
+
+AS
+
+BEGIN
+	
+	-- Declarando as variáveis das datas (afs)	
+	declare	@DataLimiteEmissaoCrlv 	datetime,
+		@DataLimiteTaxaPostagem datetime
+		
+	
+	--	nome do procedimento que ficará registrado no log de execução
+	declare	@Procedimento 	varchar(50)
+	select	@Procedimento= 'CalendarioCircular'
+	
+	
+	declare	@FinalPlaca 	    int
+	, 	@DataLimiteCircular datetime
+	
+	
+	--	validações
+	if	@NovoExercicio is null or not exists( select 1 from dbarrecadacao..FinalDeAnoParametros where NovoExercicio= @NovoExercicio )
+	begin
+		raiserror 55000 'Novo exercício não informado; verificar parâmetros!'
+		return -900
+	end
+	
+	if	@NovoExercicio != year(getdate())
+	begin
+		raiserror 55000 'Novo exercício diferente do ano da virada; verificar parâmetros e/ou data de hoje!'
+		return -900
+	end
+
+
+	if	not exists( select 1 from dbarrecadacao..FinalDeAnoCircular where NovoExercicio= @NovoExercicio )
+	begin
+		raiserror 55000 'O calendário para circular do novo exercício não está informado!'
+		return -900
+	end
+
+	--	permitir reprocessamento
+	if	exists( select 1 from dbarrecadacao..LogFinalDeAno where NovoExercicio= @NovoExercicio and Procedimento= @Procedimento and Reexecutar= 0 )
+	begin
+		begin tran
+		
+			delete 	dbarrecadacao..LogFinalDeAno where NovoExercicio= @NovoExercicio and Procedimento= @Procedimento and Reexecutar= 0
+		
+			if 	@@transtate = 2 or @@transtate = 3 
+			begin 
+				if 	@@transtate = 2 
+					rollback tran 
+				--			
+				raiserror 55000 'Erro ao tentar limpar os dados do processamento anterior!'
+				return -900
+			end
+			
+		commit tran
+	end
+	
+
+	--	iniciar log de execução do procedimento
+ 	Exec 	dbarrecadacao..LogFinalDeAnoI @NovoExercicio, @Procedimento, 1
+	
+	
+	--	----------------------------------------------------------
+	--
+	--	CALENDÁRIO PARA CIRCULAR CADASTRADO NO APLICATIVO FINALANO
+	--
+	--	----------------------------------------------------------
+
+	declare	cCircular cursor for
+		
+		select FinalPlaca, DataLimiteCircular from dbarrecadacao..FinalDeAnoCircular where NovoExercicio= @NovoExercicio
+	
+	for read only	
+
+	BEGIN TRAN
+
+	open 	cCircular
+ 	
+	fetch 	cCircular into @FinalPlaca, @DataLimiteCircular
+	
+	while 	@@sqlstatus !=1 and @@sqlstatus !=2
+	begin
+		if	@FinalPlaca is not null and @DataLimiteCircular is not null
+		begin
+			--	-------------------------------------
+			--	ATUALIZAR A DATA LIMITE PARA CIRCULAR
+			--	-------------------------------------
+			
+			select	@DataLimiteEmissaoCrlv 	= dateadd(dd,1,dateadd(mm,-1,@DataLimiteCircular))
+			select	@DataLimiteTaxaPostagem = convert(datetime,convert(char(4),datepart(yy,dateadd(mm,-1,@DataLimiteCircular)))
+							  || substring(convert(char(3), 100+datepart(mm,dateadd(mm,-1,@DataLimiteCircular))),2,2) || '25')
+			
+			if 	exists( select 1 from dbvcen..CalendarioLimiteCircular where Exercicio= @NovoExercicio and FinalPlaca= @FinalPlaca )
+				update 	dbvcen..CalendarioLimiteCircular 
+					set 	DataLimiteCircular	= 	@DataLimiteCircular,
+						DataLimiteEmissaoCrlv   =     	@DataLimiteEmissaoCrlv, -- afs 20/07/2020
+						DataLimiteTaxaPostagem 	=	@DataLimiteTaxaPostagem -- afs 20/07/2020
+				where 	Exercicio= @NovoExercicio 
+				and 	FinalPlaca= @FinalPlaca
+			
+			else
+			--	------------------------------------
+			--	ARQUIVAR A DATA LIMITE PARA CIRCULAR
+			--	------------------------------------
+				insert 	into dbvcen..CalendarioLimiteCircular 
+				select @NovoExercicio, @FinalPlaca, @DataLimiteCircular, @DataLimiteEmissaoCrlv, @DataLimiteTaxaPostagem -- afs
+			
+			--
+			if 	@@transtate = 2 or @@transtate = 3 
+			begin 
+				if 	@@transtate = 2 
+					rollback tran 
+				--
+				raiserror 55000 'Erro ao arquivar calendario limite para circular; FinalPlaca= %1!', @FinalPlaca
+				return -900 
+			end 			
+		end
+		
+		-- próximo
+		fetch 	cCircular into @FinalPlaca, @DataLimiteCircular
+	end
+	close cCircular
+	deallocate cursor cCircular
+		
+	COMMIT TRAN
+	
+	-- 	finalizar log de execução do procedimento
+	Exec 	dbarrecadacao..LogFinalDeAnoI @NovoExercicio, @Procedimento, 0
+END
+return 0
+GO
+
+
+execute sp_procxmode 'dbo.FinalDeAnoCalendarioCircular'
+go
+
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.FinalDeAnoCalendarioCircular to desenvolvimento
+go
+
+Grant Execute on dbo.FinalDeAnoCalendarioCircular to veiculo
+go
+

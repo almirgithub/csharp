@@ -1,0 +1,141 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.LogSetorS'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.LogSetorS') and (type = 'P' or type = 'RF'))
+begin
+ 	drop proc dbo.LogSetorS
+end
+GO
+
+create proc dbo.LogSetorS 
+
+/*
+-----------------------------------------------------------------------------------------------------------
+Função	  : Selecionar os registros da tabela LogSetor
+Autor-Data: [faml] Flávio Lago - 27/07/2015
+-----------------------------------------------------------------------------------------------------------
+		                            A l t e r a ç õ e s 
+-----------------------------------------------------------------------------------------------------------
+[jgj] Jonas Guedes - 15/07/2020 - adicionados ao select: 
+		iImplantaReciboVencido, iAtendimentoSede,
+		iImprimeCapaVeicRecolhido, iExigeFotoVistoriaForaDetran, 
+		iSetorFuncionaConcessionaria, iPermiteAgendDespachante
+[afs] - 09/02/2021 - Foi colocado um novo campo para retorno iUsaAdobeImpDocEle
+
+-----------------------------------------------------------------------------------------------------------
+*/
+
+(  
+	@Cod varchar(20)	-- Setor
+)
+  
+AS 
+
+BEGIN
+	declare	@DescSinteticaSetor varchar(25)
+	select	@DescSinteticaSetor= DescricaoSintetica from dbvcen..Setor where Cod= @Cod
+
+	declare @msg varchar(100)
+	
+	--	
+	if 	not exists (select 1 from dbvcen..LogSetor where Cod= @Cod)
+	begin
+		select	@msg= 'Não existe movimentação para o setor ' || @DescSinteticaSetor || '!'
+		raiserror 55000 @msg
+		return
+	end
+	else
+	begin
+		select	u.Nome
+		, 	ls.DataOperacao
+		, 	case when ls.Operacao = 'A' then 'ALTERAÇÃO' else 
+			case when ls.Operacao = 'E' then 'EXCLUSÃO'  else   		        
+			case when ls.Operacao = 'I' then 'INCLUSÃO'  else null end end end
+		,	ls.CodReduzido
+		,	ls.Digito
+		,	ls.Descricao
+		,	ls.DescricaoSintetica
+		,	(select ts.Descricao from dbvcen..TipoSetor ts where ts.TipoSetor= ls.Tipo)
+		,	ls.Logradouro
+		,	(select m.Descricao from dbvcen..Municipio m where m.Cod= ls.Municipio)
+		,	ls.Telefone
+		,	ls.DataInclusao
+		,	(select b.Descricao from dbvcen..Bairro b where b.Municipio= ls.Municipio and b.Cod= ls.Bairro)
+		,	ls.CEP
+		,	ls.FAX
+		,	(select u2.Nome from dbvcen..Usuario u2 where u2.Cod= ls.UsuCadastro)
+		,	ls.Responsavel
+		,	ls.Email
+		,	ls.Observacao
+		, 	case when ls.EmissaoDocumento = 'B' then 'Batch'  else
+		        case when ls.EmissaoDocumento = 'O' then 'Online' else null end end 		        
+		,	ls.IPRenavam
+		,	ls.IPSng
+		,	ls.PortaRenavam
+		,	ls.PortaSng
+		,	ls.CodTefVisa
+		,	ls.CodTefRede
+		,	ls.SetorCaixa
+		,	ls.ServidorPayGo
+		, 	case when ls.AtendeProcurador 		= 'S' then 'Sim' else case when ls.AtendeProcurador 	= 'N' then 'Não' else null end end
+		, 	case when ls.Informatizado   		= 'S' then 'Sim' else case when ls.Informatizado	= 'N' then 'Não' else null end end
+		, 	case when ls.ServicoInternet 		= 'S' then 'Sim' else case when ls.ServicoInternet	= 'N' then 'Não' else null end end
+		, 	case when ls.BloqueiaDebito  		= 'S' then 'Sim' else case when ls.BloqueiaDebito	= 'N' then 'Não' else null end end
+		, 	case when ls.iCapturaFoto    		= 'S' then 'Sim' else case when ls.iCapturaFoto		= 'N' then 'Não' else null end end
+		, 	case when ls.iPermSubstitAutoriza   	= 'S' then 'Sim' else case when ls.iPermSubstitAutoriza	= 'N' then 'Não' else null end end
+		, 	case when ls.iVistoriaSoVeiculoNovo 	= 'S' then 'Sim' else case when ls.iVistoriaSoVeiculoNovo = 'N' then 'Não' else null end end
+		, 	case when ls.iNaoAbreVistoriaNoPre  	= 'S' then 'Sim' else case when ls.iNaoAbreVistoriaNoPre = 'N' then 'Não' else null end end
+		, 	case when ls.iUsaNovaImpDoc 	    	= 'S' then 'Sim' else case when ls.iUsaNovaImpDoc	= 'N' then 'Não' else null end end
+		, 	case when ls.iExigeLoteRecolhimento 	= 'S' then 'Sim' else case when ls.iExigeLoteRecolhimento = 'N' then 'Não' else null end end
+		, 	case when ls.iRealizaAtend 	    	= 'S' then 'Sim' else case when ls.iRealizaAtend	= 'N' then 'Não' else null end end
+		, 	case when ls.ExigeRenavam 	    	= 'S' then 'Sim' else case when ls.ExigeRenavam		= 'N' then 'Não' else null end end
+		, 	case when ls.iVistoriaSoRecolhimento	= 'S' then 'Sim' else case when ls.iVistoriaSoRecolhimento = 'N' then 'Não' else null end end
+		, 	case when ls.iCiretranEspecial 		= 'S' then 'Sim' else case when ls.iCiretranEspecial	= 'N' then 'Não' else null end end
+		, 	case when ls.iRealizaVistoria 		= 'S' then 'Sim' else case when ls.iRealizaVistoria	= 'N' then 'Não' else null end end
+		, 	case when ls.iSetorGrandeCliente 	= 'S' then 'Sim' else case when ls.iSetorGrandeCliente	= 'N' then 'Não' else null end end
+		, 	case when ls.iValidacaoVistoria 	= 'A' then 'ATENDIMENTO' else case when ls.iValidacaoVistoria = 'C' then 'CONTROLE QUALIDADE' else null end end
+		,	ls.NumDoc
+		,	ls.Prefeitura 
+		,	case when ls.iLacreSemValidacao		= 'S' then 'Sim' else case when ls.iLacreSemValidacao	= 'N' then 'Não' else null end end
+		,	case when ls.iSetorAtivo		= 'S' then 'Sim' else case when ls.iSetorAtivo		= 'N' then 'Não' else null end end
+		,	case when ls.iAgendaVistoria		= 'S' then 'Sim' else case when ls.iAgendaVistoria	= 'N' then 'Não' else null end end
+		,	case when ls.iAgendaAtendimento		= 'S' then 'Sim' else case when ls.iAgendaAtendimento	= 'N' then 'Não' else null end end
+		,	null -- antes:		,	case when ls.iControleMaquina		= 'S' then 'Sim' else case when ls.iControleMaquina	= 'N' then 'Não' else null end end
+		,	case when ls.iImplantaReciboVencido	= 'S' then 'Sim' else case when ls.iImplantaReciboVencido = 'N' then 'Não' else null end end		
+		,	case when ls.iAtendimentoSede		= 'S' then 'Sim' else case when ls.iAtendimentoSede 	= 'N' then 'Não' else null end end		
+		,	case when ls.iImprimeCapaVeicRecolhido	= 'S' then 'Sim' else case when ls.iImprimeCapaVeicRecolhido = 'N' then 'Não' else null end end		
+		,	case when ls.iExigeFotoVistoriaForaDetran = 'S' then 'Sim' else case when ls.iExigeFotoVistoriaForaDetran = 'N' then 'Não' else null end end
+		,	case when ls.iSetorFuncionaConcessionaria = 'S' then 'Sim' else case when ls.iSetorFuncionaConcessionaria = 'N' then 'Não' else null end end
+		,	case when ls.iPermiteAgendDespachante  = 'S' then 'Sim' else case when ls.iPermiteAgendDespachante = 'N' then 'Não' else null end end
+		,	case when ls.iUsaAdobeImpDocEle  = 'S' then 'Sim' 
+				else case when ls.iUsaAdobeImpDocEle = 'N' then 'Não' 
+				else null end 
+			end as adobe
+		
+		from 	dbvcen..LogSetor ls
+		,	dbvcen..Usuario u
+		where	ls.Cod	= @Cod
+		and	u.Cod	= ls.UsuarioOperacao
+		order	by ls.DataOperacao desc
+	end
+END
+return 0  
+GO
+
+execute sp_procxmode 'dbo.LogSetorS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.LogSetorS to desenvolvimento
+GO
+
+Grant Execute on dbo.LogSetorS to veiculo
+GO

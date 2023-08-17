@@ -1,0 +1,51 @@
+
+select top 100 *  from dbvcen..MunicipioTransporteAluguel
+esults :
+Municipio                                 Categoria                                 ComplCategoria                            iRegulamentado iPermiteAutTemporaria PrazoValidade PrazoValidadeTemporaria DiaMesValidade QtdMaxCondutor iValidaProprietario CensoFixo    CensoPopulacao CensoPercPopulacao
+544                                       1                                         2                                         N              S                     NULL          60                      3112           2              NULL                NULL         NULL           NULL              
+544                                       1                                         15                                        N              N                     NULL          NULL                    NULL           NULL           N                   NULL         NULL           NULL              
+
+
+select top 10 *  from dbvcen..Municipio
+Cod                                       Descricao                                           DigitoVerificador                         UF  CEP                                       GrupoMunicipio TaxaBombeiro Ciretran TaxaConservacao MunicipioLacre                            DescCorreios                                                  iCodificadoCorreios UltCredenciadoAutorizado iRodizioCasaPlacas CEPFinal                                  Regiao       iConfirmEndereco SetorRecadDespachante iTipoRodizio iLimiteRodizio
+1                                         GUAJARA MIRIM                                       9                                         RO  78980000                                  NULL           S            NULL     N               NULL                                      GUAJARA MIRIM                                                 NULL                NULL                     NULL               NULL                                      NULL         NULL             NULL                  NULL         NULL          
+2                                         ALTO ALEGRE DOS PARECIS                             7                                         RO  99999999                                  NULL           NULL         NULL     NULL            NULL                                      ALTO ALEGRE DOS PARECIS                                       NULL                NULL                     NULL               NULL                                      NULL         NULL             NULL                  NULL         NULL          
+3                                         PORTO VELHO                                         5                                         RO  78900000                                  NULL           S            NULL     N               NULL                                      PORTO VELHO                                                   NULL                NULL                     NULL               NULL                                      NULL         NULL             NULL                  NULL         NULL          
+
+select top 10 *  from dbvcen..CategoriaVeiculo
+Cod                                       Descricao                                           CorLetraPlaca CorFundoPlaca DescricaoTarjeta                                   
+1                                         PARTIC                                              PRETA         CINZA         NULL                                               
+2                                         ALUGUEL                                             BRANCA        VERMELHA      NULL                                               
+3                                         OFICIAL                                             PRETA         BRANCA        NULL                                               
+
+select top 10 *  from dbvcen..ComplementoCategoria
+Results :
+Categoria                                 Cod                                       Descricao                                           DescricaoGRAVAME                                    RestricaoAutVenc iValidaAltCapPassagBIN TipoServicoAutorizacao TipoServicoInspecao
+1                                         2                                         ESCOLAR                                             ESCOLAR                                             48               S                      NULL                   NULL               
+1                                         15                                        CICLOMOTOR                                          NULL                                                NULL             NULL                   NULL                   NULL               
+1                                         16                                        F.NORONHA                                           NULL                                                NULL             NULL                   NULL                   NULL               
+
+
+
+'Exec dbvcen..MunicipioS_descricao2
+		@Cod 		= :frmConfTransporteAluguel.dfnCodMunicipioA'
+		
+
+/*
+
+   	Municipio 		numeric(6) 	not null,
+	Categoria 		numeric(4) 	not null,
+	ComplCategoria 		numeric(4) 	not null,
+	OrgaoTransporteAluguel 	int 		not null,
+	PrazoValidade 		int 		null,
+	DiaMesValidade 		int 		null,
+   	constraint pkMunicipioTranspAluguelOrgao	primary key (Municipio, Categoria, ComplCategoria, OrgaoTransporteAluguel),
+   	constraint fkMunicTransAlugMunicTranspOrg 	foreign key (Municipio, Categoria, ComplCategoria) 
+   							references MunicipioTransporteAluguel (Municipio, Categoria, ComplCategoria)
+)
+
+
+
+
+
+*/

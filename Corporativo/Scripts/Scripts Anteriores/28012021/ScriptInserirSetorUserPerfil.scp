@@ -1,0 +1,20 @@
+------------------------------------------------------------
+-- Escript para inserir dados na tabela SetorUsuarioPerfil
+-- Data: 22-04-2020
+------------------------------------------------------------
+
+
+insert into dbvcen..SetorUsuarioPerfil
+select distinct u.Setor, up.Cod, getdate(), suser_name()
+from dbvcen..Usuario up,
+     dbvcen..Usuario u,
+     dbvcen..Setor s
+where u.Situacao='N'
+and up.Setor = '09060100000000'
+and up.Situacao='N'  
+and s.Cod = u.Setor
+and s.iSetorAtivo='S'
+and not exists (select 1
+                from dbvcen..SetorUsuarioPerfil
+                where Setor=u.Setor
+                and Usuario=up.Cod)

@@ -1,0 +1,243 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/12.5.0.3/EBF 10975 ESD#1/P/RS6000/AIX 5.1/rel12503/1919/64-bit/FBO/Tue Mar 25 00:12:06 2003) on rs6000
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Trigger(s)
+*/
+
+PRINT 'TRIGGER : dbo.MunicipioUPDATE'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MunicipioUPDATE') and type = 'TR')
+begin
+ drop trigger dbo.MunicipioUPDATE
+end
+
+GO
+
+create trigger dbo.MunicipioUPDATE     
+/************************ UPDATE ****************************/ 
+ 
+/* Update Trigger da tabela Municipio */  
+on Municipio for UPDATE as  
+begin  
+	 
+	/* numero de registros alterados */  
+	declare	@num_rows int  
+	select	@num_rows = @@rowcount  
+	if @num_rows = 0  
+		return  
+  
+	  
+	/* Restricao de alteracao da chave primaria da tabela */  
+	if update (Cod)  
+	begin  
+		rollback transaction  
+		raiserror 30000 'Nao é permitido alterar o codigo de acesso da informacao. Caso necessite altera-lo, efetue sua exclusao seguida da inclusao do novo codigo.'  
+		return  
+	end  
+  
+ 	
+ 	declare	@geralog	char(1)  
+  
+	select	@geralog = GeraLogFisepe from dbvcen..ParametroGeral 
+  
+	if @geralog = 'S'  
+	begin  
+		insert	dbarrecadacao..LogFisepe  
+		select	'dbvcen', 'Municipio', 'U',  
+			convert(varchar, Cod), 0, getdate()  
+		from	inserted  
+	end	  
+	--	  
+	--parametros para insercao na logMunicipio
+	declare	
+	
+	@MunicipioI  ty_Numero, 
+	@DescricaoI  ty_Descricao,
+	@DigitoVerificadorI  numeric,
+	@UFI    char(2),
+	@CEPI numeric,
+	@GrupoMunicipioI  ty_Numero,
+	@TaxaBombeiroI  ty_SimNao,
+	@CiretranI smallint,
+	@TaxaConservacaoI ty_SimNao,
+	@MunicipioLacreI numeric,
+	@DescCorreiosI varchar(60),
+	@iCodificadoCorreiosI char(1),
+	@UltCredenciadoAutorizadoI  int,
+	@iRodizioCasaPlacasI char(1),
+	@CEPFinalI numeric,
+	@RegiaoI int,
+	@ObservacaoI varchar(255),
+	
+	@DescricaoD  ty_Descricao,
+	@DigitoVerificadorD  numeric,
+	@UFD    char(2),
+	@CEPD numeric,
+	@GrupoMunicipioD  ty_Numero,
+	@TaxaBombeiroD  ty_SimNao,
+	@CiretranD smallint,
+	@TaxaConservacaoD ty_SimNao,
+	@MunicipioLacreD numeric,
+	@DescCorreiosD varchar(60),
+	@iCodificadoCorreiosD char(1),
+	@UltCredenciadoAutorizadoD  int,
+	@iRodizioCasaPlacasD char(1),
+	@CEPFinalD numeric,
+	@RegiaoD int	,
+	@ObservacaoD varchar(255)
+
+
+
+	select	@MunicipioI  = Cod, 
+	@DescricaoI  = Descricao,
+	@DigitoVerificadorI = DigitoVerificador ,
+	@UFI  = UF  ,
+	@CEPI = CEP,
+	@GrupoMunicipioI =  GrupoMunicipio,
+	@TaxaBombeiroI = TaxaBombeiro  ,
+	@CiretranI = Ciretran,
+	@TaxaConservacaoI = TaxaConservacao,
+	@MunicipioLacreI = MunicipioLacre,
+	@DescCorreiosI = DescCorreios,
+	@iCodificadoCorreiosI = iCodificadoCorreios,
+	@UltCredenciadoAutorizadoI  = UltCredenciadoAutorizado,
+	@iRodizioCasaPlacasI = iRodizioCasaPlacas,
+	@CEPFinalI = CEPFinal,
+	@RegiaoI = Regiao,
+	@ObservacaoI  = Observacao
+
+	from inserted 
+ 
+	select @DescricaoD  = Descricao,
+	@DigitoVerificadorD  = DigitoVerificador,
+	@UFD    = UF,
+	@CEPD = CEP,
+	@GrupoMunicipioD  = GrupoMunicipio,
+	@TaxaBombeiroD  = TaxaBombeiro,
+	@CiretranD = Ciretran,
+	@TaxaConservacaoD = TaxaConservacao,
+	@MunicipioLacreD = MunicipioLacre,
+	@DescCorreiosD = DescCorreios,
+	@iCodificadoCorreiosD = iCodificadoCorreios,
+	@UltCredenciadoAutorizadoD  =UltCredenciadoAutorizado,
+	@iRodizioCasaPlacasD = iRodizioCasaPlacas,
+	@CEPFinalD = CEPFinal,
+	@RegiaoD = Regiao,
+	@ObservacaoD = Observacao
+	 	
+	from deleted	 
+	
+	if @DescricaoD = @DescricaoI
+		select @DescricaoD = NULL
+		
+	if @DigitoVerificadorD = @DigitoVerificadorI
+		select @DigitoVerificadorD = NULL
+	
+	if @UFD = @UFI
+	 	select @UFD = NULL
+	
+	if @CEPD = @CEPI
+	 	select @CEPD = NULL
+	
+	if @GrupoMunicipioD = @GrupoMunicipioI
+	 	select @GrupoMunicipioD = NULL
+	
+	if @TaxaBombeiroD = @TaxaBombeiroI
+	 	select @TaxaBombeiroD = NULL
+	
+	if @CiretranD = @CiretranI
+	 	select @CiretranD = NULL
+	
+	if @TaxaConservacaoD = @TaxaConservacaoI
+	 	select @TaxaConservacaoD = NULL
+	
+	if @MunicipioLacreD = @MunicipioLacreI
+	 	select @MunicipioLacreD = NULL
+	
+	if @DescCorreiosD = @DescCorreiosI
+	 	select @DescCorreiosD = NULL
+	
+	if @iCodificadoCorreiosD = @iCodificadoCorreiosI
+	 	select @iCodificadoCorreiosD = NULL
+	
+	if @UltCredenciadoAutorizadoD = @UltCredenciadoAutorizadoI
+	 	select @UltCredenciadoAutorizadoD = NULL
+	
+	if @iRodizioCasaPlacasD = @iRodizioCasaPlacasI
+	 	select @iRodizioCasaPlacasD = NULL
+	 	
+	if @CEPFinalD = @CEPFinalI
+	 	select @CEPFinalD = NULL
+	 	
+	if @RegiaoD = @RegiaoI
+	 	select @RegiaoD = NULL
+
+	if @ObservacaoD = @ObservacaoI
+	 	select @ObservacaoD = NULL
+
+	 	 	
+	insert into LogMunicipio			 
+	       ( 
+		Usuario, 
+		Data, 
+		Operacao, 
+		Municipio ,
+		Descricao  ,
+		DigitoVerificador ,
+		UF    ,
+		CEP ,
+		GrupoMunicipio  ,
+		TaxaBombeiro  ,
+		Ciretran ,
+		TaxaConservacao ,
+		MunicipioLacre ,
+		DescCorreios ,
+		iCodificadoCorreios ,
+		UltCredenciadoAutorizado ,
+		iRodizioCasaPlacas ,
+		CEPFinal,
+		Regiao,
+		Observacao
+		) 
+	values ( 
+		suser_name(), 
+		getdate(), 
+		'U', 
+		@MunicipioI,
+		@DescricaoD,
+		@DigitoVerificadorD,
+		@UFD,
+		@CEPD,
+		@GrupoMunicipioD,
+		@TaxaBombeiroD,
+		@CiretranD,
+		@TaxaConservacaoD,
+		@MunicipioLacreD,
+		@DescCorreiosD,
+		@iCodificadoCorreiosD,
+		@UltCredenciadoAutorizadoD,
+		@iRodizioCasaPlacasD,
+		@CEPFinalD,
+		@RegiaoD,
+		@ObservacaoD			 
+		)
+end
+GO
+
+
+/* ** WARNING ** Only users with SA_ROLE or SSO_ROLE role can get information from audflags column in master.dbo.syslogins */
+/* 'sp_auditlogin' script cannot be generated */
+
+

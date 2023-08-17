@@ -1,0 +1,328 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+PRINT 'DROPPING FOREIGN KEY CONSTRAINT(s)'
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkDocVeiculoUsuario02') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.DocVeiculo DROP CONSTRAINT fkDocVeiculoUsuario02
+end
+
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkDocVeiculoVeiculo') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.DocVeiculo DROP CONSTRAINT fkDocVeiculoVeiculo
+end
+
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkDocVeiculoDocumentoOrgao') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.DocVeiculo DROP CONSTRAINT fkDocVeiculoDocumentoOrgao
+end
+
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkDocVeiculoMotivoDevolucao') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.DocVeiculo DROP CONSTRAINT fkDocVeiculoMotivoDevolucao
+end
+
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkDocVeiculoSetor') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.DocVeiculo DROP CONSTRAINT fkDocVeiculoSetor
+end
+
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkDocVeiculoTipoDocumento') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.DocVeiculo DROP CONSTRAINT fkDocVeiculoTipoDocumento
+end
+
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkDocVeiculoUsuario') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.DocVeiculo DROP CONSTRAINT fkDocVeiculoUsuario
+end
+
+GO
+
+
+/*
+  Table(s)
+*/
+
+PRINT 'TABLE : dbo.DocVeiculo'
+GO
+
+
+if exists (select * from dbo.sysobjects where id = Object_id('dbo.DocVeiculo') and type in ('U','S'))
+begin
+  drop table dbo.DocVeiculo
+end
+
+GO
+
+
+PRINT 'CREATING Index(s) for Table : dbo.DocVeiculo'
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_KEY'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_KEY')
+begin
+drop index DocVeiculo.DocVeiculo_KEY
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_DataEmissao'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_DataEmissao')
+begin
+drop index DocVeiculo.DocVeiculo_DataEmissao
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_DataInclusao'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_DataInclusao')
+begin
+drop index DocVeiculo.DocVeiculo_DataInclusao
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_Devolucao'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_Devolucao')
+begin
+drop index DocVeiculo.DocVeiculo_Devolucao
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_Emissao'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_Emissao')
+begin
+drop index DocVeiculo.DocVeiculo_Emissao
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_Entrega'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_Entrega')
+begin
+drop index DocVeiculo.DocVeiculo_Entrega
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_MunicipioExec'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_MunicipioExec')
+begin
+drop index DocVeiculo.DocVeiculo_MunicipioExec
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_NumeroDoc'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_NumeroDoc')
+begin
+drop index DocVeiculo.DocVeiculo_NumeroDoc
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_Processo'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_Processo')
+begin
+drop index DocVeiculo.DocVeiculo_Processo
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_TipoAR'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_TipoAR')
+begin
+drop index DocVeiculo.DocVeiculo_TipoAR
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_VeicData'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_VeicData')
+begin
+drop index DocVeiculo.DocVeiculo_VeicData
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_ARCorreio'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_ARCorreio')
+begin
+drop index DocVeiculo.DocVeiculo_ARCorreio
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_ExercicioTipoDoc'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_ExercicioTipoDoc')
+begin
+drop index DocVeiculo.DocVeiculo_ExercicioTipoDoc
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_UsuarioEntregaDoc'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_UsuarioEntregaDoc')
+begin
+drop index DocVeiculo.DocVeiculo_UsuarioEntregaDoc
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_TipoRetiradaDoc'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_TipoRetiradaDoc')
+begin
+drop index DocVeiculo.DocVeiculo_TipoRetiradaDoc
+end
+
+GO
+
+
+PRINT 'INDEX : dbo.DocVeiculo.DocVeiculo_Veiculo'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('DocVeiculo') and keys1 is not null and name ='DocVeiculo_Veiculo')
+begin
+drop index DocVeiculo.DocVeiculo_Veiculo
+end
+
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Select on dbo.DocVeiculo to desenvolvimento
+WITH GRANT OPTION
+
+GO
+
+Grant Select on dbo.DocVeiculo to soselect
+WITH GRANT OPTION
+
+GO
+
+PRINT 'FOREIGN KEY CONSTRAINT(S)'
+GO
+
+ALTER TABLE dbo.DocVeiculo ADD constraint fkDocVeiculoUsuario02
+foreign key (UsuarioEntregaDoc)
+references dbvcen.dbo.Usuario (Cod)
+
+
+GO
+
+ALTER TABLE dbo.DocVeiculo ADD constraint fkDocVeiculoVeiculo
+foreign key (Veiculo)
+references dbvcen.dbo.Veiculo (Cod)
+
+
+GO
+
+ALTER TABLE dbo.DocVeiculo ADD constraint fkDocVeiculoDocumentoOrgao
+foreign key (TipoDocto,Orgao)
+references dbvcen.dbo.DocumentoOrgao (TipoDocto,Orgao)
+
+
+GO
+
+ALTER TABLE dbo.DocVeiculo ADD constraint fkDocVeiculoMotivoDevolucao
+foreign key (MotivoDevolucao)
+references dbvcen.dbo.MotivoDevolucao (Cod)
+
+
+GO
+
+ALTER TABLE dbo.DocVeiculo ADD constraint fkDocVeiculoSetor
+foreign key (Setor)
+references dbvcen.dbo.Setor (Cod)
+
+
+GO
+
+ALTER TABLE dbo.DocVeiculo ADD constraint fkDocVeiculoTipoDocumento
+foreign key (TipoDocumento)
+references dbvcen.dbo.TipoDocumento (Cod)
+
+
+GO
+
+ALTER TABLE dbo.DocVeiculo ADD constraint fkDocVeiculoUsuario
+foreign key (Usuario)
+references dbvcen.dbo.Usuario (Cod)
+
+
+GO
+
+
+

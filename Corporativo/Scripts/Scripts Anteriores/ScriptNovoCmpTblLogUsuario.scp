@@ -1,0 +1,13 @@
+------------------------------------------------
+-- novo campo para a tabela logusuario
+-- afs - 25-04-2022
+------------------------------------------------
+
+alter table dbvcen..LogUsuario
+  add	iCanPenalidade	char(1)  null
+
+alter table dbvcen..LogUsuario
+  Modify  Observacao varchar(1000) null
+
+
+------------------------------------------------

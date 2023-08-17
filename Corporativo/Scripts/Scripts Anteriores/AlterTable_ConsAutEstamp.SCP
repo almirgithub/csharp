@@ -1,0 +1,8 @@
+
+
+
+
+
+alter table dbvcen.dbo.ConsAutoEstampagem add CpfCnpjProprietarioVeiculo varchar(14 ) null
+
+alter table dbvcen.dbo.ConsAutoEstampagem modify CodRetorno varchar(3) null

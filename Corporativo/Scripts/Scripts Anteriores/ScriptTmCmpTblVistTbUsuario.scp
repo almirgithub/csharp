@@ -1,0 +1,16 @@
+------------------------------------------------
+-- modificar o tipo do campo observação para 
+-- varchar(1000)
+-- afs - 16-09-2021
+------------------------------------------------
+
+alter table dbvcen..Vistoriador
+ Modify	 Observacao 	varchar(1000) null
+
+
+alter table dbvcen..Usuario
+ Modify	Observacao	varchar(1000) null
+
+
+------------------------------------------------
+

@@ -1,0 +1,11 @@
+--'segundo sqk
+
+select top 100 *  from	dbvcen..Processo 
+where Placa  in ( 'HUQ7500', 'KLP8344', 'KLG1753')
+and Situacao	= 50 
+--Script para atualização da data de versão
+--afs - 15/10/2020
+
+update MPS..Sistema 
+set DataVersao = '20201105' 
+where Cod = 105

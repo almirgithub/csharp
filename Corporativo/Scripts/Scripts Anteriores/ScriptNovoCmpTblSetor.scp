@@ -1,0 +1,9 @@
+------------------------------------------------
+-- Inserir um novo campo na tabel dbvcen.Setor
+-- afs - 03-01-2023
+------------------------------------------------
+
+alter table dbvcen..Setor
+ add	iExigirProtDesvinculacao	char(01) null
+
+------------------------------------------------

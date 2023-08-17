@@ -1,0 +1,89 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : MunicipioTranspAluguelOrgaoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('MunicipioTranspAluguelOrgaoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc MunicipioTranspAluguelOrgaoS
+end
+
+GO
+
+create proc MunicipioTranspAluguelOrgaoS 
+/*************************************************************************************              
+** Criada por	: Almir
+** Data         : 25-03-2020
+** Objetivo	: Consulta dos registros da tabela de ‡rg∆o de Transportes de Aluguel  
+**************************************************************************************/             
+(
+	@nCodMunicipio		int,
+	@nCodCategoria		int,
+	@nCodComplemento	int
+)    
+as    
+  
+ /*         
+ 		select	Municipio, 
+ 			Categoria, 
+ 			ComplCategoria, 
+ 			OrgaoTransporteAluguel, 
+ 			PrazoValidade, 
+ 			DiaMesValidade
+ 		from	dbvcen..MunicipioTranspAluguelOrgao
+ 		order	by Municipio*/
+ 		
+ 		
+ 		select	mt.Municipio, m.Descricao, 
+ 			mt.Categoria, c.Descricao,
+ 			mt.ComplCategoria, cc.Descricao,
+ 			mt.OrgaoTransporteAluguel, t.NomeOrgao,
+ 			mt.PrazoValidade, 
+ 			(case 
+ 				when char_length(ltrim(rtrim(convert(char(04),mt.DiaMesValidade)))) = 3 
+ 					then '0' + convert(char(03),mt.DiaMesValidade)
+ 					else convert(char(04),mt.DiaMesValidade)
+ 			 end) as DiaMes
+		from	dbvcen..MunicipioTranspAluguelOrgao mt,
+ 			dbvcen..Municipio m,
+ 			dbvcen..CategoriaVeiculo c,
+ 			dbvcen..ComplementoCategoria cc,
+ 			dbvcen..OrgaoTransporteAluguel t
+		where 	mt.Municipio = m.Cod
+		and	mt.Categoria = c.Cod
+		and 	mt.ComplCategoria = cc.Cod
+		and 	mt.OrgaoTransporteAluguel = t.OrgaoTransporteAluguel
+		and 	mt.Municipio	=	@nCodMunicipio
+		and	mt.Categoria	=	@nCodCategoria
+		and	mt.ComplCategoria = 	@nCodComplemento
+		order	by Municipio
+ 		
+   
+return 0    
+GO
+
+execute sp_procxmode 'MunicipioTranspAluguelOrgaoS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on MunicipioTranspAluguelOrgaoS to desenvolvimento
+GO
+
+Grant Execute on MunicipioTranspAluguelOrgaoS to veiculo
+GO
+  
+   
+

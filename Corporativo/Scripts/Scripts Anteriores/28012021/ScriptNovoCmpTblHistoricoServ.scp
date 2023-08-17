@@ -1,0 +1,9 @@
+-- Inserindo novos campos na tabela 
+-- HistóricoServiço
+-- afs - 01-07-2020
+
+
+alter	table 	dbvcen..HistoricoServico
+	add 	iServAcessoLogadoCpf 	char(1) null
+
+------------------------------------------------------

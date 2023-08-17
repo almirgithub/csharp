@@ -1,0 +1,137 @@
+
+
+
+
+
+
+
+
+
+select	mt.Municipio, m.Descricao, 
+ 	mt.Categoria, c.Descricao,
+ 	mt.ComplCategoria, cc.Descricao,
+ 	mt.OrgaoTransporteAluguel, t.NomeOrgao,
+ 	mt.PrazoValidade, 
+ 	mt.DiaMesValidade
+from	dbvcen..MunicipioTranspAluguelOrgao mt,
+ 	dbvcen..Municipio m,
+ 	dbvcen..CategoriaVeiculo c,
+ 	dbvcen..ComplementoCategoria cc,
+ 	dbvcen..OrgaoTransporteAluguel t
+where 	mt.Municipio = m.Cod
+and	mt.Categoria = c.Cod
+and 	mt.ComplCategoria = cc.Cod
+and 	mt.OrgaoTransporteAluguel = t.OrgaoTransporteAluguel
+order	by Municipio
+ 
+ 
+ 	select	NomeOrgao  
+	from	dbvcen..OrgaoTransporteAluguel  
+	where	OrgaoTransporteAluguel = @nCod    
+ 
+ 
+        dbvcen..ComplementoCategoria cc,  
+        dbvcen..Municipio md  
+where (	(t.Municipio = @nMunicipio or @nMunicipio = null)  
+and     (t.Categoria = @nCategoria		or @nCategoria  is null)  
+and	(t.ComplCategoria = @nComplCategoria	or @nComplCategoria is null)  
+      )  
+and	t.Municipio	= md.Cod  
+and    c.Cod = t.Categoria        
+and    cc.Categoria = t.Categoria  
+and    cc.Cod = t.ComplCategoria  
+order by md.Descricao,  
+         c.Descricao,  
+	 cc.Descricao 
+ 
+ 
+ Results :
+Municipio                                 Categoria                                 ComplCategoria                            OrgaoTransporteAluguel PrazoValidade DiaMesValidade
+2301                                      2                                         11                                        1                      120           303           
+
+ 
+ select	t.Municipio,  
+        md.Descricao as DescMunicipio,  
+        t.Categoria,  
+	c.Descricao as DescCategoria,  
+	t.ComplCategoria,  
+	cc.Descricao as DescComplemento,  
+	t.iRegulamentado,  
+	  
+	t.PrazoValidade,  
+	t.PrazoValidadeTemporaria,  
+	t.DiaMesValidade,  
+	t.QtdMaxCondutor,  
+	t.iPermiteAutTemporaria,  
+	t.CensoFixo,  
+	t.CensoPopulacao,  
+	t.CensoPercPopulacao,  
+	isnull(t.iValidaProprietario,'N') as ValidaProprietario -- Joao Queiroz 07/08/2012  
+	  
+from	dbvcen..MunicipioTransporteAluguel t,                                     
+        dbvcen..CategoriaVeiculo c,  
+        dbvcen..ComplementoCategoria cc,  
+        dbvcen..Municipio md  
+where (	(t.Municipio = @nMunicipio or @nMunicipio = null)  
+and     (t.Categoria = @nCategoria		or @nCategoria  is null)  
+and	(t.ComplCategoria = @nComplCategoria	or @nComplCategoria is null)  
+      )  
+and	t.Municipio	= md.Cod  
+and    c.Cod = t.Categoria        
+and    cc.Categoria = t.Categoria  
+and    cc.Cod = t.ComplCategoria  
+order by md.Descricao,  
+         c.Descricao,  
+	 cc.Descricao  
+ 
+ 
+ 
+ !!CB!! 174
+Set _sIntoPesquisa = 
+		':frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colnMunicipio,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colsMunicipio,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colnCategoria,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colsCategoria,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colnComplCategoria,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colsComplCategoria,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colnOrgao,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colsOrgao,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colnprazoValidade,
+		:frmMunicipioTransporteAluguel.tblMunicipioTransporteAluguel.colnPrazoValidadeDiaMes'
+
+
+select  c.Descricao 
+from 	dbvcen..CategoriaVeiculo c 
+where   c.Cod	= 2
+
+select Descricao from dbvcen..Municipio where Cod = 2301
+'Exec dbvcen..MunicipioS_descricao2
+		@Cod 		= :frmConfTransporteAluguel.dfnCodMunicipioA'
+ 'exec CategoriaVeiculoS_nome @Cod = :frmConfTransporteAluguel.dfnCategoriaA'		
+		
+		select top 100 *  from dbvcen..MunicipioTransporteAluguel where Municipio = 2301
+esults :
+Municipio                                 Categoria                                 ComplCategoria                            iRegulamentado iPermiteAutTemporaria PrazoValidade PrazoValidadeTemporaria DiaMesValidade QtdMaxCondutor iValidaProprietario CensoFixo    CensoPopulacao CensoPercPopulacao
+544                                       1                                         2                                         N              S                     NULL          60                      3112           2              NULL                NULL         NULL           NULL              
+544                                       1                                         15                                        N              N                     NULL          NULL                    NULL           NULL           N                   NULL         NULL           NULL              
+
+
+select top 10 *  from dbvcen..Municipio
+Cod                                       Descricao                                           DigitoVerificador                         UF  CEP                                       GrupoMunicipio TaxaBombeiro Ciretran TaxaConservacao MunicipioLacre                            DescCorreios                                                  iCodificadoCorreios UltCredenciadoAutorizado iRodizioCasaPlacas CEPFinal                                  Regiao       iConfirmEndereco SetorRecadDespachante iTipoRodizio iLimiteRodizio
+1                                         GUAJARA MIRIM                                       9                                         RO  78980000                                  NULL           S            NULL     N               NULL                                      GUAJARA MIRIM                                                 NULL                NULL                     NULL               NULL                                      NULL         NULL             NULL                  NULL         NULL          
+2                                         ALTO ALEGRE DOS PARECIS                             7                                         RO  99999999                                  NULL           NULL         NULL     NULL            NULL                                      ALTO ALEGRE DOS PARECIS                                       NULL                NULL                     NULL               NULL                                      NULL         NULL             NULL                  NULL         NULL          
+3                                         PORTO VELHO                                         5                                         RO  78900000                                  NULL           S            NULL     N               NULL                                      PORTO VELHO                                                   NULL                NULL                     NULL               NULL                                      NULL         NULL             NULL                  NULL         NULL          
+
+select top 10 *  from dbvcen..CategoriaVeiculo
+Cod                                       Descricao                                           CorLetraPlaca CorFundoPlaca DescricaoTarjeta                                   
+1                                         PARTIC                                              PRETA         CINZA         NULL                                               
+2                                         ALUGUEL                                             BRANCA        VERMELHA      NULL                                               
+3                                         OFICIAL                                             PRETA         BRANCA        NULL                                               
+
+select top 10 *  from dbvcen..ComplementoCategoria
+Results :
+Categoria                                 Cod                                       Descricao                                           DescricaoGRAVAME                                    RestricaoAutVenc iValidaAltCapPassagBIN TipoServicoAutorizacao TipoServicoInspecao
+1                                         2                                         ESCOLAR                                             ESCOLAR                                             48               S                      NULL                   NULL               
+1                                         15                                        CICLOMOTOR                                          NULL                                                NULL             NULL                   NULL                   NULL               
+1                                         16                                        F.NORONHA                                           NULL                                                NULL             NULL                   NULL                   NULL               
+

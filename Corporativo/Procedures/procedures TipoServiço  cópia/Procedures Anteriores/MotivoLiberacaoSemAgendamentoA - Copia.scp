@@ -1,0 +1,69 @@
+use master
+GO
+
+/*  database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  procedure(s)
+*/
+
+print 'STORED procedure : dbo.MotivoLiberacaoSemAgendamentoA'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MotivoLiberacaoSemAgendamentoA') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MotivoLiberacaoSemAgendamentoA
+end
+
+GO
+
+create proc dbo.MotivoLiberacaoSemAgendamentoA 
+/***************************************************************************            
+** Criada por	: Almir
+** Data         : 26/10/2020
+** Objetivo	: Alteracao de registro na tabela de TipoAutorizacao 
+** Observacao	:           
+** Alteracoes   : 
+**********************************************************************/           
+  
+(  
+	@nCod		    int,  
+	@sDescricao	    varchar(50)
+
+)  
+  
+as  
+  
+	begin tran  
+  
+		update	dbvcen..MotivoLiberacaoSemAgendamento
+		set 	Descricao = @sDescricao			 
+		where 	MotivoLiberacaoSemAgendamento = @nCod  
+	  
+		if @@transtate=2 or @@transtate=3  
+		begin  
+			if @@transtate=2 rollback tran  
+			raiserror 55000  
+ 	 		return  
+		end  
+    
+	commit tran  
+  
+return  
+GO
+
+execute sp_procxmode 'dbo.MotivoLiberacaoSemAgendamentoA', 'unchained'
+GO
+
+print 'CREATING PRIVILEGE : '
+GO
+
+grant execute on dbo.MotivoLiberacaoSemAgendamentoA to veiculo
+GO
+
+grant execute on dbo.MotivoLiberacaoSemAgendamentoA to desenvolvimento
+go

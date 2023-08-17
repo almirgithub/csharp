@@ -1,0 +1,17 @@
+-------------------------------------------------
+-- Inserir nosvos campos na tabela TipoPermissao
+-- afs - 09-12-2021
+-------------------------------------------------
+
+
+exec dbvcen..TipoPermissaoI     
+	@TipoPermissao  =  13,
+	@Descricao  =  'PERMITE ALTERAR CONFIGURAÇÃO DA RESTRIÇÃO DA OBSERVAÇÃO',
+	@Situacao = 'A',
+	@Objetivo  = 'Permitir que o usuário autorizado possa alterar as configurações das restrições'
+
+
+go
+
+
+------------------------------------------------

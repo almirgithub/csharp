@@ -1,0 +1,183 @@
+use master
+GO
+
+use dbvcen
+GO
+
+print 'STORED procedure : dbo.VistoriadorI'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.VistoriadorI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.VistoriadorI
+end
+GO
+
+create proc dbo.VistoriadorI
+
+/**********************************************************************           
+** Criada por	: Antonio Lins 
+** Data         : 07/05/2004
+** Objetivo	: Incluir registro na tabela de Vistoriador
+** Observacao	:          
+** Alteracoes   : 25/03/2008 - Antonio Lins - Campos QtdVistoriaDia, QtdVistoriaDiaFora
+** Alteracoes   : 17/05/2011 - Antonio Lins - Campo RealizaVistoriaFora
+** Alteracoes 	: 24/10/2017 - Fernando Veras - Campo Observação e Usuario
+		: 24/11/2017 - não validar preenchimento do usuario para setor ECV.
+		: 20/12/2017 - Fernando Veras - Retirado a validação da sigla do usuário, agora só precisa ou da sigla ou do nome.
+		: 19/02/2017 - João Queiroz - Mostrar mensagem exigindo o nome do vistoriador para qualquer tipo de setor.
+                	: 12/12/2018 - Almir - Foi colocado um novo campo(Cpf) na tabela 
+** Alterações   	: 14/01/2019 - Almir - Foi realizado um teste para verificar a existencia do cpf infomado
+	       	: 19/04/2022 - João Queiroz - Liberar cadastro de vistoriador 81972610406 com cadastro de usuario inativo. 
+		: 20-04-2022 - Almir - foi criado dois novos campos para aumentar a quantidade de caracteres
+		: 11-08-2023 - afs foi colocado uma verificação pra saber se o cpf não está nulo 
+**********************************************************************/          
+ 
+( 
+	@nMatricula		int, 
+	@sNome			varchar(50) = null,
+	@nSetor			int = null, 
+	@sSituacao		char(1) = null,
+	@nQtdVistoriaDia	numeric(3,0) = null,
+	@nQtdVistoriaDiaFora    numeric(3,0) = null,
+	@sRealizaVistoriaFora   char(1) = 'N',
+	@sUsuario 		char(8) = null,
+	@sObservacao 		varchar(250) = null,
+	@sObservacaoComp	varchar(250) = null,
+	@sObservacaoComp03	varchar(250) = null,
+	@sObservacaoComp04	varchar(250) = null,		
+        @sCpf                   varchar(11) = null     
+) 
+ 
+as 
+
+	declare @sSetor  varchar(20), @sTipoSetor varchar(2),
+		@Obs varchar(1000)
+
+	select @sSetor = Cod , @sTipoSetor = ltrim(rtrim(Tipo)) from dbvcen..Setor where CodReduzido=@nSetor/10
+	select @sUsuario = ltrim(rtrim(@sUsuario)), @sNome = ltrim(rtrim(@sNome))
+
+	--Concatenando a observação
+	select 	@Obs = isnull(@sObservacao, '') + isnull(@sObservacaoComp, '') + 
+       		isnull(@sObservacaoComp03,'') + isnull(@sObservacaoComp04,'') --afs 20-04-2022
+
+	/*********************************** VALIDAÇÕES ***********************************/
+	--afs
+	select @sCpf = ltrim(rtrim(@sCpf))
+	select @sUsuario = ltrim(rtrim(@sUsuario))
+
+	if @sUsuario	is null
+	begin
+   		raiserror 55000 'Informe um login'
+   		return -900
+	end
+
+	if exists (select 1 
+	         from dbvcen..Usuario 
+	         where CPF = @sCpf
+	         and (isnull(Situacao, 'N') = 'N' or (Situacao = 'S' and CPF != '81972610406'))
+		)
+	begin
+		if exists (select 1 
+		           from dbvcen..Usuario 
+		           where CPF = @sCpf
+		           and Nome != @sNome
+		           )		          
+		begin
+				           
+	   		raiserror 55000 'Existe um usuário cadastrado com o CPF informado e o nome diferente do nome informado.'
+	   		return -900
+		   	
+		end 
+	
+		if exists (select 1 
+		           from dbvcen..Usuario 
+		           where CPF = @sCpf
+		           and Cod != @sUsuario)
+		begin
+		   raiserror 55000 'Existe um usuário cadastrado com o CPF informado e o login diferente do login informado.'
+		   return -900
+		end
+	end
+
+	if exists (select 1 from dbvcen..Vistoriador v where v.Cpf = @sCpf)
+	begin
+	   raiserror 55000 'Já existe vistoriador cadastrado com o CPF informado'
+	   return -900
+	end -- fim afs
+	else if (@sTipoSetor != 'J' and @sUsuario is null) or (@sNome is null)
+	begin
+		raiserror 55000 'Obrigatório informar o login ou o nome do vistoriador!'
+		return -900
+	end 
+	else if @nSetor is null
+	begin
+		raiserror 55000 'Obrigatório informar o setor do vistoriador!'
+		return -900
+	end
+	else if ltrim(rtrim(@sSituacao)) is null or ltrim(rtrim(@sSituacao)) = ""
+	begin
+		raiserror 55000 'Obrigatório informar a situação do vistoriador!'
+		return -900
+	end	
+
+	else if @nQtdVistoriaDia is null
+	begin
+		raiserror 55000 'Obrigatório informar a quantidade de vistoria por dia!'
+		return -900
+	end
+	else if @nQtdVistoriaDiaFora is null
+	begin
+		raiserror 55000 'Obrigatório informar a quantidade de vistoria fora da sede por dia!'
+		return -900
+	end
+	else
+	begin
+		if @sTipoSetor != 'J'
+		begin
+			if @sUsuario is not null --Se o usuário não for nulo, pesquisa pelo usuário
+			begin
+				if exists (select 1 from dbvcen..Vistoriador v where v.Usuario = @sUsuario)
+				begin
+					raiserror 55000 'Já  existe um vistoriador cadastrado com esse login!'
+					return -900
+				end
+			end
+			else -- Se o usuário for nulo, pesquisa pelo nome.
+			begin
+				if exists (select 1 from dbvcen..Vistoriador v where v.Nome = @sNome)
+				begin
+					raiserror 55000 'Já  existe um vistoriador cadastrado com esse nome!'
+					return -900
+				end
+			end
+		end 
+	end
+/***********************************************************************************/
+
+	begin tran 
+		insert 	dbvcen..Vistoriador(Matricula, Nome, Setor, Situacao, QtdVistoriaDia, QtdVistoriaDiaFora, RealizaVistoriaFora, Usuario, Observacao, Cpf) 
+		values 	(@nMatricula, @sNome, @sSetor, @sSituacao, @nQtdVistoriaDia, @nQtdVistoriaDiaFora, @sRealizaVistoriaFora, @sUsuario, @Obs, @sCpf) 
+		 
+		if @@transtate=2 or @@transtate=3 
+		begin 
+			if @@transtate=2 rollback tran 
+			raiserror 55000 
+		  	return 
+		end 
+	commit tran 
+
+return 
+GO
+
+execute sp_procxmode 'dbo.VistoriadorI', 'unchained'
+GO
+
+print 'CREATING PRIVILEGE : '
+GO
+
+grant execute on dbo.VistoriadorI to veiculo
+GO
+
+grant execute on dbo.VistoriadorI to desenvolvimento
+go  

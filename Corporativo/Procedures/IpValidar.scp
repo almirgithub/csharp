@@ -1,0 +1,84 @@
+use master
+go
+
+use dbvcen
+go
+
+print 'stored procedure : dbo.IpValidar'
+go
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.IpValidar') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.IpValidar
+end
+
+go
+
+create proc dbo.IpValidar
+/* 
+	Funcao	: Valida um IP
+*/
+(
+	@sIp	char(15)	=	null
+)
+as  
+  
+	declare	@tam smallint , 
+		@x smallint , 
+		@y char(1), 
+		@junto smallint,
+		@Retorno smallint
+
+	select	@tam= char_length(ltrim(rtrim(@sIp)))
+	select	@x= 1
+	select  @Retorno = 0
+
+	while 	@x <= @tam
+	begin
+		select	 @y= substring(@sIp, @x, 1)
+		--
+		if 	@y != '.'
+		begin					
+			select 	@junto= 0
+			--
+			if 	ASCII(@y) < 48 or ASCII(@y) > 57
+			begin
+				raiserror 55000 'IP (%1!) inválido!' , @sIp
+				return -900
+			end
+		end
+			else
+		begin
+			if 	@junto = 0
+				select @junto= @junto + 1
+	
+			else if @junto = 1
+			begin
+				select  @Retorno = 1
+				raiserror 55000 'IP (%1!) inválido!' , @sIp
+				return -900
+			end
+		end
+			
+		--	
+		select @x= @x + 1
+	end
+	select  @Retorno
+
+return 0  
+go
+
+execute sp_procxmode 'dbo.IpValidar', 'unchained'
+go
+
+print 'CREATING PRIVILEGE : '
+go
+
+grant execute on dbo.IpValidar to veiculo
+go
+
+grant execute on dbo.IpValidar to desenvolvimento
+go
+
+grant execute on dbo.IpValidar to desenvolvimento
+go

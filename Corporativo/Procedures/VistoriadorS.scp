@@ -1,0 +1,108 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/12.5.0.3/EBF 10975 ESD#1/P/RS6000/AIX 5.1/rel12503/1919/64-bit/FBO/Tue Mar 25 00:12:06 2003) on rs6000
+*/
+
+/*  database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  procedure(s)
+*/
+
+print 'STORED procedure : dbo.VistoriadorS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.VistoriadorS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.VistoriadorS
+end
+
+GO
+
+create proc dbo.VistoriadorS 
+/**********************************************************************           
+** Criada por	: Antonio Lins 
+** Data         : 07/05/2004
+** Objetivo	: Seleciona registros da tabela de Vistoriador
+** Observacao	:          
+** Alteracoes   : 25/03/2008 - Antonio Lins - Campo QtdVistoriaDia, QtdVistoriaDiaFora
+** Alteracoes   : 17/05/2011 - Antonio Lins - Campo RealizaVistoriaFora
+** Alteracoes 	: 24/10/2017 - Fernando Veras - Campo Observação e Usuario
+** Alteracoes 	: 12/12/2018 - Almir - Foi colocado um novo campo (Cpf) para ser apresentado na tela
+** Altera‡Æo	: 24-08-2021 - Almir - O campo observa‡Æo foi dividido em duas partes
+** Alteração	: 20-04-2022 - Almir - foi colocad mais dois novos campos de retorno para o campo de observação
+** alteração	: 10/08/2023 - afs - foi colocado um novo parametro @Cpf para realização da consulta pelo mesmo
+**********************************************************************/          
+ 
+(          
+	@nMatricula 	int 		= 	null,
+	@sUsuario 	char(7) 	= 	null,
+	@Cpf		char(11)	=	null
+)          
+ 
+as
+
+if ltrim(rtrim(@sUsuario)) is not null or ltrim(rtrim(@sUsuario)) = ""
+begin
+	select	v.Matricula, v.Nome, s.CodReduzido*10+s.Digito, s.Descricao, v.Situacao, 
+			v.QtdVistoriaDia, v.QtdVistoriaDiaFora, v.RealizaVistoriaFora, v.Usuario, 
+			left(v.Observacao,250) as observacao1, substring(v.Observacao,251,250) as observacao2, 
+			substring(v.Observacao,501,250) as observacao3, substring(v.Observacao,751,250) as observacao4, --afs 20-04-2022
+			--v.Observacao,
+			isnull(ltrim(rtrim(v.Cpf)), (select u.CPF from dbvcen..Usuario u where u.Cod = v.Usuario)) as Cpf
+	from	dbvcen..Vistoriador v,
+	        dbvcen..Setor s
+	where	v.Usuario = ltrim(rtrim(@sUsuario)) --@sUsuario
+	and     s.Cod = v.Setor
+	order by Nome
+end
+else if ltrim(rtrim(@Cpf)) is not null 
+begin
+	select	v.Matricula, v.Nome, s.CodReduzido*10+s.Digito, s.Descricao, v.Situacao, 
+			v.QtdVistoriaDia, v.QtdVistoriaDiaFora, v.RealizaVistoriaFora, v.Usuario, 
+			left(v.Observacao,250) as observacao1, substring(v.Observacao,251,250) as observacao2,
+			substring(v.Observacao,501,250) as observacao3, substring(v.Observacao,751,250) as observacao4, 
+			--v.Observacao,
+			isnull(ltrim(rtrim(v.Cpf)), (select u.CPF from dbvcen..Usuario u where u.Cod = v.Usuario)) as Cpf
+	from	dbvcen..Vistoriador v,
+	        	dbvcen..Setor s
+	where	(v.Cpf = @Cpf or @Cpf is null) 
+	and     	s.Cod = v.Setor
+	order 	by Nome
+
+end 
+else
+begin
+	select	v.Matricula, v.Nome, s.CodReduzido*10+s.Digito, s.Descricao, v.Situacao, 
+			v.QtdVistoriaDia, v.QtdVistoriaDiaFora, v.RealizaVistoriaFora, v.Usuario, 
+			left(v.Observacao,250) as observacao1, substring(v.Observacao,251,250) as observacao2,
+			substring(v.Observacao,501,250) as observacao3, substring(v.Observacao,751,250) as observacao4, --afs 20-04-2022
+			--v.Observacao,
+			isnull(ltrim(rtrim(v.Cpf)), (select u.CPF from dbvcen..Usuario u where u.Cod = v.Usuario)) as Cpf
+	from	dbvcen..Vistoriador v,
+	        dbvcen..Setor s
+	where	(Matricula = @nMatricula or @nMatricula is null) 
+	and     s.Cod = v.Setor
+	order by Nome
+end
+ 
+return 0 
+GO
+
+execute sp_procxmode 'dbo.VistoriadorS', 'unchained'
+GO
+
+print 'CREATING PRIVILEGE : '
+GO
+
+grant execute on dbo.VistoriadorS to veiculo
+GO
+
+grant execute on dbo.VistoriadorS to desenvolvimento
+go

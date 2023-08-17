@@ -1,0 +1,6 @@
+
+insert 	into dbvcen..OrgaoTransporteAluguel 
+	values (1,'CADASTRUR')
+	
+insert 	into dbvcen..OrgaoTransporteAluguel 	
+	values (2,'ETPI')

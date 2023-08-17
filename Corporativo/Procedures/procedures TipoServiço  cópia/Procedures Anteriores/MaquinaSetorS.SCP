@@ -1,0 +1,56 @@
+use master
+GO
+use dbvcen
+GO
+
+/* Procedure(s) */
+
+PRINT 'STORED PROCEDURE : dbo.ImpMaquinaSetorS'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.ImpMaquinaSetorS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.ImpMaquinaSetorS
+end
+GO
+
+create proc dbo.ImpMaquinaSetorS 
+/****************************************************************************************************************************************
+> Criada por	: Fernando Veras 
+> Data		: 11/04/2016 
+> Objetivo	: Selecionar registros da tabela MaquinaSetor 
+> Observação	: 		  
+****************************************************************************************************************************************/
+
+(
+	@SetorMaquina	int = null
+)
+
+as
+
+declare @sSetorMaquina varchar (25)
+
+--================================= V A L I D A Ç Õ E S ====================================================--
+select @sSetorMaquina = Cod from dbvcen..Setor where CodReduzido = @SetorMaquina/10 
+
+select @sSetorMaquina = ltrim(rtrim(@sSetorMaquina))
+--==========================================================================================================--
+
+select	ms.MaquinaDetran, ms.MaquinaDetran
+from	dbvcen..MaquinaSetor ms, dbvcen..Setor s
+where	ms.SetorAssociado = @sSetorMaquina
+and		ms.SetorAssociado = s.Cod
+
+return 
+GO
+
+execute sp_procxmode 'dbo.ImpMaquinaSetorS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE: DESENVOLVIMENTO E VEICULO'
+GO
+
+Grant Execute on dbo.ImpMaquinaSetorS to desenvolvimento
+GO
+Grant Execute on dbo.ImpMaquinaSetorS to veiculo
+GO

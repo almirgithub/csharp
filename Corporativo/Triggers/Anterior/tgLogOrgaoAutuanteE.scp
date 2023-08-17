@@ -1,0 +1,117 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7.0/EBF 19807 SMP ESD#01 /P/Sun_svr4/OS 5.10/aseasap/2918/64-bit/FBO/Wed Feb  8 11:57:52 2012) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbinfracao
+GO
+
+
+/*
+  Trigger(s)
+*/
+
+PRINT 'TRIGGER : dbo.tgLogOrgaoAutuanteD'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.tgLogOrgaoAutuanteD') and type = 'TR')
+begin
+ drop trigger dbo.tgLogOrgaoAutuanteD
+end
+
+GO
+
+-------------------------------------------
+--Trigger para atualização da tabela de log
+--no momento da exclusão dos dados
+--Data: 02-08-2022
+--Author: Almir
+-------------------------------------------
+create 	trigger dbo.tgLogOrgaoAutuanteD 
+	on dbo.OrgaoAutuante
+	for delete 
+as 
+
+begin tran 	
+ 
+	begin 
+	 
+		insert into LogOrgaoAutuante
+		(
+				Cod			,
+				Descricao		,
+				Operacao		, 
+				UF 			,
+				Situacao 		,
+				PermiteEfeitoSusp	,
+				Municipio 		,
+				ConvMunicipio 		,
+				UsaProtWin 		,
+				CancelaComEfeitoSusp 	,
+				RENAINF 		,
+				DataMunicipalizacao 	,
+				DataFimMunicipalizacao 	,
+				sCNPJ 			,
+				sEndereco 		,
+				sBairro 		,
+				sCidade 		,
+				sCEP 			,
+				Bloqueio 		,
+				NomeCompleto 		,
+				iAutorizaRepasse 	,
+				iIndicadorAdesaoOASNE 	,
+				DataCorteSNE 		,
+				DataAdesaoSNE 		,
+				Usuario			,	
+				DataInclusao		,
+				DataAlteracao
+		) 
+		select  
+				Cod			,
+				Descricao		,
+				'E'			, 
+				UF 			,
+				Situacao 		,
+				PermiteEfeitoSusp	,
+				Municipio 		,
+				ConvMunicipio 		,
+				UsaProtWin 		,
+				CancelaComEfeitoSusp 	,
+				RENAINF 		,
+				DataMunicipalizacao 	,
+				DataFimMunicipalizacao 	,
+				sCNPJ 			,
+				sEndereco 		,
+				sBairro 		,
+				sCidade 		,
+				sCEP 			,
+				Bloqueio 		,
+				NomeCompleto 		,
+				iAutorizaRepasse 	,
+				iIndicadorAdesaoOASNE 	,
+				DataCorteSNE 		,
+				DataAdesaoSNE 		,
+				suser_name()		,	
+				null			,
+				getdate()
+				
+		from deleted  --inserted
+	end
+
+if @@transtate = 2 or @@transtate = 3              
+begin              
+	if @@transtate = 2    
+		rollback tran 		 
+	raiserror 60000 'Erro ao tentar inserir dados na tabela de log' 
+                 
+end  
+ 
+commit tran  
+ 
+ 
+
+

@@ -1,0 +1,10 @@
+------------------------------------------------
+-- Inserir nosvos campos na tabela
+-- afs - 24-07-2020
+------------------------------------------------
+
+alter table dbvcen..CalendarioLimiteCircular
+ add	DataLimiteEmissaoCrlv	datetime null,
+ 	DataLimiteTaxaPostagem	datetime null
+
+------------------------------------------------

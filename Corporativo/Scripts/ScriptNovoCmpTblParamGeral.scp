@@ -1,0 +1,13 @@
+------------------------------------------------
+-- Inserir nosvos campos na tabela
+-- afs - 27/07/2023
+------------------------------------------------
+
+alter table dbvcen..ParametroGeral
+ add	IpDetranOnline		char(20)	null
+
+------------------------------------------------
+alter table dbvcen..HistoricoParametro
+ add	IpDetranOnline		char(20)	null
+
+

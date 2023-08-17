@@ -1,0 +1,115 @@
+
+use master
+go
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/12.5.3/EBF 12333 ESD#1/P/RS6000/AIX 5.1/ase1253/1900/64-bit/FBO/Tue Jan 25 02:55:17 2005) on rs6000
+*/
+
+/*  database 'dbvcen'  */
+use dbvcen
+go
+
+
+/*
+  procedure(s)
+*/
+
+print 'stored procedure : dbo.UsuarioS_cod_nome'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.UsuarioS_cod_nome') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.UsuarioS_cod_nome
+end
+
+go
+create proc dbo.UsuarioS_cod_nome  /* Versao    : 1.0.0.0               */ 
+/* Funcao   : Seleciona os usuarios para <F2>.  */ 
+/* Autor        : Celso-  02.12.96      */ 
+/* Alteração    : Antonio Lins -  06.08.2019 - Retorna só usuário ativos quando @ParReduzido preenchido      */ 
+-- Altera‡Æo: Foi colocado um novo perƒmetro (@UsuarioPerfil)
+
+( 	@Temp 		char(1) = null ,
+      	@Descricao 	char(50)  = null,
+      	@ParReduzido  	int = null,
+      	@UsuarioPerfil 	char(1) = 'N'
+      	
+) 
+ 
+as
+
+	-- afs novo trecho 18-05-2020
+	if @UsuarioPerfil	=	'S'
+	begin
+		select	u.Cod, u.Nome      
+	    	from    dbvcen..Usuario u, dbvcen..Setor s, dbvcen..SetorUsuarioPerfil su  
+	    	where   (upper( Nome) like ltrim(rtrim(@Descricao)) + '%' or @Descricao is null)  
+	    	and     u.Setor = s.Cod  
+	    	and     u.Cod = su.Usuario
+	    	and     su.Setor = (select Setor from dbvcen..Usuario where Cod=suser_name())
+	    	and     u.Situacao = 'N'  
+	    	order 	by Nome  
+
+	end
+	else 
+	begin
+		if      @ParReduzido != null
+		begin
+			select	u.Cod, u.Nome    
+			from	dbvcen..Usuario u, dbvcen..Setor s
+			where	(upper( Nome) like ltrim(rtrim(@Descricao)) + '%' or @Descricao is null)
+			and     u.Setor = s.Cod
+			and     s.CodReduzido = @ParReduzido/10
+			and     u.Situacao = 'N'
+			order by Nome
+		
+		end
+		else
+		if	@Descricao != null
+		
+			select	Cod, Nome    
+			from	dbvcen..Usuario
+			where	(upper( Nome) like ltrim(rtrim(@Descricao)) + '%' or @Descricao is null)
+			order by Nome
+		else 
+		if @Temp = 'S' 
+		begin 
+		    select  u.Cod, ltrim(rtrim(u.Cod))+'-'+u.Nome    
+		    from    dbvcen..Usuario u, dbvcen..Setor s, dbvcen..tmpSetorSelecionado t 
+		    where   s.Cod = u.Setor 
+		    and     t.Cod = s.Cod 
+		    and     t.Digito = s.Digito 
+		    and     t.CodReduzido = s.CodReduzido 
+		    and   t.ID = @@spid 
+		    order by Nome 
+		end 
+		else  
+		begin 
+		    select  Cod, Nome    
+		    from    dbvcen..Usuario 
+		    order by Nome 
+		end 
+	end 
+return 
+ 
+ 
+ 
+ 
+ 
+go
+
+grant execute on dbo.UsuarioS_cod_nome to veiculo
+
+go
+
+grant execute on dbo.UsuarioS_cod_nome to desenvolvimento
+go
+ 
+ 
+ 
+ 
+ 
+  
+/* ### DEFNCOPY: end of DEFINITION */

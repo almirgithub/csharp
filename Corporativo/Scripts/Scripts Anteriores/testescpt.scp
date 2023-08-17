@@ -1,0 +1,92 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+PRINT 'DROPPING FOREIGN KEY CONSTRAINT(s)'
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkTipoServTransBin_TipoServico') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.TipoServicoTransacaoBin DROP CONSTRAINT fkTipoServTransBin_TipoServico
+end
+
+GO
+
+if exists (select * from dbo.sysobjects where id = object_id('dbo.fkTipoServTransBin_Transacao') and type in('F', 'RI') )
+begin
+ALTER TABLE dbo.TipoServicoTransacaoBin DROP CONSTRAINT fkTipoServTransBin_Transacao
+end
+
+GO
+
+
+/*
+  Table(s)
+*/
+
+PRINT 'TABLE : dbo.TipoServicoTransacaoBin'
+GO
+
+
+if exists (select * from dbo.sysobjects where id = Object_id('dbo.TipoServicoTransacaoBin') and type in ('U','S'))
+begin
+  drop table dbo.TipoServicoTransacaoBin
+end
+
+GO
+
+create table dbo.TipoServicoTransacaoBin (
+TipoServico int not null,
+Transacao int not null)
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Select on dbo.TipoServicoTransacaoBin to desenvolvimento
+WITH GRANT OPTION
+
+GO
+
+Grant Select on dbo.TipoServicoTransacaoBin to veiculo
+WITH GRANT OPTION
+
+GO
+
+PRINT 'PRIMARY KEY CONSTRAINT(S)'
+GO
+
+ALTER TABLE dbo.TipoServicoTransacaoBin ADD constraint pkTipoServTransBin_TpServTrans
+primary key clustered (TipoServico,Transacao, ) 
+
+GO
+
+
+PRINT 'FOREIGN KEY CONSTRAINT(S)'
+GO
+
+ALTER TABLE dbo.TipoServicoTransacaoBin ADD constraint fkTipoServTransBin_TipoServico
+foreign key (TipoServico)
+references dbvcen.dbo.TipoServico (Cod)
+
+
+GO
+
+ALTER TABLE dbo.TipoServicoTransacaoBin ADD constraint fkTipoServTransBin_Transacao
+foreign key (Transacao)
+references dbvcen.dbo.Transacao (Cod)
+
+
+GO
+
+
+

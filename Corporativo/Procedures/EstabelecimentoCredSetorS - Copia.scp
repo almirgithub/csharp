@@ -1,0 +1,65 @@
+use master
+GO
+
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.EstabelecimentoCredSetorS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.EstabelecimentoCredSetorS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc EstabelecimentoCredSetorS
+end
+
+GO
+
+create proc dbo.EstabelecimentoCredSetorS
+/******************************************************************************************************             
+** Criada por	: Almir
+** Data         : 14/08/2023  
+** Objetivo	: Verifica os estebelecimento crendenciados ligado a um determinado setor
+** Observacao	:            
+*******************************************************************************************************/           
+ 
+( 
+   	@sSetor		varchar(20)	=	null
+    
+) 
+ 
+as 
+
+	select	@sSetor	=	rtrim(ltrim(@sSetor))
+
+	if @sSetor	is	not	null
+	begin
+		select	rtrim(ltrim(e.sCGCCPF)) || ' - ' || rtrim(ltrim(e.sNome)), e.nEstabelecimento
+		from  	dbfisc01..Estabelecimento e  
+		where  	e.sSetor = @sSetor
+
+	end
+	else
+		select 	null,	null
+
+return  0 
+go
+
+execute sp_procxmode 'dbo.EstabelecimentoCredSetorS', 'unchained'
+go
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.EstabelecimentoCredSetorS to desenvolvimento
+go
+
+Grant Execute on dbo.EstabelecimentoCredSetorS to veiculo
+go    

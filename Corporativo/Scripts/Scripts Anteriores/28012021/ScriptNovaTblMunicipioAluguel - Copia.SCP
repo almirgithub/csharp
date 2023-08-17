@@ -1,0 +1,60 @@
+use master
+go
+
+/*  Database 'Prot'  */
+use dbvcen
+go
+
+/*
+  Table(s)
+*/
+
+PRINT 'TABLE : dbo.MunicipioTranspAluguelOrgao'
+go
+
+
+if exists (select 1 
+            from  sysobjects c 
+            join  sysconstraints s on (s.constrid = c.id and s.tableid = object_id('MunicipioTranspAluguelOrgao'))
+            where name = 'fkMunicTransAlugMunicTranspOrg' and type = 'RI')
+   alter table MunicipioTranspAluguelOrgao
+      drop constraint fkMunicTransAlugMunicTranspOrg
+go
+
+
+if exists (select 1
+            from  sysobjects
+            where id = object_id('MunicipioTranspAluguelOrgao')
+            and   type = 'U')
+   drop table MunicipioTranspAluguelOrgao
+go
+
+/*==============================================================*/
+/* Table: 	MunicipioTranspAluguelOrgao                     */
+/* Descriá∆o: 	tabela para cadastro das configuraá‰es          */
+/*		de validade de autorizaá∆o por munic°pio,       */
+/*		categoria, complemento e ¢rg∆o                  */
+/* Autor:	Almir				  	        */
+/* Criada em:	26-03-2020				        */
+/*==============================================================*/
+
+create table MunicipioTranspAluguelOrgao
+(
+   	Municipio 		numeric(6) 	not null,
+	Categoria 		numeric(4) 	not null,
+	ComplCategoria 		numeric(4) 	not null,
+	OrgaoTransporteAluguel 	int 		not null,
+	PrazoValidade 		int 		null,
+	DiaMesValidade 		int 		null,
+   	constraint pkMunicipioTranspAluguelOrgao	primary key (Municipio, Categoria, ComplCategoria, OrgaoTransporteAluguel),
+   	constraint fkMunicTransAlugMunicTranspOrg 	foreign key (Municipio, Categoria, ComplCategoria) 
+   							references MunicipioTransporteAluguel (Municipio, Categoria, ComplCategoria)
+)
+go
+
+
+Grant select on MunicipioTranspAluguelOrgao to desenvolvimento
+go
+
+Grant select on MunicipioTranspAluguelOrgao to veiculo
+go

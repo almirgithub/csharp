@@ -1,0 +1,146 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.SetorS'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.SetorS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.SetorS
+end
+GO
+
+create proc dbo.SetorS
+/* 
+
+	Criado por  : 	Rudi 
+	
+	Data	    :	25/09/96				
+	
+	Objetivo    :   Seleciona registro na tabela Setor			
+	
+	Alteração   :   05/04/2004 - Antonio Lins 	- Novo Campo      
+			14/07/2004 - Antonio Lins 	- Novo Campo      
+			11/04/2005 - Elissany 		- Incluir campo Observacao
+        		20/04/2006 - Adilson Santos 	- Tratar do servidor Pay&Go
+        		16/01/2007 - Karla Senna Chacon - Acrescentar o campo iLacreSemValidacao
+        		12/03/2007 - Kalina 		- Acrescentar o campo iExigeLoteRecolhimento
+        		18/06/2007 - Antonio Lins	- Acrescentar o campo iSetorAtivo
+        		18/09/2007 - Antonio Lins	- Tirar campo  iLacreSemValidacao
+                        12/08/2008 - Leonildo           - Foi acrescentado o campo ExigeRenavam.
+                        26/08/2009 - Flávio Lago [faml] - Novos campos: Código Tef Visa e Código Tef Rede 
+                        28/01/2010 - Kalina 		- Acrescentar o campo iVistoriaSoRecolhimento
+                        17/11/2010 - Antonio Lins       - SetorCaixa e iCiretranEspecial
+                        10/08/2011 - Leonildo Junior    - Foi acrescentado o campo iSetorGrandeCliente                   
+                       	23/10/2012 - João Queiroz	- Inclui novo campo iPermSubstitAutoriza
+                       	01/07/2014 - Marcelo Silva	- Retorno UsuCadastro e DataInclusao
+			João Queiroz - 04/12/2014 - Incluir novos campos iRealizaVeisatoria e iRealizaAtend
+			Fernando Veras - 07/06/2017 - Incluir campo iImprimeCapaVeicRecolhido para identificar se o setor imprime capa quando arquivar um veiculo recolhido.
+			Fernando Veras - 04/07/2017 - Incluir campo iRegMultaRecibVenciAut para identificar se o setor implanta recibo vencido.
+			Fernando Veras - 17/01/2018 - Incluir campo iExigeFotoVistoriaForaDetran para identificar se o setor permite vistoria fora do detran.
+			Almir Felipe - 11/07/2018  - Foram incluidos dois campos para permitir o agendamento da vistoria ou do atendimento			
+			Almir Felipe - 04/07/2019  - Foi colocado um novo campo iSetorFuncionaConcessionaria para controle dos setores que funcionam em concessionária
+			Almir Felipe - 09/12/2020  - Foram colocados dosi novos campos 	iEmiteDocEletronico e iEmiteCRV
+			Almir Felipe - 09/02/2021  - Foi olocado um novo parâmetro para informar se vai utilizar o adobe ou não
+
+*/
+ 
+( 
+	@Cod	 		varchar(20)	= null, 
+	@CodReduzido		ty_Numero	= null,
+	@PreAtendimento		char(01)	= null --
+) 
+ 
+as 
+ 
+declare	@tammascara	Numeric(02), 
+	@mascara		varchar(20), 
+	@aux		varchar(20) 
+ 
+select	@aux = '00000000000000000000' 
+ 
+select	@mascara = MascCodSetor 
+from	dbvcen..ParametroGeral 
+ 
+select	@tammascara = Char_Length( ltrim(rtrim(@mascara))) 
+ 
+if 	Char_Length( ltrim(rtrim(@Cod))) is null -- 
+	select 	@Cod 	= null -- 
+
+if	@PreAtendimento	=	'S'
+begin
+	select	@CodReduzido 	= convert(int,@CodReduzido/10)
+	select 	ServidorPayGo
+	from 	dbvcen..Setor s 
+	where 	(s.Cod 		=  @Cod 
+	or 	@Cod 		is null) 
+	and	(s.CodReduzido 	=  @CodReduzido 
+	or 	@CodReduzido 	is null) 
+	and 	CodReduzido 	!= 501 
+end 
+else
+begin	 
+	select 	convert(varchar(20), s.Cod + Right(@aux, @tammascara - Char_Length(s.Cod))) as Cod, 
+		s.CodReduzido, s.Digito, s.Descricao, s.DescricaoSintetica, s.EMail, s.Logradouro, 
+		(select Cod*10+DigitoVerificador from dbvcen..Municipio where Cod = s.Municipio),  
+		(select Descricao from dbvcen..Municipio where Cod = s.Municipio), 
+		s.Bairro, (select Descricao from dbvcen..Bairro where Municipio = s.Municipio and Cod = s.Bairro), 
+		s.CEP, s.Telefone, s.FAX, s.Responsavel, Tipo, Informatizado, EmissaoDocumento, 
+		IPRenavam, PortaRenavam, BloqueiaDebito, PortaSng, IPSng, ServicoInternet, 
+		AtendeProcurador, iCapturaFoto, iVistoriaSoVeiculoNovo, iNaoAbreVistoriaNoPre, 
+		iValidacaoVistoria, iUsaNovaImpDoc, Observacao, ServidorPayGo, 
+		isnull(ltrim(rtrim(iExigeLoteRecolhimento)),'N') as iExigeLoteRecolhimento,
+		isnull(ltrim(rtrim(ExigeRenavam)),'N') as ExigeRenavam,
+		isnull(ltrim(rtrim(iSetorAtivo)),'N') as iSetorAtivo,
+		CodTefVisa, -- [faml] 26/08/2009
+		CodTefRede, -- [faml] 26/08/2009
+		iVistoriaSoRecolhimento,
+		(select CodReduzido*10 + Digito from dbvcen..Setor where Cod = s.SetorCaixa) CodSetorCaixa,
+		(select Descricao from dbvcen..Setor where Cod = s.SetorCaixa) as DescSetorCaixa,
+		iCiretranEspecial,
+		s.iSetorGrandeCliente,
+		s.iPermSubstitAutoriza,
+		s.UsuCadastro,
+		s.DataInclusao,
+		s.iRealizaAtend,
+		s.iRealizaVistoria,
+		s.iImprimeCapaVeicRecolhido,
+		isnull(s.iImplantaReciboVencido, 'N') as 'iImplantaReciboVencido',
+		isnull(s.iExigeFotoVistoriaForaDetran, 'N') as 'iExigeFotoVistoriaForaDetran',
+		s.iAgendaVistoria,
+		s.iAgendaAtendimento,
+		isnull(s.iSetorFuncionaConcessionaria, 'N'),
+		isnull(s.iPermiteAgendDespachante, 'N'),
+		isnull(s.iEmiteDocEletronico, 'N'),-- [afs] 09/12/2020
+		isnull(s.iEmiteCRV, 'N'), -- [afs] 09/12/2020
+		isnull(s.iUsaAdobeImpDocEle, 'N') --[afs 09/02/2021]
+
+	             
+	from 	dbvcen..Setor s 
+	where 	(s.Cod 		=  @Cod 
+	or 	@Cod 		is null) 
+	and	(s.CodReduzido 	=  @CodReduzido 
+	or 	@CodReduzido 	is null) 
+	and 	CodReduzido 	!= 501
+end
+ 
+return	0
+GO
+
+execute sp_procxmode 'dbo.SetorS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.SetorS to desenvolvimento
+GO
+
+Grant Execute on dbo.SetorS to veiculo
+GO
+
+Grant Execute on dbo.SetorS to quiosque
+GO

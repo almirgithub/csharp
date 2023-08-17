@@ -1,0 +1,81 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 26390 SMP SP138 /P/Sun_svr4/OS 5.10/ase157sp138x/4002/64-bit/FBO/Mon Aug 29 09:09:29 2016) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Trigger(s)
+*/
+
+PRINT 'TRIGGER : dbo.tgLogCadLTipoProcUserU'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.tgLogCadLTipoProcUserU') and type = 'TR')
+begin
+ drop trigger dbo.tgLogCadLTipoProcUserU
+end
+
+GO
+
+create trigger dbo.tgLogCadLTipoProcUserU on dbo.CadLimiteTipoLibProcUsuario for update
+
+as 
+begin tran
+
+begin 
+ 
+ 
+	insert into LogCadLTipoLibProcUsuario
+		( 
+		TipoLiberacaoProcesso, 
+		Usuario,
+		UsuarioOperacao,
+		Operacao,
+		DataOperacao,
+		QtdLimiteCadastro,
+		DataInclusao,
+		UsuInclusao,
+		DataAlteracao,
+		UsuAlteracao 
+		) 
+	 
+	select	 
+		TipoLiberacaoProcesso, 
+		Usuario,
+		suser_name(),
+		'A', 
+		getdate(), 
+		QtdLimiteCadastro,
+		DataInclusao,
+		UsuInclusao,
+		DataAlteracao,
+		UsuAlteracao 
+	from inserted	 
+	 
+end 
+
+
+if @@transtate = 2 or @@transtate = 3             
+begin             
+	if @@transtate = 2   
+		rollback tran 		
+	raiserror 60000 'Erro ao tentar inserir dados na tabela de log'
+                
+end 
+
+commit tran 
+GO
+
+
+/* ** WARNING ** Only users with SA_ROLE or SSO_ROLE role can get information from audflags column in master.dbo.syslogins */
+/* 'sp_auditlogin' script cannot be generated */
+
+

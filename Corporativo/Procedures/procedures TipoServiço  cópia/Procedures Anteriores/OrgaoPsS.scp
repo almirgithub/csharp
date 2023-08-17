@@ -1,0 +1,60 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.OrgaoPsS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.OrgaoPsS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.OrgaoPsS
+end
+
+GO
+
+create proc dbo.OrgaoPsS
+/**********************************************************************            
+** Criada por	: Almir
+** Data         : 20/08/2020 
+** Objetivo	: Consulta registro na tabela de OrgaoPS
+** Observacao	:           
+** Alteracoes   : 
+**********************************************************************/           
+  
+( 
+	@nCod			smallint	=	null  
+)  
+  
+  
+As  
+  
+	select	Cod,
+		Descricao,
+		iCobraTaxaDetran
+	from	dbvcen..OrgaoPS
+	where	(Cod	=	@nCod or @nCod is null)
+	order	by	Descricao
+  
+return 
+GO
+
+execute sp_procxmode 'dbo.OrgaoPsS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.OrgaoPsS to desenvolvimento
+GO
+
+Grant Execute on dbo.OrgaoPsS to veiculo
+GO

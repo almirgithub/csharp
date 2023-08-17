@@ -1,0 +1,63 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'TRIGGER : dbo.tgProgramacaoUsuarioSetorA'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.tgProgramacaoUsuarioSetorA') and type = 'TR')
+begin
+ drop trigger dbo.tgProgramacaoUsuarioSetorA
+end
+
+GO
+
+create trigger dbo.tgProgramacaoUsuarioSetorA
+
+/*----------------------------------------------------------------------------------------*/  
+/* Criação : 26/03/2019                                                                   */	
+/* Autor   : Almir                                                                        */	
+/* Objetivo: guardar as alterações realizadas na tabela ProgramaçãoUsuarioSetor           */        
+/*----------------------------------------------------------------------------------------*/       
+
+on ProgramacaoUsuarioSetor for UPDATE as   
+begin   
+   
+   	   	-- Grava Log
+		insert into dbvcen..LogProgramacaoUsuarioSetor
+			( 
+			Auditoria,
+			NomeOperador,
+			TipoOperacao,
+			CodPrincipal,
+			CodUsuario,
+			DataCadastro,
+			DiaSemana,
+			Turno,
+			SetorVeiculo,
+			SetorProtocolo,
+			DataAlteracao,
+			CodUsuarioAlt,
+			CodSetor			
+			) 
+		select	getdate(),
+			suser_name(),
+			'A',
+			CodPrincipal,
+			CodUsuario,
+			DataCadastro,
+			DiaSemana,
+			Turno,
+			SetorVeiculo,
+			SetorProtocolo,
+			DataAlteracao,
+			CodUsuarioAlt,
+			CodSetor
+		from deleted
+end
+GO
+
+

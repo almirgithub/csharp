@@ -1,0 +1,50 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.SistemaDescS'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.SistemaDescS') and (type = 'P' or type = 'RF'))
+begin
+ 	drop proc dbo.SistemaDescS
+end
+GO
+
+create proc dbo.SistemaDescS
+
+/*
+******************************************************************   
+ Funcao     : Fazer SELECT de linhas na tabela MPS..Sistema        
+ Autor	    : afs - 18/02/2021  
+*******************************************************************
+*/   
+   
+(  
+	@CodSistema	smallint	=	null
+)
+  
+as   
+	begin 
+
+		select 	Nome   
+		from	MPS..Sistema   
+		where	Cod	=	@CodSistema  
+	end  
+
+return   
+go
+
+execute sp_procxmode 'dbo.SistemaDescS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.SistemaDescS to desenvolvimento
+GO
+
+Grant Execute on dbo.SistemaDescS to veiculo
+GO

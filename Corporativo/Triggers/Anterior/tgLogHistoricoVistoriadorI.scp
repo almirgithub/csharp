@@ -1,0 +1,72 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7.0/EBF 19807 SMP ESD#01 /P/Sun_svr4/OS 5.10/aseasap/2918/64-bit/FBO/Wed Feb  8 11:57:52 2012) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Trigger(s)
+*/
+
+PRINT 'TRIGGER : dbo.tgLogAtributoVeiculoI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.tgLogAtributoVeiculoI') and type = 'TR')
+begin
+ drop trigger dbo.tgLogAtributoVeiculoI
+end
+
+GO
+
+create trigger dbo.tgLogAtributoVeiculoI on dbo.AtributoVeiculo for insert as
+--
+--declare	@AtributoVeiculoI  ty_Numero,
+--		@DescricaoI  ty_Descricao,
+--		@DesSqlWindowsI  ty_Descricao,
+--		@DesSybaseI      ty_Descricao	 
+	
+begin
+
+--	select	
+--		@AtributoVeiculoI = Cod,
+--		@DescricaoI = Descricao,
+--		@DesSqlWindowsI = DesSqlWindows,
+--		@DesSybaseI = DesSybase
+--		      
+--	from inserted	
+--		
+	insert into LogAtributoVeiculo
+		(
+		Usuario,
+		Data,
+		Operacao,
+		AtributoVeiculo,
+		Descricao,
+		DesSqlWindows,
+		DesSybase
+		)
+	select
+		suser_name(),
+		getdate(),
+		'I',
+		Cod,
+		Descricao,
+		DesSqlWindows,
+		DesSybase
+	from inserted	
+end
+
+GO
+
+
+/* ** WARNING ** Only users with SA_ROLE or SSO_ROLE role can get information from audflags column in master.dbo.syslogins */
+/* 'sp_auditlogin' script cannot be generated */
+
+

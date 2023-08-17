@@ -1,0 +1,125 @@
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+PRINT  'STORED PROCEDURE : dbo.ComplementoCategoriaMunicipioI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.ComplementoCategoriaMunicipioI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.ComplementoCategoriaMunicipioI
+end
+GO
+
+
+/* 
+	Autor : Almir - 30/10/2018 -> Procedure para chamar as insersões
+*/
+
+create proc dbo.ComplementoCategoriaMunicipioI
+(
+	@sUsuarioOrigem		char(08)	=	null,
+	@sUsuarioDestino		char(08)	=	null,
+	@sTipoDePermissao	char(02)	=	null,	-- 'CC' complemento de categoria,  'AM' Autorização por município
+	@sValidaTela			char(01)	=	'N'
+)
+as 
+
+Begin
+
+
+	declare  	@Retorno		int,
+			@Situacao		char(01) 
+
+         select @sUsuarioOrigem	=  	rtrim(ltrim(@sUsuarioOrigem))
+         select @sUsuarioDestino	=  	rtrim(ltrim(@sUsuarioDestino))
+         select @sTipoDePermissao	=  	rtrim(ltrim(@sTipoDePermissao))
+
+	if	@sValidaTela	=	'S'
+	begin
+		if	@sUsuarioOrigem	is 	null
+		begin
+			Raiserror 55000 'Impossível realizar a cópia sem o usuário origem!'
+			Return -900
+		end
+
+		if	@sUsuarioDestino	is	null
+		begin
+			Raiserror 55000 'O usuário destino deverá ser informado!'
+			Return -900
+		end
+
+		if	@sTipoDePermissao	is 	null
+		begin
+			Raiserror 55000 'O usuário destino deverá ser informado!'
+			Return -900
+		end
+
+
+		if	@sUsuarioOrigem = @sUsuarioDestino
+		begin
+			Raiserror 55000 'Impossível realizar a cópia para o mesmo usuário!'
+			Return -900
+		end
+
+
+		select @Situacao = (select Situacao from dbvcen..Usuario where Cod = @sUsuarioOrigem)
+		if	@Situacao	=	'S'
+		begin
+			Raiserror 55000 'O usuário %1! está inativo, não sendo possível realizar a cópia', @sUsuarioOrigem
+     			Return  -900
+		end		
+
+		select @Situacao = (select Situacao from dbvcen..Usuario where Cod = @sUsuarioDestino)
+		if	@Situacao	=	'S'
+		begin
+			Raiserror 55000 'O usuário %1! está inativo, não sendo possível realizar a cópia', @sUsuarioDestino
+     			Return -900   
+		end		
+	end
+	else
+	begin
+		--Executando as procedures
+
+		if	@sTipoDePermissao	=	'CC'  --Complemento por Categoria
+		begin
+			exec @Retorno	=	dbvcen..ComplementoCategoriaUsuarioI
+								@sUsuarioOrigem	=	@sUsuarioOrigem,
+								@sUsuarioDestino	=	@sUsuarioDestino
+
+			if @Retorno <  0  
+			begin
+				raiserror 55000     
+				return -200 
+			end
+		end
+
+		if	@sTipoDePermissao	=	'AM'   --Autorização de Categoria por Município
+		begin
+			exec @Retorno	=	dbvcen..AutorizacaoCategoriaMunicipioI
+								@sUsuarioOrigem	=	@sUsuarioOrigem,
+								@sUsuarioDestino	=	@sUsuarioDestino
+
+			if @Retorno <  0  
+			begin
+				raiserror 55000     
+				return -200 
+			end
+		end
+	end
+
+end 
+
+
+return 0 
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbvcen..ComplementoCategoriaMunicipioI to desenvolvimento
+GO
+
+Grant Execute on dbvcen..ComplementoCategoriaMunicipioI to veiculo
+GO

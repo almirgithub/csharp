@@ -1,0 +1,95 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.MostraExercicioS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MostraExercicioS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MostraExercicioS
+end
+
+GO
+
+create proc dbo.MostraExercicioS
+/*     
+   Nome              : MostraExercicioS 
+   Data de criacao   : 28-07-2020
+   Autor             : Almir
+   Descricao         : Retorna o último exercício cadastrado
+   Alteracao         :    
+*/    
+
+(	    
+
+	@Exercicio 		numeric(4,0)	=	null,
+	@TipoConsulta		char(1)		=	'U',	-- U -> último exercício, N -> novo exercício
+	@DataLmtCircular 	datetime 	=	null
+)    
+    
+as  
+
+	declare	@dDataCircular		datetime,
+		@DataLimiteEmissaoCrlv 	datetime,
+		@DataLimiteTaxaPostagem datetime,
+		@DataAuxiliar		char(10),
+		@NovaData		datetime,
+		@PlacaFinal		int
+		
+  
+	if 	@TipoConsulta	=	'U'
+	begin  
+
+		set	rowcount	1
+
+		select 	max(Exercicio), 
+			max(FinalPlaca)--, 
+			--DataLimiteCircular
+		from	dbvcen..CalendarioLimiteCircular
+		--group 	by DataLimiteCircular
+
+		set	rowcount	0
+
+
+	end  
+	else if	@TipoConsulta	=	'N' 
+	begin  
+	
+		select @DataAuxiliar	=	convert(char(10),@DataLmtCircular,103)
+		select @NovaData	=	convert(datetime,substring(@DataAuxiliar,1,6)	||	convert(char(4),@Exercicio))
+
+		--select 	convert(char(10),getdate(),103), --28/01/2020
+		
+		select	@DataLimiteEmissaoCrlv 	= dateadd(dd,1,dateadd(mm,-1,@NovaData))
+		select	@DataLimiteTaxaPostagem = convert(datetime,convert(char(4),datepart(yy,dateadd(mm,-1,@NovaData)))
+				|| substring(convert(char(3), 100+datepart(mm,dateadd(mm,-1,@NovaData))),2,2) || '25')
+  		
+		Select 	@Exercicio, 
+			@NovaData, 
+			@DataLimiteEmissaoCrlv, 
+			@DataLimiteTaxaPostagem
+	end	
+	
+return 0    
+GO
+
+execute sp_procxmode 'MostraExercicioS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on MostraExercicioS to desenvolvimento
+GO
+
+Grant Execute on MostraExercicioS to veiculo
+GO	

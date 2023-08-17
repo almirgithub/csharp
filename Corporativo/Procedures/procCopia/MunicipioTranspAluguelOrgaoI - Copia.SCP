@@ -1,0 +1,203 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : MunicipioTranspAluguelOrgaoI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('MunicipioTranspAluguelOrgaoI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc MunicipioTranspAluguelOrgaoI
+end
+
+GO
+
+create proc MunicipioTranspAluguelOrgaoI 
+/*************************************************************************************              
+** Criada por	: Almir
+** Data         : 25-03-2020
+** Objetivo	: Insers„o dos registros da tabela de ‡rg∆o de Transportes de Aluguel  
+**************************************************************************************/             
+(             
+	@nCodMunicipio		int,
+	@nCodCategoria		int,
+	@nCodComplemento	int,
+	@nCodOrgaoAluguel	int,
+	@nCodPrazoValidade	int = null,
+	@nCodPrazoDiaMes	char(04) = null  --int = null
+   
+)             
+    
+as   
+
+	declare	@nDiaMes	int,
+		@Dia		char(02),
+		@Mes		char(02),
+		@DiaInt		int,
+		@MesInt		int,
+		@PrazoDiaMes	int,
+     		@AnoBissexto	int
+     
+     	select	@nCodPrazoDiaMes	=	ltrim(rtrim(@nCodPrazoDiaMes))
+     
+     	if @nCodPrazoValidade is null or  @nCodPrazoDiaMes is null
+       	begin
+       		raiserror 55000 'O prazo de Validade ou o Dia/Màs Validade, deveram est† preenchido' 
+       		return
+       	end
+  
+  
+  	if @nCodPrazoValidade = 0 and  @nCodPrazoDiaMes is null
+       	begin
+       		raiserror 55000 'O prazo de Validade n∆o poder† ser zero' 
+       		return
+       	end
+      	
+       	if 	char_length(ltrim(rtrim(@nCodPrazoDiaMes)))	<	4
+       	begin
+       		raiserror 55000 'O Dia/Màs de Validade est† inv†lildo' 
+       		return
+       	end
+
+	select	@Dia	=	left(@nCodPrazoDiaMes,2)
+	select	@Mes	=	right(@nCodPrazoDiaMes,2)
+
+	select	@DiaInt	=	convert(int,@Dia)
+	select	@MesInt	=	convert(int,@Mes)
+   	
+       	if 	@DiaInt	=	0	or	@DiaInt	>	31
+       	begin
+       		raiserror 55000 'O Dia de Validade est† inv†lildo' 
+       		return
+       	end 
+  
+       	if 	@MesInt	=	0	or	@MesInt	>	12
+       	begin
+       		raiserror 55000 'O Màs de Validade est† inv†lildo' 
+       		return
+       	end 
+    
+        --Verificando se o ano Ç bissexto	    
+	select @AnoBissexto = convert(int, convert(char(04),datepart(yy,getdate())))
+        	select @AnoBissexto = (@AnoBissexto % 4)	    	    	    
+
+        --Pegando o màs se o mesmo for fevereiro
+        --select @MesInt = convert(int, convert(char(02),datepart(mm,@dDataInic)))
+	    
+	if @MesInt = 2
+	begin
+	    	if @AnoBissexto = 0
+		begin
+	          	if @DiaInt > 29
+	          	begin
+	          		raiserror 55000 'Dia inv†lido para o màs informado' 
+       				return
+	          	end
+		end
+		else
+		begin
+			if @DiaInt > 28
+	          	begin
+	          		raiserror 55000 'Dia inv†lido para o màs informado' 
+       				return
+	          	end
+		end
+	end
+
+	if @MesInt = 4 or @MesInt = 6 or @MesInt = 9 or @MesInt = 11
+	begin
+		if @DiaInt > 30
+	        begin
+	          		raiserror 55000 'Dia inv†lido para o màs informado' 
+       				return
+	        end
+ 	end 
+	else if @MesInt = 1 or @MesInt = 3 or @MesInt = 5 or @MesInt = 7 or @MesInt = 8 or @MesInt = 9 or @MesInt = 12
+	begin
+	    	if @DiaInt > 31
+	        begin
+	          		raiserror 55000 'Dia inv†lido para o màs informado' 
+       				return
+	        end
+	end
+	
+	select	@PrazoDiaMes	=	convert(int, @nCodPrazoDiaMes)
+
+	if exists(select 1	from 	dbvcen..MunicipioTranspAluguelOrgao mt
+			where	mt.Municipio	=	@nCodMunicipio
+			and	mt.Categoria	=	@nCodCategoria
+			and	mt.ComplCategoria = 	@nCodComplemento
+			and 	mt.OrgaoTransporteAluguel = @nCodOrgaoAluguel)  
+    	begin
+    	  	
+    	  	begin tran    
+	   
+			update 	dbvcen..MunicipioTranspAluguelOrgao
+			--set 	Municipio	=	@nCodMunicipio,
+			--	Categoria	=	@nCodCategoria, 
+			--	ComplCategoria	=	@nCodComplemento, 
+			set	PrazoValidade	=	@nCodPrazoValidade, 
+				DiaMesValidade	=	@PrazoDiaMes    --@nCodPrazoDiaMes
+			where	Municipio 	=	@nCodMunicipio
+			and	Categoria	=	@nCodCategoria
+			and	ComplCategoria	=	@nCodComplemento
+			and 	OrgaoTransporteAluguel =    @nCodOrgaoAluguel 
+				    
+			if @@transtate=2 OR @@transtate=3    
+			begin    
+				if @@transtate=2 
+					rollback tran    
+				raiserror 55000   'N∆o foi poss°vel realizar a atualizaá∆o dos dados' 
+			  	return    
+			end 
+	
+		    
+		commit tran
+		    
+		return
+   	end
+              		
+ --  	select	@PrazoDiaMes	=	convert(int, @nCodPrazoDiaMes)  	
+   	
+   	begin tran    
+   
+		insert 	dbvcen..MunicipioTranspAluguelOrgao(Municipio, Categoria, ComplCategoria, OrgaoTransporteAluguel, PrazoValidade, DiaMesValidade)
+		values	(@nCodMunicipio, @nCodCategoria, @nCodComplemento, @nCodOrgaoAluguel, @nCodPrazoValidade, @PrazoDiaMes)   
+			    
+		if @@transtate=2 OR @@transtate=3    
+		begin    
+			if @@transtate=2 
+				rollback tran    
+			raiserror 55000  'Tentativa de gravar dados j† existente' 
+		  	return    
+		end 
+
+	    
+	commit tran    
+   
+return 0    
+GO
+
+execute sp_procxmode 'MunicipioTranspAluguelOrgaoI', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on MunicipioTranspAluguelOrgaoI to desenvolvimento
+GO
+
+Grant Execute on MunicipioTranspAluguelOrgaoI to veiculo
+GO
+  
+   
+

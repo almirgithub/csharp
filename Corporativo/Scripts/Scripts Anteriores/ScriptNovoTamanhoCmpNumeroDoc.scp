@@ -1,0 +1,12 @@
+--==============================================================
+-- tabela: dbo.DocVeiculo
+-- Campo : NumeroDoc
+--==============================================================
+use dbvcen
+go
+
+
+alter	table	DocVeiculo
+	modify	NumeroDoc	numeric(15,0)
+
+go  

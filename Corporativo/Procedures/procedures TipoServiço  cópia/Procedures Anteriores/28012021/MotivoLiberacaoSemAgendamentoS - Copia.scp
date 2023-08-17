@@ -1,0 +1,56 @@
+use master
+GO
+
+/*  database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  procedure(s)
+*/
+
+print 'STORED procedure : dbo.MotivoLiberacaoSemAgendamentoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MotivoLiberacaoSemAgendamentoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MotivoLiberacaoSemAgendamentoS
+end
+
+GO
+
+create proc dbo.MotivoLiberacaoSemAgendamentoS 
+/**************************************************************************************            
+** Criada por	: Almir
+** Data         : 26/10/2020
+** Objetivo	: Seleciona registros da tabela de TipoMotivoLiberacaoSemAgendamentoS
+** Observacao	:           
+** Alteracoes   : 
+***************************************************************************************/           
+(           
+	@nCod int = null           
+)           
+  
+as  
+  
+	select	MotivoLiberacaoSemAgendamento, Descricao
+	from	dbvcen..MotivoLiberacaoSemAgendamento
+	where	(MotivoLiberacaoSemAgendamento = @nCod or @nCod is null)  
+	order 	by Descricao  
+  
+return 0  
+go
+
+execute sp_procxmode 'dbo.MotivoLiberacaoSemAgendamentoS', 'unchained'
+go
+
+print 'CREATING PRIVILEGE : '
+GO
+
+grant execute on dbo.MotivoLiberacaoSemAgendamentoS to veiculo
+go
+
+grant execute on dbo.MotivoLiberacaoSemAgendamentoS to desenvolvimento
+go

@@ -1,0 +1,174 @@
+use master
+GO
+
+use dbvcen
+GO
+
+print 'STORED procedure : dbo.VistoriadorA'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.VistoriadorA') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.VistoriadorA
+end
+GO
+
+create proc dbo.VistoriadorA
+ 
+/**********************************************************************           
+** Criada por	: Antonio Lins 
+** Data         : 07/05/2004
+** Objetivo	: Altera registro na tabela de Vistoriador
+** Observacao	:          
+** Alteracoes   : 25/03/2008 - Antonio Lins - Campo QtdVistoriaDia, QtdVistoriaDiaFora
+** 		: 17/05/2011 - Antonio Lins - Campo RealizaVistoriaFora
+** 		: 24/10/2017 - Fernando Veras - Campo Observação e Usuario
+**		: 22/11/2017 - João Queiroz - Alterando para Usuario char(8) 
+		: 24/11/2017 - João Queiroz - não validar preenchimento do usuario para setor ECV.
+		: 20/12/2017 - Fernando Veras - Retirado a validação da sigla do usuário, agora só precisa ou da sigla ou do nome.
+		: 20/12/2017 - Antonio Lins - Retirado a validação do nome.
+		: 19/02/2018 - João Queiroz - Mostrar mensagem exigindo o nome do vistoriador para qualquer tipo de setor.
+		: 02/03/2018 - João Queiroz - nao Validar login quando a situacao for inativa.
+		: 08/03/2018 - João Queiroz - permitir alterar quando existir um outro vistoriador com o mesmo login de situacao inativa.
+      		: 12/12/2018 - Almir -  Foi colocado um novo campo Cpf
+  		: 14/01/2019 - Almir - Foi realizado um teste para verificar a existencia do cpf infomado      		
+  		: 24/01/2019 - Fernando Veras - Realizado correção na validação do CPF - vê também pela matricula para verificar se há o mesmo CPF cadastrado;
+  		: 13/02/2019 - Permitir inativar o vitoriador quando existir outro vistoriador com CPF igual. Redmine 24580
+  		: 13/02/2019 - Permitir inativar o vitoriador quando existir outro vistoriador com o nome e login diferente. Redmine 24580
+  		: 21/02/2019 - Verificando situacao do ususario na validacao de cpf, nome e login redmine 24845
+  		: 23/01/2020 - Anbtonio Lins - Permite alterar vistoriador mesmo como outro cadastro inativo
+	 	: 24-08-2021 - afs - foi criado um novo parâmetro para receber uma parte da observação
+**********************************************************************/          
+ 
+( 
+	@nMatricula		int, 
+	@sNome			varchar(50) = null,
+	@nSetor			int = null, 
+	@sSituacao		char(1) = null,
+	@nQtdVistoriaDia	numeric(3,0) = null,
+	@nQtdVistoriaDiaFora    numeric(3,0) = null,
+	@sRealizaVistoriaFora   char(1) = 'N',
+	@sUsuario 		char(8) = null,
+	@sObservacao 		varchar(250) = null,
+	@sObservacaoComp	varchar(250) = null, -- Novo parâmetro
+      	@sCpf 			varchar(11) = null
+) 
+ 
+as 
+declare @sSetor  varchar(20), @sTipoSetor varchar(2), 
+	@Obs varchar(500)
+
+select @sSetor = Cod , @sTipoSetor = ltrim(rtrim(Tipo)) from dbvcen..Setor where CodReduzido=@nSetor/10 
+select @sUsuario = ltrim(rtrim(@sUsuario)), @sNome = ltrim(rtrim(@sNome))
+
+--concatenando a observação
+select @Obs = isnull(@sObservacao, '') + isnull(@sObservacaoComp, '')
+
+/*********************************** VALIDAÇiES ***********************************/
+
+
+if ltrim(rtrim(@sSituacao)) is null or ltrim(rtrim(@sSituacao)) = ""
+begin
+	raiserror 55000 '+ obrigatório informar a situação do vistoriador!'
+	return -900
+end
+else if @nSetor is null
+begin
+	raiserror 55000 '+ obrigatório informar o setor do vistoriador!'
+	return -900
+end
+else if (@sTipoSetor != 'J' and @sUsuario is null) or (@sNome is null)
+begin
+	raiserror 55000 '+ obrigatório informar o login ou o nome do vistoriador!'
+	return -900
+end 
+else if @nQtdVistoriaDia is null
+begin
+	raiserror 55000 '+ obrigatóio informar a quantidade de vistoria por dia!'
+	return -900
+end
+else if @nQtdVistoriaDiaFora is null
+begin
+	raiserror 55000 '+ obrigatorio informar a quantidade de vistoria fora da sede por dia!'
+	return -900
+end
+else
+begin
+	if @sTipoSetor != 'J' and @sSituacao != 'I'
+	begin
+		if @sUsuario is not null --Se o usuário não for nulo, pesquisa pelo usuário
+		begin
+			if exists (select 1 from dbvcen..Vistoriador v where v.Usuario = @sUsuario and v.Matricula != @nMatricula and v.Situacao != 'I')
+			begin
+				raiserror 55000 'Já existe um vistoriador cadastrado com esse login!'
+				return -900
+			end
+		end
+--		else -- Se o usuário for nulo, pesquisa pelo nome.
+--		begin
+--			if exists (select 1 from dbvcen..Vistoriador v where v.Nome = @sNome and v.Matricula != @nMatricula)
+--			begin
+--				raiserror 55000 'Já existe um vistoriador cadastrado com esse nome!'
+--				return -900
+--			end
+--		end
+	end 
+end
+
+----------
+if @sSituacao != 'I'
+begin
+	if exists (select 1 from dbvcen..Usuario where CPF = @sCpf and Nome != @sNome and Situacao != 'S' )
+	begin
+	   raiserror 55000 'Existe um usuário cadastrado com o CPF informado e o nome diferente do nome informado'
+	   return -900
+	end 
+	
+	if exists (select 1 from dbvcen..Usuario where CPF = @sCpf and Cod != @sUsuario and Situacao != 'S')
+	begin
+	   raiserror 55000 'Existe um usuário cadastrado com o CPF informado e o login diferente do login informado'
+	   return -900
+	end  
+	if exists (select 1 from dbvcen..Vistoriador v where v.Cpf = @sCpf and v.Matricula != @nMatricula and Situacao != 'I')
+	begin
+	   raiserror 55000 'Já existe vistoriador cadastrado com o CPF informado'
+	   return -900
+	end
+end
+/***********************************************************************************/
+
+begin tran 
+	update dbvcen..Vistoriador
+	set    Nome     = @sNome,
+	       Setor    = @sSetor,
+	       Situacao = @sSituacao,
+	       QtdVistoriaDia = @nQtdVistoriaDia,
+	       QtdVistoriaDiaFora = @nQtdVistoriaDiaFora,
+	       RealizaVistoriaFora = @sRealizaVistoriaFora,
+	       Usuario = @sUsuario,
+	       Observacao = @Obs , --@sObservacao,
+               Cpf = @sCpf
+	where Matricula = @nMatricula
+	 
+	if @@transtate=2 or @@transtate=3 
+	begin 
+		if @@transtate=2 rollback tran 
+		raiserror 55000 
+	  	return 
+	end 
+commit tran 
+
+return 
+GO
+
+execute sp_procxmode 'dbo.VistoriadorA', 'unchained'
+GO
+
+print 'CREATING PRIVILEGE : '
+GO
+
+grant execute on dbo.VistoriadorA to veiculo
+GO
+
+grant execute on dbo.VistoriadorA to desenvolvimento
+go  

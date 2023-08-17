@@ -1,0 +1,71 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'TRIGGER : dbo.tgProgramacaoUsuarioSetorE'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.tgProgramacaoUsuarioSetorE') and type = 'TR')
+begin
+ drop trigger dbo.tgProgramacaoUsuarioSetorE
+end
+
+GO
+
+create trigger dbo.tgProgramacaoUsuarioSetorE             
+
+/*----------------------------------------------------------------------------------------*/  
+/* Criação : 26/03/2019                                                                   */	
+/* Autor   : Almir                                                                        */	
+/* Objetivo: guardar as exclusões realizadas na tabela ProgramaçãoUsuarioSetor            */        
+/*----------------------------------------------------------------------------------------*/       
+
+ 
+on ProgramacaoUsuarioSetor for DELETE as   
+begin   
+   
+	-- Numero de registros alterados
+	declare	@num_rows int   
+	select	@num_rows = @@rowcount   
+	if @num_rows = 0   
+		return   
+	
+  	-- Grava Log
+	insert into LogProgramacaoUsuarioSetor
+		( 
+		Auditoria,
+		NomeOperador,
+		TipoOperacao,
+		CodPrincipal,
+		CodUsuario,
+		DataCadastro,
+		DiaSemana,
+		Turno,
+		SetorVeiculo,
+		SetorProtocolo,
+		DataAlteracao,
+		CodUsuarioAlt,
+		CodSetor			
+		) 
+	select	getdate(),
+		suser_name(),
+		'E',
+		CodPrincipal,
+		CodUsuario,
+		DataCadastro,
+		DiaSemana,
+		Turno,
+		SetorVeiculo,
+		SetorProtocolo,
+		DataAlteracao,
+		CodUsuarioAlt,
+		CodSetor			
+	from deleted	 	
+
+end --   
+GO
+
+

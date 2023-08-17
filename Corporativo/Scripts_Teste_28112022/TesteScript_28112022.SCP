@@ -1,0 +1,72 @@
+---------------------------------------------
+-
+--TesteScript_28112022.scp
+-
+---------------------------------------------
+
+select top 100 * from dbvcen..EstabelecimentoCredenciado where iAtivo = 'N'
+
+select top 10 * from dbvcen..EstabelecimentoDespachante
+
+select  * from dbfisc01..Estabelecimento
+nEstabelecimento nTipoEstabelecimento siTipoPessoa sCGCCPF         sNome                                               sLogradouro                                                   sComplemento                                                       nCEP                                      nBairro                                   nMunicipio                                sFax          sTelefone     siSituacao dDataCadastro                dDataAtualiz                 sUsuario  sInscEstadual   sInscMunicipal  sSetor                sTelefone2    sEmail                                              Observacao                                                                                                                                                                                                                                                       siPresencial sLinkSite                                                                                             DataInclusaoIp               Renave RenaveZero siRecebeMensagem siEnviaMensagem
+1                4                    J            00550456000125  ABDIAS AUTO PE€AS LTDA                              AV. ABDIAS DE CARVALHO N§ 2860 -                               CASA                                                              NULL                                      931                                       2531                                                                  I          Dec  3 2007  4:51PM          Dec  3 2007  4:51PM          ahl       18100102368787                  NULL                  NULL          NULL                                                NULL                                                                                                                                                                                                                                                             NULL         NULL                                                                                                  NULL                         NULL   NULL       NULL             NULL           
+2                2                    J            03568242000174  ALBERISCAR VEÖCULOS LTDA                            AVENIDA MARECHAL MASCARENHAS DE MORAES,   N§ 4025              LOJAS 13 E 14                                                     NULL                                      566                                       2531                                                                  A          Dec 20 2005  9:07AM          Aug 14 2018 11:32AM          mgch      18100102664530                  NULL                  NULL                                                                                                                                                                                                                                                                                                                               NULL         NULL                                                                                                  NULL                         NULL   NULL       S                S              
+
+
+select  * from dbfisc01..TipoEstabelecimento
+nTipoEstabelecimento sDescricao                                          nTipoServicoCadastro nTipoServicoLivro siEnviaMensagem siRecebeMensagem
+1                    CONCESSIONµRIA                                      138                  118               S               NULL            
+2                    AGÒNCIA                                             138                  118               S               S               
+
+
+select  * from dbfisc01..LogEstabelecimento
+dDataOperacao                sUsuarioOperacao sTipoOperacao nEstabelecimento nTipoEstabelecimento siTipoPessoa sCGCCPF         sNome                                               sLogradouro                                                   sComplemento                                                       nCEP                                      nBairro                                   nMunicipio                                sFax          sTelefone     siSituacao dDataCadastro                dDataAtualiz                 sUsuario  sInscEstadual   sInscMunicipal  sSetor                sTelefone2    sEmail                                              sObservacao                                                                                                                                                                                                                                                      siPresencial sLinkSite                                                                                            
+Jun  9 2016 11:24AM          pff              A             1273             6                    J            00866677001260  VALDECIR JOSE FRIGO - ME                            PRA€A COMENDADOR JOSE DIDIER, 127                              LOJA 02                                                           55200000                                  5754                                      2517                                                    (87)914571    A          Apr 30 2012  1:14PM          Jun  9 2016 11:24AM          pff       0448947-08      9446921         NULL                  NULL           jerry.cadu@hotmail.com                                                                                                                                                                                                                                                                                              NULL         NULL                                                                                                 
+Jun 15 2016  2:57PM          pff              A             1437             6                    J            21557177000163  TABOCAS PLACAS LTDA - ME                            AV. HENRIQUE DE HOLANDA, 1149                                                                                                    55602000                                  8915                                      2627                                                    31451502      A          Jan 20 2016  1:01PM          Jun 15 2016  2:57PM          pff       0604687-85      9039096         NULL                  NULL           tabocasplacas@gmail.com                                                                                                                                                                                                                                                                                             NULL         NULL                                                                                                 
+Jun 21 2016 11:57AM          lmsj             A             1091             6                    J            11116333000105  DA MATA PLACAS - DA MATA PLACAS COM.  E SERV. LTDA  AV DOUTOR FRANCISCO CORREIA, 1048                                                                                                54735000                                  2682                                      2573                                                    35251483      I          Oct 27 2009  8:31AM          Jun 21 2016 11:57AM          lmsj      0384908-20      009419-0        NULL                  NULL                                                              Credenciada bloqueada por determina‡Æo da Diretoria de Opera‡äes, conforme consta em processo protocolado sob o n£mero 2016.109756.                                                                                                                              NULL         NULL                                                                                                 
+J
+
+select  * from dbvcen..Bairro where Cod in(566,9057)--2531
+9057                                      2605
+Municipio                                 Cod                                       Descricao                                           DescCorreios                                                  DataInclusao                 UsuInclusao Observacao                                                                                                                                                                                                                                                     
+2531                                      566                                       IMBIRIBEIRA                                         IMBIRIBEIRA                                                   NULL                         NULL        NULL                                                                                                                                                                                                                                                           
+
+
+select top 10 * from dbvcen..Municipio
+
+siTipoPessoa sCGCCPF         sNome                      sLogradouro                                                   sComplemento    nCEP nBairro nMunicipio sFax sTelefone  siSituacao dDataCadastro
+J            03568242000174  ALBERISCAR VEÖCULOS LTDA   AVENIDA MARECHAL MASCARENHAS DE MORAES,   N§ 4025              LOJAS 13 E 14  NULL 566     2531            A          Dec 20 2005  9:07AM                                                                                                                               NULL         NULL                                                                                                  NULL                         NULL   NULL       S                S              
+
+Municipio                                 Cod
+
+#63319
+select  e.Observacao, 
+	c.Estabelecimento, e.nEstabelecimento
+	e.nEstabelecimento, e.nTipoEstabelecimento, e.siTipoPessoa, 
+	e.sCGCCPF, e.sNome, e.sLogradouro, e.sComplemento, e.nCEP, 
+	(select Descricao from dbvcen..Bairro where Cod = e.nBairro and Municipio = e.nMunicipio) as Bairro,e.nMunicipio,
+	(select Descricao from dbvcen..Municipio where Cod = e.nMunicipio) as municipio, 
+	e.sFax, e.sTelefone, e.siSituacao, e.dDataCadastro
+from	dbfisc01..Estabelecimento e,
+	dbfisc01..LogEstabelecimento l,
+	dbfisc01..TipoEstabelecimento t
+where	e.dDataCadastro between '20190101' and '20191101'
+and  l.sCGCCPF = e.sCGCCPF
+and  
+
+
+
+select  t.sDescricao as TipoEstabelecimento,
+	--e.siTipoPessoa, e.nTipoEstabelecimento, t.nTipoEstabelecimento,
+	e.sCGCCPF, e.sNome, e.sLogradouro, e.sComplemento, e.nCEP--, 
+	--(select Descricao from dbvcen..Bairro where Cod = e.nBairro and Municipio = e.nMunicipio) as Bairro,e.nMunicipio,
+	--(select Descricao from dbvcen..Municipio where Cod = e.nMunicipio) as municipio, 
+	--e.sFax, e.sTelefone, e.siSituacao, e.dDataCadastro,
+	--e.Observacao
+from	dbfisc01..Estabelecimento e,
+	dbfisc01..TipoEstabelecimento t
+where	e.dDataCadastro between '20190101' and '20191101'
+and  e.nTipoEstabelecimento = t.nTipoEstabelecimento
+order by 1
+

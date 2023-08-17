@@ -1,0 +1,14 @@
+
+
+-- Inserindo novos campos na tabela 
+-- HistóricoServiço
+-- afs - 27-04-2020
+
+
+alter table dbvcen..HistoricoServico
+ add iPermiteWebAcessoLogado	char(1)   null,
+     iExigeCodigoSeguranca 	char(1)   null,
+     SistemaOrigem 		int       null
+
+
+------------------------------------------------------

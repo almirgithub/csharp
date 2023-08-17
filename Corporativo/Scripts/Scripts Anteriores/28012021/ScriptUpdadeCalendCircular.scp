@@ -1,0 +1,11 @@
+------------------------------------------------
+-- Atualizando os campos data da tabela
+-- afs 24-07-2020
+------------------------------------------------
+
+update 	dbvcen..CalendarioLimiteCircular
+set 	DataLimiteEmissaoCrlv = dateadd(dd,1,dateadd(mm,-1,DataLimiteCircular)),
+     	DataLimiteTaxaPostagem = convert(datetime,convert(char(4),datepart(yy,dateadd(mm,-1,DataLimiteCircular))) 
+     	|| substring(convert(char(3), 100+datepart(mm,dateadd(mm,-1,DataLimiteCircular))),2,2) || '25')
+     
+-----------------------------------------------------------------------------------------------------------------

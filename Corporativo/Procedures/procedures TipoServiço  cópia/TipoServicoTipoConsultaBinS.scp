@@ -1,0 +1,48 @@
+/*  Database 'dbvcen'  */
+use dbvcen
+go
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.TipoServicoTipoConsultaBinS'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.TipoServicoTipoConsultaBinS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.TipoServicoTipoConsultaBinS
+end
+go
+
+create proc dbo.TipoServicoTipoConsultaBinS
+-- Funcao : Selecionar os dados da tabela TipoServicoTransacaoBinS
+-- Autor  : afs - 29/01/2021
+  
+as  
+
+	select	t.TipoServico,
+		(select Descricao   from 	
+		dbvcen..TipoServico  where Cod = t.TipoServico) as DescServico,
+		t.TipoConsulta,
+		(select TipoTransacao   from 	
+		RENAVAM..TipoConsulta  where CodConsulta = t.TipoConsulta) as DescTipoConsulta
+ 	from	dbvcen..TipoServicoTipoConsultaBin t
+	order 	by	t.TipoServico
+
+
+return  
+go
+
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.TipoServicoTipoConsultaBinS to desenvolvimento
+go
+
+Grant Execute on dbo.TipoServicoTipoConsultaBinS to veiculo
+go
+
+

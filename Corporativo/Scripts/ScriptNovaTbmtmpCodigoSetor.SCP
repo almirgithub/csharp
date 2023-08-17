@@ -1,0 +1,37 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Table(s)
+*/
+
+PRINT 'TABLE : dbo.tmpCodigoSetor'
+GO
+
+
+if exists (select * from dbo.sysobjects where id = Object_id('dbo.tmpCodigoSetor') and type in ('U','S'))
+begin
+  drop table dbo.tmpCodigoSetor
+end
+
+GO
+
+create table dbo.tmpCodigoSetor
+(
+	ID	smallint 	not null,
+	Cod 	numeric(5)	not null
+)
+GO
+
+
+
+

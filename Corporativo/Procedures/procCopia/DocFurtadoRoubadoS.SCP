@@ -1,0 +1,241 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 23007 SMP SP130 /P/Sun_svr4/OS 5.10/ase157sp13x/3819/64-bit/FBO/Sat Aug 23 01:36:19 2014) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.DocFurtadoRoubadoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.DocFurtadoRoubadoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.DocFurtadoRoubadoS
+end
+
+GO
+
+create proc dbo.DocFurtadoRoubadoS                         
+ 
+ 
+ 
+/* Funcao 	: Inserir registro na tabela.		*/  
+/* Autor  	: Leonildo Junior 14/08/2009 		*/ 
+/* Alteração	: Antônio Lins - 29/09/2010 - Retorna Setor */  
+/* Alteracao    : Maria Perez - 24/04/2012 - Aumentar o campo CRV */  
+/* Alteracao    : Marcelo Silva - 04/10/2013 - Incluído o parâmetro Situacao */ 							 
+ 
+  
+( 
+       @TipoDocumento int = null, 
+       @UFPlaca       char(02) = null, 
+       @Situacao      char(01) = null, 
+       @FaixaInicial  numeric(12)     = null, 
+       @FaixaFinal    numeric(12)     = null 
+        
+)  
+  
+as  
+ 
+Declare @FaixaMinima numeric(12), 
+        @FaixaMaxima numeric(12), 
+        @Quantidade  numeric(12) 
+ 
+select @Situacao = ltrim(rtrim(@Situacao)),
+       @UFPlaca = ltrim(rtrim(@UFPlaca)) 
+ 
+if @UFPlaca = '' 
+  begin 
+      set @UFPlaca =  null 
+  end 
+ 
+if @Situacao = '' 
+   begin 
+      set @Situacao = null 
+   end 
+ 
+ 
+ 
+if  @TipoDocumento is null  
+      
+     begin 
+       raiserror 55000 'Falta informar o Tipo do Documento para consulta !' 
+       return -900 
+     end 
+ 
+if  @FaixaInicial is null  
+      
+     begin 
+       raiserror 55000 'Falta informar a Faixa Inicial para consulta !' 
+       return -900 
+     end 
+ 
+ 
+if  @FaixaFinal is null  
+      
+     begin 
+       raiserror 55000 'Falta informar a Faixa Final para consulta !' 
+       return -900 
+     end 
+      
+if @FaixaInicial > @FaixaFinal 
+begin 
+	raiserror 55000 'A Faixa Inicial deve ser menor que a Faixa Final.' -- 04/10/2013 - Marcelo Silva 
+	return -900 
+end 
+ 
+if not exists (      -- 04/10/2013 - Marcelo Silva 
+	 
+	select 1  
+	from  dbvcen..DocVeicSituacao 
+       	where NumeroDoc between @FaixaInicial and @FaixaFinal
+       	and   TipoDocumento = @TipoDocumento 
+       	and   (@Situacao is null or Situacao = @Situacao) 
+       	and   (@UFPlaca is null or UF = @UFPlaca)
+	) 
+     
+  begin 
+       raiserror 55000 'Registro não encontrado!' 
+       return -900 
+  end      
+ 
+ 
+ 
+ 
+ 
+if (@TipoDocumento is not null and @FaixaInicial is not null and @FaixaFinal is not null and @UFPlaca is not null ) 
+ 
+    begin 
+     
+       select @FaixaMinima = min(NumeroDoc), 
+              @FaixaMaxima = max(NumeroDoc) 
+ 
+       from  dbvcen..DocVeicSituacao 
+       where NumeroDoc between @FaixaInicial and @FaixaFinal 
+       and   TipoDocumento = @TipoDocumento 
+       and   (@Situacao is null or Situacao = @Situacao) 
+       and   UF = @UFPlaca   
+ 
+       select @Quantidade = count(*) 
+       from  dbvcen..DocVeicSituacao 
+       where NumeroDoc between @FaixaInicial and @FaixaFinal 
+       and   TipoDocumento = @TipoDocumento 
+       and   (@Situacao is null or Situacao = @Situacao) 
+       and   UF = @UFPlaca   
+       
+       select 	TipoDoc.Sigla 'Tipo do Documento', 
+              	UF as 'UF', 
+              	@FaixaMinima as 'Faixa Inicial', 
+              	@FaixaMaxima as 'Faixa Final', 
+              	DocVeicSit.NumeroDoc as 'Faixa', 
+              	DocVeicSit.Observacao   as 'Observação', 
+              	@Quantidade as 'Quantidade', 
+	      	(select s.CodReduzido*10+s.Digito from dbvcen..Setor s where s.Cod = DocVeicSit.Setor ) as CodReduzido, -- Marcelo Silva - 04/10/2013  
+	      	(select Descricao from dbvcen..Setor where Cod=DocVeicSit.Setor) as DescSetor, 
+	      	DocVeicSit.Situacao as 'Situação', --@Situacao as 'Situação',   -- Marcelo Silva - 04/10/2013            
+ 	     	(select s.CodReduzido*10+s.Digito from dbvcen..Setor s where s.Cod = DocVeicSit.SetorUsuario ) as SetorUsuario,
+ 	     	(select s.Descricao from dbvcen..Setor s where s.Cod = DocVeicSit.SetorUsuario ) as DescricaoSetorUsuario,
+ 	     	DocVeicSit.Usuario,
+ 	     	DocVeicSit.DataCadastro,
+                case when DocVeicSit.UF = 'PE' 
+			then
+                        (select  max(v.Placa) 
+				from dbvcen..Veiculo v (index Veiculo_KEY), dbvcen..DocVeiculo dv (index DocVeiculo_NumeroDoc)
+                                where dv.Veiculo = v.Cod 
+                                and dv.TipoDocumento = DocVeicSit.TipoDocumento 
+                                and dv.NumeroDoc = DocVeicSit.NumeroDoc)
+                else null
+                end as Placa 
+
+       from dbvcen..DocVeicSituacao DocVeicSit, 
+            dbvcen..TipoDocumento TipoDoc 
+      
+       where DocVeicSit.NumeroDoc between @FaixaInicial and @FaixaFinal 
+       and   DocVeicSit.TipoDocumento = @TipoDocumento 
+       and   (@Situacao is null or DocVeicSit.Situacao = @Situacao) 
+       and   DocVeicSit.UF = @UFPlaca   
+       and   DocVeicSit.TipoDocumento = TipoDoc.Cod 
+ 
+    end 
+ 
+ 
+if (@TipoDocumento is not null and @FaixaInicial is not null and @FaixaFinal is not null and @UFPlaca is null) 
+ 
+    begin 
+     
+       select @FaixaMinima = min(NumeroDoc), 
+              @FaixaMaxima = max(NumeroDoc) 
+ 
+       from  dbvcen..DocVeicSituacao 
+       where NumeroDoc between @FaixaInicial and @FaixaFinal 
+       and   TipoDocumento = @TipoDocumento 
+       and   (@Situacao is null or Situacao = @Situacao) 
+ 
+       select @Quantidade = count(*) 
+       from  dbvcen..DocVeicSituacao 
+       where NumeroDoc between @FaixaInicial and @FaixaFinal 
+       and   TipoDocumento = @TipoDocumento 
+       and   (@Situacao is null or Situacao = @Situacao) 
+    
+ 
+       select 	TipoDoc.Sigla 'Tipo do Documento', 
+              	UF as 'UF', 
+             	@FaixaMinima as 'Faixa Inicial', 
+              	@FaixaMaxima as 'Faixa Final', 
+              	DocVeicSit.NumeroDoc as 'Faixa', 
+              	DocVeicSit.Observacao   as 'Observação', 
+              	@Quantidade as 'Quantidade', 
+	      	(select s.CodReduzido*10+s.Digito from dbvcen..Setor s where s.Cod = DocVeicSit.Setor ) as CodReduzido, -- Marcelo Silva - 04/10/2013  
+	      	(select Descricao from dbvcen..Setor where Cod=DocVeicSit.Setor) as DescSetor, 
+	      	DocVeicSit.Situacao as 'Situação', -- @Situacao as 'Situação',  -- Marcelo Silva - 04/10/2013                      
+	     	(select s.CodReduzido*10+s.Digito from dbvcen..Setor s where s.Cod = DocVeicSit.SetorUsuario ) as SetorUsuario,
+	     	(select s.Descricao from dbvcen..Setor s where s.Cod = DocVeicSit.SetorUsuario ) as DescricaoSetorUsuario,
+ 	     	DocVeicSit.Usuario,
+ 	     	DocVeicSit.DataCadastro,
+                case when DocVeicSit.UF = 'PE' 
+			then
+                        (select  max(v.Placa) 
+				from dbvcen..Veiculo v (index Veiculo_KEY), dbvcen..DocVeiculo dv (index DocVeiculo_NumeroDoc)
+                                where dv.Veiculo = v.Cod 
+                                and dv.TipoDocumento = DocVeicSit.TipoDocumento 
+                                and dv.NumeroDoc = DocVeicSit.NumeroDoc)
+                else null
+                end as Placa 
+       from dbvcen..DocVeicSituacao DocVeicSit, 
+            dbvcen..TipoDocumento TipoDoc 
+      
+       where DocVeicSit.NumeroDoc between @FaixaInicial and @FaixaFinal 
+       and   DocVeicSit.TipoDocumento = @TipoDocumento 
+       and   (@Situacao is null or DocVeicSit.Situacao = @Situacao)
+       and   DocVeicSit.TipoDocumento = TipoDoc.Cod 
+ 
+    end 
+ 
+ 
+return  
+ 
+ 
+
+GO
+
+execute sp_procxmode 'dbo.DocFurtadoRoubadoS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.DocFurtadoRoubadoS to desenvolvimento
+GO
+
+Grant Execute on dbo.DocFurtadoRoubadoS to veiculo
+GO

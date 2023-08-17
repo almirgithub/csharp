@@ -1,0 +1,121 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.HistoricoServicoU'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.HistoricoServicoU') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.HistoricoServicoU
+end
+
+GO
+
+create proc dbo.HistoricoServicoU 
+
+/* Funcao	: Atualiza tabela de historico de alteracao de servico			*/
+/* Autor	: Marcio - 12/03/97 								*/
+/* Alteracao	: Antonio Lins - 25/03/2004 - Novos campos              			*/
+/*		Antonio Lins - 30/04/2004 - Novo campo iServicoVistoriaFora 			*/
+/*		Antonio Lins - 02/08/2004 - Novo campo 					*/
+/*		Antonio Lins - 11/08/2004 - Novo campo FinalidadeVistoria 			*/
+/*		Antonio Lins - 10/09/2004 - Novo campo iExigeAutorizacaoAluguel 		*/
+/*		Antonio Lins - 14/01/2005 - Novo campo iValidaAutorizacaoAluguel 		*/
+/*		Antonio Lins - 18/01/2005 - Novo campo iLiberaAutorizacaoAluguel 		*/
+/*		Antonio Lins - 08/09/2005 - Novo campo iServicoRecolhimentoDoc 		*/
+/*		Antonio Lins - 08/09/2005 - Novo campo iExigeAutorizAltCaract 			*/
+/*		Antonio Lins - 23/11/2005 - Novo campo iValidaCarTipoEsp 			*/
+/*		Antonio Lins - 07/04/2005 - Novos campos iServicoRegravMotor, iExigeResselagem 	*/ 
+/*		Antonio Lins - 13/09/2006 - Novos campos iNaoValidaCaracteristica,
+					 iNaoExigeMudancaPlaca,iValidaAtributosServico 	*/
+/*		Antonio Lins - 10/11/2006 - Novos campos iNaoExigeOrdemChassi 			*/
+/*		Karla Senna  - 21/12/2006 - Altera nome do campo iExigeResselagem para iExigeLacracao */ 
+/*		Antonio Lins - 16/05/2007 - Novos campos iExigeAtuEndereco 			*/
+/*		Antonio Lins - 29/06/2007 - Novos campos iExigeProprietario 			*/ 
+/*		Antonio Lins - 14/08/2007 - Novos campos iPermiteAltQtd 			*/ 
+/*		João Queiroz - 12/06/2012 - Novo campo iExigeEmplacamento 			*/ 
+/*		Marcelo Silva - 30/07/2013 - Novos Campos Objetivo e UsuarioSolicitante 	*/ 
+/*		Pedro Borba  - 17/03/2014 - Novos Campo GrupoServico 				*/ 
+/*		Jonas Guedes - 11/10/2017 - Adição de novos campos (iServicoLiberacao, 
+					 TipoPesoVeiculo, iExigeAutorizacaoPrevia, 
+					 iGeradoAutomatico, iExigeAgendamento) 		*/ 
+/* Alteração: 	afs - 27-04-2020 - Foi colocados trê novos campos na insersão da tabela*/
+    
+	(@Servico 	ty_Numero)    
+as    
+    
+begin tran    
+    
+	insert	dbvcen..HistoricoServico (Servico, Data, Usuario, Descricao, BinConsulta, 
+		BinAtualizacao, TipoIE, ObrRenavam, ObrPlaca, ObrChassi, VeiculoBase, 
+		GeraRenavam, GeraDebito, GeraPlaca, EscolhaPlaca, ZeraViaCRV, TransfPropriedade, 
+		SituacaoVeiculo, PermiteRoubado, FechamentoProcesso, BloqueiaBaixaGravame, 
+		ConsultaSNG, FaseBloqueiaTaxaAberta, TransfPE,OrdemJudicial,BaixaGravame, 
+		IncluiGravame, ObrigatoriedadeSNG, AlteraGravame,iServicoApreensao, 
+		iServicoReboque,iServicoAtivo,PrimEmplacamento,iServicoVistoriaFora, 
+		Certidao, ObrigatoriedadeCsv,ConsultaContratoSNG, 
+		ServicoOutraUfSemTransf, FinalidadeVistoria, iExigeAutorizacaoAluguel, 
+		iValidaAutorizacaoAluguel, iLiberaAutorizacaoAluguel, 
+		iServicoRecolhimentoDoc, iExigeAutorizAltCaract, iValidaCarTipoEsp, 
+		iServicoRegravMotor, iExigeLacracao, 
+		iNaoValidaCaracteristica,iNaoExigeMudancaPlaca,iValidaAtributosServico, 
+		iExigeOrdemChassi,iExigeAtuEndereco,iExigeProprietario, 
+		iPermiteAltQtd,iExigeEmplacamento,UsuarioSolicitante,Objetivo,GrupoServico, 
+		
+		iServicoLiberacao, TipoPesoVeiculo, iExigeAutorizacaoPrevia, 
+		iGeradoAutomatico, iExigeAgendamento,
+		iPermiteWebAcessoLogado, iExigeCodigoSeguranca, SistemaOrigem) 
+
+	select	Cod, getdate(), suser_name(), Descricao, BinConsulta, BinAtualizacao, TipoIE, 
+		ObrRenavam, ObrPlaca, ObrChassi, VeiculoBase, GeraRenavam, GeraDebito, GeraPlaca, 
+		EscolhaPlaca, ZeraViaCRV, TransfPropriedade, SituacaoVeiculo, PermiteRoubado, 
+		FechamentoProcesso, BloqueiaBaixaGravame, ConsultaSNG, FaseBloqueiaTaxaAberta, 
+		TransfPE, OrdemJudicial, BaixaGravame, IncluiGravame, ObrigatoriedadeSNG, 
+		AlteraGravame,iServicoApreensao,iServicoReboque,iServicoAtivo,PrimEmplacamento, 
+		iServicoVistoriaFora, Certidao, ObrigatoriedadeCsv, ConsultaContratoSNG, 
+		ServicoOutraUfSemTransf,FinalidadeVistoria, iExigeAutorizacaoAluguel, 
+		iValidaAutorizacaoAluguel, iLiberaAutorizacaoAluguel, 
+		iServicoRecolhimentoDoc, iExigeAutorizAltCaract, iValidaCarTipoEsp, 
+		iServicoRegravMotor, iExigeLacracao, 
+		iNaoValidaCaracteristica,iNaoExigeMudancaPlaca,iValidaAtributosServico, 
+		iExigeOrdemChassi,iExigeAtuEndereco,iExigeProprietario, 
+		iPermiteAltQtd,iExigeEmplacamento,UsuarioSolicitante,Objetivo,GrupoServico,
+		
+		iServicoLiberacao, TipoPesoVeiculo, iExigeAutorizacaoPrevia, 
+		iGeradoAutomatico, iExigeAgendamento,
+		iPermiteWebAcessoLogado, iExigeCodigoSeguranca, SistemaOrigem
+		
+	from	dbvcen..TipoServico   
+	where	Cod = @Servico   
+   
+	if @@transtate=2   
+	begin 
+		rollback tran   
+		raiserror 55000   
+		return -900   
+	end 
+	else if @@transtate=3   
+	begin   
+		raiserror 55000    
+		return -900   
+	end   
+   
+commit tran   
+   
+return 0   
+GO
+
+execute sp_procxmode 'dbo.HistoricoServicoU', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.HistoricoServicoU to desenvolvimento
+GO
+
+Grant Execute on dbo.HistoricoServicoU to veiculo
+GO

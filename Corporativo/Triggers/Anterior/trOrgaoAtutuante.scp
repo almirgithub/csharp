@@ -1,0 +1,246 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Table(s)
+*/
+
+PRINT 'TABLE : OrgaoAutuante'
+GO
+
+
+
+PRINT 'CREATING Trigger(s) for Table : OrgaoAutuante'
+GO
+
+
+PRINT 'TRIGGER : OrgaoAutuanteDELETE'
+GO
+
+
+create trigger OrgaoAutuanteDELETE    /* *********************** DELETE **************************** */    
+    
+/* Função: Delete Trigger da tabela OrgaoAutuante 						*/   
+/* Alteração: 19/12/2007 - Kalina Luna - Excluir os registros da tabela OrgaoRecolhimento 	*/    
+  
+on OrgaoAutuante for DELETE as    
+begin    
+	/* número de registros excluídos */    
+	declare @num_rows int    
+	select @num_rows = @@rowcount    
+	if @num_rows = 0    
+		return    
+    
+		    
+	/* ******* Verifica Child: DebitoInfracao ******* */    
+	/* Cod referenciada na tabela DebitoInfracao (OrgaoAutuante) */    
+	begin    
+		if exists (select 1    
+		from dbarrecadacao..DebitoInfracao DebitoInfracao, deleted    
+		where DebitoInfracao.OrgaoAutuante = deleted.Cod)    
+		begin    
+			rollback transaction    
+			raiserror 50001 'Não é permitido excluir um órgão autuante que esteja associado a um tipo de débito.'    
+			return    
+		end    
+	end    
+	    
+	/* ******* Verifica Child: LoteOrgao ******* */    
+	/* Cod referenciada na tabela LoteOrgao (OrgaoAutuante) */    
+	begin    
+		if exists (select 1    
+		from dbinfracao..LoteOrgao LoteOrgao, deleted    
+		where LoteOrgao.OrgaoAutuante = deleted.Cod)    
+		begin    
+			rollback transaction    
+			raiserror 50001 'Não é permitido excluir um órgão autuante que esteja associado a um lote de autos de infracão.'    
+			return    
+		end    
+	end  
+	  
+	/* Excluir registro na tabela OrgaoRecolhimento */  
+	declare @Cod	int,  
+		@Retorno int  
+		  
+	select @Cod = Cod  
+	from deleted  
+	  
+	exec @Retorno = dbvcen..OrgaoRecolhimentoE @nCod = @Cod,  
+						   @sTela = 'N'  
+					  
+	if @Retorno < 0        
+        begin        
+        	raiserror 55000       
+        	rollback        
+        end  				  
+   
+	  
+end  
+                                                                           
+ 
+ 
+
+GO
+
+
+PRINT 'TRIGGER : OrgaoAutuanteINSERT'
+GO
+
+
+create trigger OrgaoAutuanteINSERT    
+  
+      
+/********************* INSERT ********************************/     
+     
+/* Função: Insert Trigger da tabela OrgaoAutuante 						*/    
+/* Alteração: 19/12/2007 - Kalina Luna - Incluir os novos órgãos na tabela OrgaoRecolhimento 	*/    
+    
+on OrgaoAutuante for INSERT as     
+begin     
+	/* número de registros incluídos */     
+	declare @num_rows int     
+	select @num_rows = @@rowcount     
+	if @num_rows = 0     
+		return     
+     
+	/* número de registros da chave estrangeira */     
+	declare @parent_rows int   
+	   
+	/* Inclui na tabela OrgaoRecolhimento */   
+	declare @Cod  		int,   
+		@Situacao	char(1),   
+		@Descricao	varchar(40),   
+		@Retorno	int	     
+	    
+	select @Cod = Cod, @Situacao = Situacao, @Descricao = Descricao    
+	from inserted    
+	    
+	exec @Retorno = dbvcen..OrgaoRecolhimentoI @nCod = @Cod,    
+						   @sDescricao = @Descricao,   
+						   @sLibera = 'N',   
+						   @sEmite = 'S',   
+						   @sTela = 'N'   
+					   
+	if @Retorno < 0         
+        begin         
+        	raiserror 55000        
+        	rollback         
+        end  				   
+		   
+	   
+end    
+   
+                                                                                                                                                                                                        
+ 
+ 
+
+GO
+
+
+PRINT 'TRIGGER : OrgaoAutuanteUPDATE'
+GO
+
+
+create trigger OrgaoAutuanteUPDATE    
+  
+      
+   
+/************************ UPDATE ****************************/     
+   
+/* Função: Update Trigger da tabela OrgaoAutuante 				*/   
+/* Alteração: 19/12/2007 - Kalina Luna - Atualizar a tabela OrgaoRecolhimento 	*/   
+     
+on OrgaoAutuante for UPDATE as     
+begin     
+	/* número de registros alterados */     
+	declare @num_rows int     
+	select @num_rows = @@rowcount     
+	if @num_rows = 0     
+		return     
+     
+	   
+	/* Restrição de alteração da chave primária da tabela */     
+	if update (Cod)     
+	begin     
+		rollback transaction     
+		raiserror 30000 'Não é permitido alterar o código de acesso da informação. Caso necessite alterá-lo, efetue sua exclusão seguida da inclusão do novo código.'     
+		return     
+	end     
+     
+	/* número de registros da chave estrangeira */     
+	declare @parent_rows int     
+	     
+	   
+	/* Atualiza a tabela OrgaoRecolhimento */   
+	declare @Cod  		int,   
+		@Situacao	char(1),   
+		@Descricao	varchar(40),   
+		@Retorno	int	     
+	    
+	select @Cod = Cod, @Situacao = Situacao, @Descricao = Descricao    
+	from inserted    
+	    
+	if update(Situacao)    
+	begin   
+		if @Situacao = 'A'    
+		        and not exists (select 1 from dbinfracao..OrgaoRecolhimento where OrgaoRecolhimento = @Cod)   
+		begin   
+			exec @Retorno = dbvcen..OrgaoRecolhimentoI @nCod = @Cod,    
+							@sDescricao = @Descricao,   
+							@sLibera = 'N',   
+							@sEmite = 'S',   
+							@sTela = 'N'   
+							   
+			if @Retorno < 0         
+		        begin         
+		        	raiserror 55000        
+		        	rollback         
+		        end  				   
+		end   
+		   
+		if @Situacao != 'A'    
+		        and exists (select 1 from dbinfracao..OrgaoRecolhimento where OrgaoRecolhimento = @Cod)   
+		begin   
+			exec @Retorno = dbvcen..OrgaoRecolhimentoE @nCod = @Cod,   
+							@sTela = 'N'   
+							   
+			if @Retorno < 0         
+		        begin         
+		        	raiserror 55000        
+		        	rollback         
+		        end  				   
+		end   
+	end   
+	   
+	if update(Descricao)    
+	begin   
+		exec @Retorno = dbvcen..OrgaoRecolhimentoA @nCod = @Cod,    
+						@sDescricao = @Descricao,   
+						@sLibera = null,   
+						@sEmite = null,   
+						@sTela = 'N'   
+						   
+		if @Retorno < 0         
+	        begin         
+	        	raiserror 55000        
+	        	rollback         
+	        end  						   
+	end	     
+end    
+                                            
+ 
+ 
+
+GO
+
+
+

@@ -1,0 +1,68 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : SetorUsuarioPerfilS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('SetorUsuarioPerfilS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc SetorUsuarioPerfilS
+end
+
+GO
+
+create proc SetorUsuarioPerfilS 
+/*************************************************************************************              
+** Criada por	: Almir
+** Data         : 17-04-2020
+** Objetivo	: Sele‡Æo dos registros da tabela de SetorUsuarioPerfilS
+*************************************************************************************/             
+
+(
+  
+  	@sSetor		varchar(20)
+  
+
+)                  
+    
+as    
+
+	select	@sSetor 	= 	ltrim(rtrim(@sSetor))
+	
+  
+  	select 	s.Usuario,	u.Nome
+  	from	dbvcen..SetorUsuarioPerfil s, Usuario u
+  	where	s.Setor	=	@sSetor
+  	and 	s.Usuario	=	u.Cod
+  	order 	by u.Nome   
+  	
+	
+
+   
+return 0    
+GO
+
+execute sp_procxmode 'SetorUsuarioPerfilS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on SetorUsuarioPerfilS to desenvolvimento
+GO
+
+Grant Execute on SetorUsuarioPerfilS to veiculo
+GO
+  
+   
+

@@ -1,0 +1,23 @@
+--======================================================================
+-- tabelas: dbvcen..Vistoria, dbvcen..ProcessoUsuario
+-- Index : VistoriaLibSemAgendamento -> para tabela de Vistoria
+--	   ProcessoUserLibSemAgendamento -> para tabela ProcessoUsuario	
+--Vistoria_LibSemAgendamento
+--ProcessoUsuario_LibSemAgend
+--=======================================================================
+
+
+create 	index Vistoria_MotivoLiberaSemAgend
+	on dbvcen..Vistoria
+(
+	MotivoLiberacaoSemAgendamento ASC
+)
+go  
+
+
+create 	index ProcessoUsuario_MotLibSemAgend
+	on dbvcen..ProcessoUsuario
+(
+	MotivoLiberacaoSemAgendamento ASC
+)
+go  

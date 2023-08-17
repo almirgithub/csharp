@@ -1,0 +1,105 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.GeraNumeroSetorS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.GeraNumeroSetorS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.GeraNumeroSetorS
+end
+
+GO
+
+create proc dbo.GeraNumeroSetorS
+    
+as   
+
+	
+	declare	@novoCod 	int,
+		@CodigoLongo	varchar(14),
+		@CodReduz	int,	
+		@NovoCodigo	INT
+
+	set 	@CodReduz 	= 	0
+	set	@novoCod	=	0
+	set	@NovoCodigo	=	0
+	
+	declare c_novaLinha cursor 
+	  for  	select 	CodReduzido 
+		from	dbvcen..Setor
+		order 	by CodReduzido
+	  
+	open c_novaLinha
+	
+	fetch c_novaLinha into @CodReduz
+
+	while(@@sqlstatus = 0)
+	begin
+	
+		if @novoCod = 0
+		begin
+			set @novoCod = @CodReduz
+		end
+	
+		if @CodReduz > @novoCod
+		begin
+			break
+		end
+	
+		fetch c_novaLinha into @CodReduz
+		set @novoCod = @novoCod + 1
+	end
+	close c_novaLinha
+
+	if @novoCod  = 0
+	begin
+		Set 	@novoCod = 1
+		set	@CodigoLongo = substring(convert(char(06), @novoCod + 100000) + '0000000000000',2,14)
+	end
+	else
+	begin
+		set	@CodigoLongo = substring(convert(char(06), @novoCod + 100000) + '0000000000000',2,14)
+		while (@novoCod > 0)
+		begin 
+	
+			if exists(select 1 from dbvcen..Setor where Cod = @CodigoLongo)
+			begin
+				set 	@NovoCodigo = convert(int, substring(@CodigoLongo,1,5) ) + 100000
+				set	@CodigoLongo = substring(convert(char(07), @NovoCodigo +   1000000) + '0000000000000',2,14)
+			end
+			begin
+				break
+			end
+		end
+	end
+
+	select @CodigoLongo, @novoCod
+
+	   
+return     
+go
+
+execute sp_procxmode 'dbo.GeraNumeroSetorS', 'unchained'
+go
+
+grant exec on  GeraNumeroSetorS to desenvolvimento
+go
+
+grant exec on  GeraNumeroSetorS to veiculo
+go
+

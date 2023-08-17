@@ -1,0 +1,7 @@
+--Script para atualização da data de versão - Corporativo
+--afs - 27-07-2023
+
+
+update 	MPS..Sistema 
+	set DataVersao = '20230823' 
+	where Cod = 105

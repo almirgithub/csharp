@@ -1,0 +1,76 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.OrgaoPsA'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.OrgaoPsA') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.OrgaoPsA
+end
+
+GO
+
+create proc dbo.OrgaoPsA
+/**********************************************************************            
+** Criada por	: Almir
+** Data         : 20/08/2020 
+** Objetivo	: Alteração de registro na tabela de OrgaoPS
+** Observacao	:           
+** Alteracoes   : 
+**********************************************************************/           
+  
+( 
+	@nCod			smallint,
+ 	@sDescricao		varchar(40),
+ 	@sTaxaDetran		char(1)
+	
+)  
+  
+  
+As  
+
+  Begin Tran  
+	
+	
+		update	dbvcen..OrgaoPS
+		set	Descricao		=	@sDescricao, 
+			iCobraTaxaDetran	=	@sTaxaDetran
+		where	Cod			=	@nCod
+  
+		If 	@@transtate = 2 	Or 	@@transtate = 3  
+		Begin  
+			If @@transtate = 2 
+			begin
+				Rollback Tran  
+			end
+			Raiserror 55000  
+			Return -900  
+		End  
+  
+	Commit Tran  
+  
+return 0
+GO
+
+execute sp_procxmode 'dbo.OrgaoPsA', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.OrgaoPsA to desenvolvimento
+GO
+
+Grant Execute on dbo.OrgaoPsA to veiculo
+GO

@@ -1,0 +1,199 @@
+use master
+GO
+
+use dbinfracao
+GO
+
+PRINT 'STORED PROCEDURE : dbo.OrgaoAutuanteU'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.OrgaoAutuanteU') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.OrgaoAutuanteU
+end
+GO
+
+create proc dbo.OrgaoAutuanteU
+/******************************************************************************************************************************************* 
+    Descricao           : Altera as Informações da tabela de OrgaoAutuante				
+    Data de criacao     : 28/05/2004									
+    Alteração		: Foi incluido o campo DataMunicipalizacao					
+    Autor		: Leandro Neves - 14/07/2005							
+    Alteração		: Kalina Luna - 19/03/2007 - Acrescentar o campo iLiberaApreensaoEstadual	
+    			: Kalina Luna - 14/12/2007 - Retirar o campo iLiberaApreensaoEstadual		
+                        : Rafael Nunes - 07/10/2010 - Alterado campo de char para int                
+                        : Fernando Veras - 25/01/2016 - Adicionado o parametro @AutorizaRepasse (S ou N).
+                        : Jonas Guedes 	- 15/07/2020 - Adicionados os parametros @DataCorteSNE e @DataAdesaoSNE .
+                        : Adilson Santos - 12/07/2021 - Não permitir colocar o DER com ConvMunicipio = 'S'
+                        : Almir - 03-08-2020  -Foram colocados nosvos campos DataEntradaRadar, DataSaidaRadar e Indicador de Adesaõ
+********************************************************************************************************************************************/
+
+(
+	@Cod				numeric(6),
+	@Descricao			char(40	)= null,
+	@UF				char(2)	= null,
+	@Situacao			char(1)	= null,
+	@PermiteEfeitoSusp		char(1)	= null,
+	@CancelaComEfeitoSusp		char(1)	= null,
+	@ConvMunicipio 			char(1)	= null,
+	@Municipio			numeric(6) = null,
+	@RENAINF			char(1)	= null,
+	@UsaProtWin			char(1)	= null,
+	@DataMunicipalizacao		date	=  null,
+	@Oficio			     	int 	= null,
+	@Endereco		      	varchar(50) = null,
+	@Bairro				varchar(30) = null,
+	@Cidade                         varchar(30) = null,
+	@CEP                            char(8)	= null,
+	@AutorizaRepasse		char(1) = 'N',
+	@DataCorteSNE 			date	= null,
+	@DataAdesaoSNE			date	= null,
+	@DataEntradaRadar 		date	= null,
+	@DataSaidaRadar			date	= null
+	
+)
+
+as
+begin tran
+
+	if @Oficio = 1
+	begin
+	     update dbinfracao..OrgaoAutuante set UF = @UF, sEndereco = @Endereco, sBairro = @Bairro, sCidade = @Cidade, sCEP = @CEP  where @Cod = Cod
+	     
+	     if @@transtate = 2 or @@transtate = 3 
+		begin 
+			if @@transtate = 2 
+				rollback tran 
+				raiserror 55000 
+			return -900 
+		end 
+	
+	end
+	
+	else
+	begin
+	
+		select	@Municipio = convert( int, @Municipio / 10) 
+		
+		--Verificando as datas
+		if	@DataAdesaoSNE	>		@DataCorteSNE
+		begin
+			raiserror 55000 'A data de Adesão não pode ser maior que a data de Corte! ' 
+			rollback tran  
+			return -900  
+		end
+		
+		--validando os novos campos
+		declare	@DatEntrada 	date,
+			@indicadorRadar	char(1)
+			
+		select 	@indicadorRadar	=	'N'			
+
+		if	@DataEntradaRadar	is not null or
+			@DataSaidaRadar		is not null
+		begin
+			--pegando a data de entrada do radar
+			select @DatEntrada = (select DataEntradaRadar from dbinfracao..OrgaoAutuante where Cod = @Cod)
+
+			if	@DataEntradaRadar	=		@DataSaidaRadar
+			begin
+				raiserror 55000 'A data de entrada do sistema Radar, não pode ser igual a data de Saida!'  
+				rollback tran 
+				return -900  
+			end			
+			
+			if	@DataEntradaRadar	is not null and
+				@DataSaidaRadar		is not null
+			begin
+				if	@DataEntradaRadar	>		@DataSaidaRadar
+				begin
+					raiserror 55000 'A data de entrada do sistema Radar, não pode ser Maior que a data de Saida!'  
+					rollback tran 
+					return -900  
+				end
+				
+				if	@DataEntradaRadar	=		@DataSaidaRadar
+				begin
+					raiserror 55000 'A data de saída do sistema Radar, não pode ser igual a data de Entrada!'  
+					rollback tran 
+					return -900  
+				end
+			
+			
+			end
+			
+			if	@DataEntradaRadar	is null and
+				@DataSaidaRadar		is not null 
+			begin				
+				raiserror 55000 'Não pode ser informada a data de saída do sistema radar, sem data de entrada!'  
+				rollback tran 
+				return -900 			
+			--if	@DatEntrada	is	not 	null
+				--begin
+				--	raiserror 55000 'Não pode ser informada a data de saída do sistema radar, porque não foi lançada a data de entrada!'  
+				--	return -900  
+				--end	
+			end
+					
+		end		
+		
+		if	@DataEntradaRadar	is not null and
+			@DataSaidaRadar		is null
+		begin
+			select 	@indicadorRadar	=	'S'
+		end	
+		-----------------------------------------------------------------------------		
+		
+		if	@Cod	=	117200 -- DER
+		begin
+			set @ConvMunicipio	=	'N'
+		end	
+
+		update	
+			dbinfracao..OrgaoAutuante
+		set	
+			Descricao			= @Descricao,
+			UF				= @UF,
+			Situacao			= @Situacao,
+			PermiteEfeitoSusp		= @PermiteEfeitoSusp,
+			CancelaComEfeitoSusp		= @CancelaComEfeitoSusp,
+			ConvMunicipio			= @ConvMunicipio,
+			Municipio			= @Municipio,
+			RENAINF				= @RENAINF,
+			UsaProtWin			= @UsaProtWin,
+			DataMunicipalizacao		= @DataMunicipalizacao,
+			iAutorizaRepasse		= @AutorizaRepasse,
+			DataCorteSNE 			= @DataCorteSNE,
+			DataAdesaoSNE 			= @DataAdesaoSNE,
+			DataEntradaRadar		= @DataEntradaRadar,
+			DataSaidaRadar			= @DataSaidaRadar,
+			iIndicadorAdesaoRadar		= @indicadorRadar
+		where	
+			Cod				= @Cod
+		if @@transtate = 2 or @@transtate = 3 
+		begin 
+			if @@transtate = 2 
+				rollback tran 
+			raiserror 55000 
+			return -900 
+		end 
+	end
+ 
+commit tran  
+ 
+return 0
+GO
+
+execute sp_procxmode 'dbo.OrgaoAutuanteU', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.OrgaoAutuanteU to desenvolvimento
+GO
+
+Grant Execute on dbo.OrgaoAutuanteU to veiculo
+GO
+
+

@@ -1,0 +1,15 @@
+------------------------------------------------
+-- novo campo para a tabela OrgaoAutuante
+-- afs - 03-08-2022
+------------------------------------------------
+
+alter table dbinfracao..OrgaoAutuante
+  add	DataEntradaRadar	datetime	null
+
+alter table dbinfracao..OrgaoAutuante
+  add	DataSaidaRadar		datetime	null
+
+alter table dbinfracao..OrgaoAutuante
+  add	iIndicadorAdesaoRadar	char(1)		null
+
+------------------------------------------------

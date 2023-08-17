@@ -1,0 +1,82 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : SetorUsuarioPerfilI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('SetorUsuarioPerfilI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc SetorUsuarioPerfilI
+end
+
+GO
+
+create proc SetorUsuarioPerfilI 
+/*************************************************************************************              
+** Criada por	: Almir
+** Data         : 17-04-2020
+** Objetivo	: Insersão dos registros da tabela de SetorUsuarioPerfil
+*************************************************************************************/             
+(
+  
+  	@sSetor		varchar(20),
+  	@sUsuario	char(8),	
+	@dDataInclusao	datetime	= null,
+	@sUsuInclusao	char(8)    	= null
+
+)             
+    
+as    
+
+	-- Pegando o setor 
+	--select	@sSetor	= s.Cod 
+ 	--from	dbvcen..Setor s 
+ 	--where	s.CodReduzido	= @nCodReduzido / 10 
+     
+     	select	@sSetor 	= 	ltrim(rtrim(@sSetor))
+     	select	@sUsuario	=	ltrim(rtrim(@sUsuario))
+     
+  	begin tran    
+       
+		insert 	dbvcen..SetorUsuarioPerfil(Setor, Usuario, DataInclusao, UsuInclusao)    
+		values 	(@sSetor, @sUsuario, getdate(), suser_name())    
+	    
+		if @@transtate=2 OR @@transtate=3    
+		begin    
+			if @@transtate=2 
+				rollback tran    
+			
+			raiserror 55000 'NÆo foi poss¡vel gravar o perfil para o usu rio (%1!)', @sUsuario
+			return -55000 
+		end    
+	    
+	commit tran    
+   
+   
+return 0    
+GO
+
+execute sp_procxmode 'SetorUsuarioPerfilI', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on SetorUsuarioPerfilI to desenvolvimento
+GO
+
+Grant Execute on SetorUsuarioPerfilI to veiculo
+GO
+  
+   
+

@@ -1,0 +1,57 @@
+use master
+GO
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Table(s)    
+*/
+
+PRINT 'TABLE : dbo.LogOrgaoAutuante'
+GO
+
+
+if exists (select * from dbo.sysobjects where id = Object_id('dbo.LogOrgaoAutuante') and type in ('U','S'))
+begin
+  drop table dbo.LogOrgaoAutuante
+end
+
+GO
+
+create table dbo.LogOrgaoAutuante 
+(
+	CodLogOrgaoAtu		numeric(6,0)  null,
+	Descricao 		char(40)  null,
+	Operacao		char(1) null,
+	UF 			char(2) null,
+	Situacao 		char(1) null,
+	PermiteEfeitoSusp	char(1) null,
+	Municipio 		numeric(6,0) null,
+	ConvMunicipio 		char(1) null,
+	UsaProtWin 		char(1) null,
+	CancelaComEfeitoSusp 	char(1) null,
+	RENAINF 		char(1) null,
+	DataMunicipalizacao 	datetime null,
+	DataFimMunicipalizacao 	datetime null,
+	sCNPJ 			varchar(14) null,
+	sEndereco 		varchar(50) null,
+	sBairro 		varchar(30) null,
+	sCidade 		varchar(30) null,
+	sCEP 			char(8) null,
+	Bloqueio 		varchar(1) null,
+	NomeCompleto 		varchar(255) null,
+	iAutorizaRepasse 	char(1) null,
+	iIndicadorAdesaoOASNE 	smallint null,
+	DataCorteSNE 		datetime null,
+	DataAdesaoSNE 		datetime null,
+	Usuario			char(8) null,
+	DataOperacao		datetime null,
+	DataEntradaRadar	datetime null,
+	DataSaidaRadar		datetime null,
+	iIndicadorAdesaoRadar	char(1)  null
+)
+GO
+

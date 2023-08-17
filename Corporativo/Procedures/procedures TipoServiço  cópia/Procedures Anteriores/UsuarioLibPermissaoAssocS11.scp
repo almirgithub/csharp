@@ -1,0 +1,23 @@
+/* Funcao   : Retorna os tipos de liberacao de processo que estao associados ao usuario   */    
+/* Autor    : Antonio Lins - 08/07/2007              */    
+    
+(@Usuario    	char(8) = NULL)    
+    
+as    
+  
+select  t.TipoLiberacao, t.Descricao    
+from    dbvcen..TipoLiberacaoProcesso t    
+where   t.TipoLiberacao in ( select TipoLiberacao  
+                             from dbvcen..UsuarioTipoLibProcesso     
+                             where Usuario = rtrim(ltrim(@Usuario)) )    
+    
+    
+return 0    
+  
+  
+  
+  
+  
+  
+  
+ 

@@ -1,0 +1,11 @@
+------------------------------------------------------------
+-- Inserir nosvos campos na tabela LogSetor
+-- afs - 09-12-2020
+------------------------------------------------------------
+
+alter table dbvcen..LogSetor
+	add	iEmiteDocEletronico	char(1)		null,
+		iEmiteCRV		char(1)		null
+
+------------------------------------------------------------- --
+

@@ -1,0 +1,92 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/12.5.4/EBF 13383/P/RS6000/AIX 5.1/ase1254/2006/64-bit/FBO/Sat May 20 07:06:10 2006) on rs6000
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.EstabelecimentoCredenciadoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.EstabelecimentoCredenciadoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.EstabelecimentoCredenciadoS
+end
+
+GO
+
+create proc dbo.EstabelecimentoCredenciadoS 
+
+/****************************************************************************************************************************************
+> Criada por	: Fernando Marques            
+> Data          : 17/02/2005
+> Objetivo	: Seleciona registros da tabela de EstabelecimentoCredenciado 
+> Observação	:           
+> Alterações    : Karla Senna Chacon - 		09/01/2007 - Controla os credenciamentos ativos/inativos
+> Alterações    : [faml] Flávio Lago - 		07/11/2013 - Criar cadastro de dados bancários para o credenciado
+		  [marcelom] Marcelo Silva - 	17/01/2013 - Adicionado novo campo (iUtilizaIntegracao)
+		  [pcbs] Pedro Borba - 		27/02/2014 - Adicionado novo campo: Observacao
+		  [fhv] Fernando Veras - 	28/03/2016 - Adicionado novo campo: Caracter Inicial do Serial dos Materias
+> alteração	: [afs] Almir			05/03/2020 - Foi colocado o campo iAtivoMercosul para ser rotornado na consulta
+****************************************************************************************************************************************/           
+(           
+	@nCredenciado		int,
+	@nEstabelecimento	int
+)           
+  
+as  
+  
+select	ec.Credenciado,
+	ec.Estabelecimento,
+	e.sNome,
+	(s.CodReduzido*10)+s.Digito,
+	s.Descricao,
+	ec.iFabricaLacre,
+	ec.iFornecePlaca,
+	ec.iInstalaPlaca,
+	ec.iAtivo
+,	ec.Banco													-- [faml] 07/11/2013
+,	(select b.Nome from dbarrecadacao..Banco b where b.Cod= ec.Banco) as 'DescBanco'					-- [faml] 07/11/2013
+,	ec.Agencia												-- [faml] 07/11/2013
+,	(select a.Nome from dbarrecadacao..Agencia a where a.Banco= ec.Banco and a.Cod= ec.Agencia) as 'DescAgencia'	-- [faml] 07/11/2013
+,	ec.ContaCorrente
+,	ec.iUtilizaIntegracao   -- Marcelo Silva - 17/01/2013
+,	ec.Observacao		-- Pedro Borba - 27/02/2014
+,	ec.LetraIniMaterial	-- Fernando Veras - 28/03/2016
+,	ec.iAtivoMercosul	-- Almir (05/03/2020)
+from	dbvcen..EstabelecimentoCredenciado ec,
+	dbvcen..Setor s,
+	dbfisc01..Estabelecimento e
+where	(ec.Credenciado = @nCredenciado OR @nCredenciado is null)
+and	(ec.Estabelecimento = @nEstabelecimento OR @nEstabelecimento is null)
+and	ec.Setor = s.Cod
+and	ec.Estabelecimento *= e.nEstabelecimento
+order 	by 1
+  
+return 0    
+GO
+
+execute sp_procxmode 'dbo.EstabelecimentoCredenciadoS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.EstabelecimentoCredenciadoS to veiculo
+GO
+
+Grant Execute on dbo.EstabelecimentoCredenciadoS to desenvolvimento
+GO
+
+
+  

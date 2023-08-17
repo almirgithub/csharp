@@ -1,0 +1,9 @@
+------------------------------------------------
+-- Inserir novo campo na tabela Restricao
+-- afs - 17-06-2021
+------------------------------------------------
+
+alter table dbvcen..Restricao
+ add	eOperacional	char(1)		null
+
+------------------------------------------------

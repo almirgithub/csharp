@@ -1,0 +1,12 @@
+------------------------------------------------
+-- novo campo para a tabela Município
+-- afs - 14-09-2022
+------------------------------------------------
+
+alter table dbvcen..Municipio
+  add	Observacao	varchar(255)	null
+
+alter table dbvcen..LogMunicipio
+  add	Observacao	varchar(255)	null
+
+------------------------------------------------

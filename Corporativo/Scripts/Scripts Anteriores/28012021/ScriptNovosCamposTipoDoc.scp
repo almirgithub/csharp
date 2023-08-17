@@ -1,0 +1,12 @@
+------------------------------------------------------------
+-- Inserir nosvos campos na tabela
+-- afs - 19/08/2020
+------------------------------------------------------------
+
+alter table RENAVAM..RetornoRecall
+	add	DescricaoRecall		varchar(253)	null,
+		QuantNotifRecall	numeric(2,0)	null,
+		SitUltNotifRecall	numeric(1,0)	null,
+		DataHoraUltNotifRecall	numeric(14,0) 	null
+
+-------------------------------------------------------------

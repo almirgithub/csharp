@@ -1,0 +1,70 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.OrgaoCodigoPladcaSigilosaS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.OrgaoCodigoPladcaSigilosaS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.OrgaoCodigoPladcaSigilosaS
+end
+
+GO
+
+create proc dbo.OrgaoCodigoPladcaSigilosaS
+--**************************************************************************              
+--** Criada por	: Almir (°º°)
+--** Data         : 20/08/2020  
+--** Objetivo	: Seleciona dados para campo <F2> 
+--**		  e retorna o Código e Descrição do órgão de placa sigilosa
+--**************************************************************************       
+  
+(  
+	@Cod	 	numeric( 6) = null,  
+	@Desc		ty_Descricao = null  
+)  
+  
+as  
+  
+	if char_length(rtrim(ltrim(@Desc))) = null  
+	begin  
+		select @Desc = null  
+	end  
+	else  
+	begin  
+		select @Desc = upper(@Desc)  
+	end  
+  
+	select 	Cod,   
+       		Descricao  
+	from 	dbvcen..OrgaoPS
+	where 	(upper(Descricao) like @Desc + '%' or @Desc is null)      
+	and 	(Cod = @Cod or @Cod is null)    
+	order 	by Descricao    
+  
+return 0  
+GO
+
+execute sp_procxmode 'OrgaoCodigoPladcaSigilosaS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on OrgaoCodigoPladcaSigilosaS to desenvolvimento
+GO
+
+Grant Execute on OrgaoCodigoPladcaSigilosaS to veiculo
+GO	
+
+  
+ 

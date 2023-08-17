@@ -1,0 +1,173 @@
+use master
+GO
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.EstabelecimentoCredenciadoI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.EstabelecimentoCredenciadoI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.EstabelecimentoCredenciadoI
+end
+
+GO
+
+create proc dbo.EstabelecimentoCredenciadoI 
+/****************************************************************************************************************************************
+
+> Criada por	: Fernando Marques 
+> Data		: 17/02/2006 
+> Objetivo	: Incluir registro na tabela de EstabelecimentoCredenciado 
+> Observação	: 
+> Alterações    : Karla Senna Chacon 		- 09/01/2007 - Controla os credenciamentos ativos/inativos
+> Alterações    : [faml] Flávio Lago 		- 07/11/2013 - Criar cadastro de dados bancários para o credenciado
+		: [marcelom] Marcelo Silva 	- 17/01/2013 - Adicionado novo campo (iUtilizaIntegracao)
+                  [fhv] Fernando Veras 		- 28/03/2016 - Adicionado novo campo: Caracter Inicial do Serial dos Materias
+> Alteração	: [afs] - Almir			- 05/03/2020 - Foi adicionado o parâmetro @iAtivoMercoSul para inserir essa informação 
+							       na tabela
+****************************************************************************************************************************************/
+
+(  
+	@nCredenciado		int = null,
+	@nEstabelecimento	int,
+	@nSetor			int,
+	@siFabricaLacre		char(1),
+	@siFornecePlaca		char(1),
+	@siInstalaPlaca		char(1),
+	@siAtivo		char(1)
+,	@nBanco			int 	        = null	-- [faml] 07/11/2013
+,	@sAgencia		varchar(6)      = null	-- [faml] 07/11/2013
+,	@sContaCorrente		varchar(20)     = null	-- [faml] 07/11/2013
+,	@siUtilizaIntegracao    char(1)         = null  -- Marcelo Silva - 17/01/2013
+,	@sObservacao		varchar(255)    = null
+,	@sLetraIniMaterial	char(1) 	= null	-- Fernando Veras - 28/03/2016
+,	@iAtivoMercoSul		char(1)			-- Almir - 05/03/2020
+)  
+
+as  
+
+declare	@sSetor            	varchar(20)
+	
+select @sLetraIniMaterial = ltrim(rtrim(@sLetraIniMaterial)),
+       @sObservacao = ltrim(rtrim(@sObservacao)),
+       @sContaCorrente = ltrim(rtrim(@sContaCorrente)),
+       @sAgencia = ltrim(rtrim(@sAgencia))	
+
+/************************************** V A L I D A Ç Õ E S ******************************************/
+if 	@nCredenciado 	is null 
+or	@nCredenciado 	= 0  
+begin  
+/*	select	@nCredenciado	= isnull( max(Credenciado), 0) + 1  
+	from	dbvcen..EstabelecimentoCredenciado 
+	where	Credenciado	<= 40
+      
+	if	@nCredenciado	> 40
+	begin
+*/		select	@nCredenciado	= isnull( max(Credenciado), 0) + 1  
+		from	dbvcen..EstabelecimentoCredenciado 
+--	end
+end  
+---------------------
+select 	@sSetor 	= Cod
+from 	dbvcen..Setor
+where 	CodReduzido 	= @nSetor/10
+
+if 	@nSetor is null
+begin
+	raiserror 55000 'Setor inválido!' 
+  	return -900 
+end 
+---------------------
+if @siFabricaLacre = 'N' and @siFornecePlaca = 'N' and @siInstalaPlaca = 'N'
+begin
+	raiserror 55000 'É obrigatório informar ao menos se o Credenciado é fabricante, fornecedor ou instalado de material' 
+  	return -900 
+end
+---------------------
+if @siUtilizaIntegracao = 'S' and @sLetraIniMaterial is null
+begin
+	raiserror 55000 'Quando o campo: “Utiliza Integração com Sistema DETRAN” está marcado, é obrigatório informar o Caractere inicial do serial dos Materiais' 
+  	return -900 
+end
+
+if @siUtilizaIntegracao = 'N' and @sLetraIniMaterial is not null
+begin
+	raiserror 55000 'Quando informado o Caractere inicial do serial dos Materiais é obrigatório marcar “Utiliza Integração com Sistema DETRAN”' 
+  	return -900 
+end
+
+/***************************************************************************************************************/
+
+begin tran  
+
+insert 	dbvcen..EstabelecimentoCredenciado (Credenciado, 
+					Estabelecimento, 
+					Setor, 
+					iFabricaLacre, 
+					iFornecePlaca, 
+					iInstalaPlaca,
+					iAtivo
+,					Banco			-- [faml] 		- 07/11/2013
+,					Agencia			-- [faml] 		- 07/11/2013
+,					ContaCorrente		-- [faml] 		- 07/11/2013
+,					iUtilizaIntegracao  	-- Marcelo Silva 	- 17/01/2014
+,					Observacao		-- Pedro Borba 		- 27/02/2014
+,					LetraIniMaterial	-- Fernando Veras 	- 28/03/2016
+,					iAtivoMercosul		-- Almir		- 05/03/2020
+					)
+values (@nCredenciado,
+	@nEstabelecimento,
+	@sSetor,
+	@siFabricaLacre,
+	@siFornecePlaca,
+	@siInstalaPlaca,
+	@siAtivo
+,	@nBanco		-- [faml] 			- 07/11/2013
+,	@sAgencia		-- [faml]		- 07/11/2013
+,	@sContaCorrente	-- [faml] 			- 07/11/2013
+,	@siUtilizaIntegracao   -- Marcelo Silva 	- 17/01/2013
+,	@sObservacao  		-- Pedro Borba 		- 27/02/2014
+,	@sLetraIniMaterial	-- Fernando Veras 	- 28/03/2016
+,	@iAtivoMercoSul		-- Almir		- 05/03/2020
+ 	)  
+  
+if 	@@transtate=2 
+OR 	@@transtate=3  
+begin  
+	if 	@@transtate=2 	rollback tran  
+	raiserror 55000  
+  	return  
+end  
+
+commit tran  
+
+select	@nCredenciado
+
+return  
+
+
+GO
+
+execute sp_procxmode 'dbo.EstabelecimentoCredenciadoI', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.EstabelecimentoCredenciadoI to desenvolvimento
+
+GO
+
+Grant Execute on dbo.EstabelecimentoCredenciadoI to veiculo
+
+GO
+
+

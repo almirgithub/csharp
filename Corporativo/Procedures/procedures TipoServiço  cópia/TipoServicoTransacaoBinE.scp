@@ -1,0 +1,66 @@
+/*  Database 'dbvcen'  */
+use dbvcen
+go
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.TipoServicoTransacaoBinE'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.TipoServicoTransacaoBinE') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.TipoServicoTransacaoBinE
+end
+go
+
+create proc dbo.TipoServicoTransacaoBinE
+-- Funcao : Selecionar os dados da tabela TipoServicoTransacaoBinE
+-- Autor  : afs - 30/01/2021
+(
+	@TipoServico int, 
+	@Transacao int
+)  
+as  
+
+
+	--if exists(select 1 from dbvcen..TipoServicoTipoConsultaBin
+	--	where TipoServico = @TipoServico)
+	--begin
+	--	raiserror 55000 'O serviço %1! não pode ser excluido porque está fazendo parte de outra tabela', @TipoServico
+	--	return - 900
+	--end
+
+	begin transaction
+
+		delete	dbvcen..TipoServicoTransacaoBin
+		where	TipoServico	=	@TipoServico
+		and	Transacao	=	@Transacao
+  
+		if 	@@transtate 	= 2 or 
+			@@transtate 	= 3       
+		begin       
+			if @@transtate = 2      
+				rollback tran       
+
+			raiserror 55000 'Problemas ao tentar excluir o serviço %1! ', @TipoServico
+			return -900       
+		end    
+
+	commit transaction
+
+  
+return  
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.TipoServicoTransacaoBinE to desenvolvimento
+go
+
+Grant Execute on dbo.TipoServicoTransacaoBinE to veiculo
+go

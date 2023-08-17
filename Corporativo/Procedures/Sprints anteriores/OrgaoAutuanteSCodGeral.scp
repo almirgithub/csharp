@@ -1,0 +1,91 @@
+use master
+GO
+
+use dbinfracao
+GO
+
+print 'STORED procedure : dbo.OrgaoAutuanteSCodGeral'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.OrgaoAutuanteSCodGeral') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.OrgaoAutuanteSCodGeral
+end
+GO
+
+create proc dbo.OrgaoAutuanteSCodGeral
+/******************************************************************************************************************************************* 
+    Autor               : Nayche Emmanuuel de Almeida							
+    Descricao           : Seleciona as Orgãos do estado pelo código e uf				
+    Data de criação     : 29/05/2004									
+    Alteração		: Retornar valor default se o campo estiver nulo				
+			: Leandro Neves - 15/07/2005							
+    			: Kalina - 19/03/2007 - Acrescentar o campo iLiberaApreensaoEstadual		
+   			: Kalina - 14/12/2007 - Retirar o campo iLiberaApreensaoEstadual
+                        : Fernando Veras - 25/01/2016 - Adicionado o campo de retorno iAutorizaRepasse (S ou N).		
+                        : Jonas Guedes - 15/07/2020 - Adicionados os campos de retorno DataCorteSNE e DataAdesaoSNE.		
+			: afs - 20-07-2023 - foi colocada a verificação nos campos
+********************************************************************************************************************************************/
+ 
+(	
+	@Cod		Numeric,
+	@UF		char(2)	
+)
+
+as
+
+declare @Qtde	 	INT
+
+if @Cod is not null
+	begin
+		select	@Qtde = count(*)
+		from 	dbinfracao..OrgaoAutuante o, dbvcen..Municipio m
+		where	o.Cod		= @Cod
+		and	o.UF		= @UF
+		and	o.Municipio	*= m.Cod
+		order by o.Descricao
+
+		if @Qtde = 0
+		begin 
+			raiserror 55000 'Orgão Autuante não existe' 
+			return -900  
+		end
+
+		select 	o.Cod,	
+			o.Descricao,	
+			o.UF,	
+			isnull(o.Situacao,'I'), 
+			isnull(o.PermiteEfeitoSusp,'T'), 
+			isnull(o.CancelaComEfeitoSusp,'M'),
+			isnull(o.ConvMunicipio,'N'), 
+			m.Cod * 10 + m.DigitoVerificador, 
+			isnull(o.RENAINF,'N'), 
+			isnull(o.UsaProtWin,'N'), 
+			o.DataMunicipalizacao, 
+			isnull(o.iAutorizaRepasse,'N'), 
+			o.DataCorteSNE, 
+			o.DataAdesaoSNE,
+			o.DataEntradaRadar, 
+			o.DataSaidaRadar, 
+			o.iIndicadorAdesaoRadar
+		from 	dbinfracao..OrgaoAutuante o, 
+			dbvcen..Municipio m
+		where	o.Cod		= @Cod
+		and	o.UF		= @UF
+		and	o.Municipio	*= m.Cod
+		order 	by 	o.Descricao
+	end
+return
+GO
+
+execute sp_procxmode 'dbo.OrgaoAutuanteSCodGeral', 'unchained'
+GO
+
+print 'CREATING PRIVILEGE : '
+GO
+
+grant execute on dbo.OrgaoAutuanteSCodGeral to veiculo
+GO
+
+grant execute on dbo.OrgaoAutuanteSCodGeral to desenvolvimento
+GO

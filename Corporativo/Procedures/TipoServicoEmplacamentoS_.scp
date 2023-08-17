@@ -1,0 +1,70 @@
+use master
+GO
+
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.TipoServicoEmplacamentoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.TipoServicoEmplacamentoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc TipoServicoEmplacamentoS
+end
+
+GO
+
+create proc dbo.TipoServicoEmplacamentoS
+/******************************************************************************************************             
+** Criada por	: Almir
+** Data         : 01/08/2023  
+** Objetivo	: Verifica se o serviço é de primeiro emplacamenmto
+** Observacao	:            
+*******************************************************************************************************/           
+ 
+( 
+   	@nCodigo		int
+    
+) 
+ 
+as 
+
+
+	declare	@sRetorno	char(1)
+	set	@sRetorno 	= 	'N' -- não é um serviço de primeiro emplacamento
+
+
+	if	exists	(select 1	
+			from 	dbvcen..TipoServico ts
+			where 	ts.Cod	=	@nCodigo
+			and 	ts.PrimEmplacamento = 'S' 
+			)
+	begin
+		select @sRetorno = 'S' -- é um serviço de primeiro emplacamento
+	end 
+		
+
+	select @sRetorno as retorno 
+ 
+return  0 
+go
+
+execute sp_procxmode 'dbo.TipoServicoEmplacamentoS', 'unchained'
+go
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.TipoServicoEmplacamentoS to desenvolvimento
+go
+
+Grant Execute on dbo.TipoServicoEmplacamentoS to veiculo
+go    

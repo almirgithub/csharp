@@ -1,0 +1,194 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.CalendarioLimiteCircularI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.CalendarioLimiteCircularI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.CalendarioLimiteCircularI
+end
+
+GO
+
+create proc dbo.CalendarioLimiteCircularI                       
+/*     
+   Nome              : CalendarioLicenciamentoCircularI    
+   Data de criacao   : 24-07-2020
+   Autor             : Almir
+   Descricao         : Incluir um registro da tabela de dbvcen..CalendarioLimiteCircular.
+   Alteracao         :    
+*/    
+    
+-- Parametros    
+(	    
+	@nExercicio		numeric(4),  
+	@nFinalPlacaIni		int,  
+	@nFinalPlacaFim		int,  
+	@nDiaLimiteCircularCrlv int,  
+	@nMesLimiteCircularCrlv int,  
+	@nDiaLimiteEmissaoCrlv 	int,  
+	@nMesLimiteEmissaoCrlv 	int,  
+	@nDiaLimiteTaxaPostagem int,  
+	@nMesLimiteTaxaPostagem int  
+)    
+    
+as  
+  
+--declare @dDataLimiteCircular datetime,  
+--        @dDataLimiteEmissao  datetime,  
+--        @dDataLimiteTaxa     datetime  
+  
+if @nFinalPlacaIni < 0 or @nFinalPlacaIni > 9 or @nFinalPlacaFim < 0 or @nFinalPlacaFim > 9  
+begin  
+     raiserror 55000 'Só é permitido final de placa entre 0 e 9!'  
+     return -900   
+end  
+  
+if @nFinalPlacaIni > @nFinalPlacaFim  
+begin  
+     raiserror 55000 'Final de placa inicial não pode ser maior que final de placa final!'   
+     return -900   
+end	     
+  
+if exists (select 1  
+           from dbvcen..CalendarioLicenciamento  
+           where nExercicio = @nExercicio  
+           and nFinalPlacaIni = @nFinalPlacaIni  
+	   and nFinalPlacaFim = @nFinalPlacaFim)  
+begin  
+     raiserror 55000 'Já existe registro cadastrado com este exercício, final de placa inicial e final!'   
+     return -900   
+end	     
+  
+if exists (select 1  
+           from dbvcen..CalendarioLicenciamento  
+           where nExercicio = @nExercicio  
+           and nFinalPlacaIni <= @nFinalPlacaIni  
+	   and nFinalPlacaFim >= @nFinalPlacaFim)  
+begin  
+     raiserror 55000 'Já existe registro cadastrado com este exercício e nesta faixa de final de placa!'   
+     return -900   
+end	     
+  
+if exists (select 1  
+           from dbvcen..CalendarioLicenciamento  
+           where nExercicio = @nExercicio  
+           and nFinalPlacaIni >= @nFinalPlacaIni  
+	   and nFinalPlacaFim <= @nFinalPlacaFim)  
+begin  
+     raiserror 55000 'Já existe registro cadastrado com este exercício e nesta faixa de final de placa!'   
+     return -900   
+end  
+  
+if exists (select 1  
+           from dbvcen..CalendarioLicenciamento  
+           where nExercicio = @nExercicio  
+           and @nFinalPlacaFim >= nFinalPlacaIni  
+           and @nFinalPlacaIni <= nFinalPlacaFim)  
+begin  
+     raiserror 55000 'Já existe registro cadastrado com este exercício e nesta faixa de final de placa!'   
+     return -900   
+end  
+  
+if @nExercicio < datepart(yy,getdate())  
+begin  
+     raiserror 55000 'Não é permitido cadastrar um Exercício menor que o ano atual!'  
+     return -900   
+end  
+  
+if @nDiaLimiteCircularCrlv < 1 or @nDiaLimiteCircularCrlv > 31  
+begin  
+     raiserror 55000 'Dia limite de circular CRLV inválido!'   
+     return -900   
+end  
+  
+if @nMesLimiteCircularCrlv < 1 or @nMesLimiteCircularCrlv > 12  
+begin  
+     raiserror 55000 'Mês limite de circular CRLV inválido!'   
+     return -900   
+end  
+  
+if @nDiaLimiteEmissaoCrlv < 1 or @nDiaLimiteEmissaoCrlv > 31  
+begin  
+     raiserror 55000 'Dia limite de emissão CRLV inválido!'   
+     return -900   
+end  
+  
+if @nMesLimiteEmissaoCrlv < 1 or @nMesLimiteEmissaoCrlv > 12  
+begin  
+     raiserror 55000 'Mês limite de emissão CRLV inválido!'   
+     return -900   
+end  
+  
+if @nDiaLimiteTaxaPostagem < 1 or @nDiaLimiteTaxaPostagem > 31  
+begin  
+     raiserror 55000 'Dia limite de taxa postagem inválido!'   
+     return -900   
+end  
+  
+if @nMesLimiteTaxaPostagem < 1 or @nMesLimiteTaxaPostagem > 12  
+begin  
+     raiserror 55000 'Mês limite de taxa postagem inválido!'   
+     return -900   
+end		     
+  
+begin  
+	insert	into dbvcen..CalendarioLicenciamento    
+		(nExercicio,  
+		nFinalPlacaIni,  
+		nFinalPlacaFim,  
+		nDiaLimiteCircularCrlv,  
+		nMesLimiteCircularCrlv,  
+		nDiaLimiteEmissaoCrlv,  
+		nMesLimiteEmissaoCrlv,  
+		nDiaLimiteTaxaPostagem,  
+		nMesLimiteTaxaPostagem)  
+	values	(@nExercicio,  
+		@nFinalPlacaIni,  
+		@nFinalPlacaFim,  
+		@nDiaLimiteCircularCrlv,  
+		@nMesLimiteCircularCrlv,  
+		@nDiaLimiteEmissaoCrlv,  
+		@nMesLimiteEmissaoCrlv,  
+		@nDiaLimiteTaxaPostagem,  
+		@nMesLimiteTaxaPostagem)  
+		   
+	if @@transtate = 2 or @@transtate = 3    
+	begin    
+	     if @@transtate = 2 rollback tran    
+	     raiserror 55000    
+	     return -900    
+	end 	   
+end    
+  
+return    
+  
+ 
+
+GO
+
+execute sp_procxmode 'dbo.CalendarioLicenciamentoI', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.CalendarioLimiteCircularI to desenvolvimento
+GO
+
+Grant Execute on dbo.CalendarioLimiteCircularI to veiculo
+GO
+
+

@@ -1,0 +1,366 @@
+use master
+GO
+
+
+/*  Database 'dbvcen'  */
+use dbinfracao
+GO
+
+
+/*
+  Trigger(s)
+*/
+
+PRINT 'TRIGGER : dbo.tgLogOrgaoAutuanteA'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.tgLogOrgaoAutuanteA') and type = 'TR')
+begin
+ drop trigger dbo.tgLogOrgaoAutuanteA
+end
+
+GO
+
+-------------------------------------------
+--Trigger para atualização da tabela de log
+--Data: 02-08-2022
+--Author: Almir
+-------------------------------------------
+
+
+create	trigger dbo.tgLogOrgaoAutuanteA
+	on dbo.OrgaoAutuante 
+	for update as 
+ 
+ 	
+begin 
+
+	--novos dados
+/*	declare
+	CodLogOrgaoAtu		numeric(6,0) not null,
+	Descricao 		char(40) not null,
+	Operacao		char(1) null,
+	UF 			char(2) null,
+	Situacao 		char(1) null,
+	PermiteEfeitoSusp	char(1) null,
+	Municipio 		numeric(6,0) null,
+	ConvMunicipio 		char(1) null,
+	UsaProtWin 		char(1) null,
+	CancelaComEfeitoSusp 	char(1) null,
+	RENAINF 		char(1) null,
+	DataMunicipalizacao 	datetime null,
+	DataFimMunicipalizacao 	datetime null,
+	sCNPJ 			varchar(14) null,
+	sEndereco 		varchar(50) null,
+	sBairro 		varchar(30) null,
+	sCidade 		varchar(30) null,
+	sCEP 			char(8) null,
+	Bloqueio 		varchar(1) null,
+	NomeCompleto 		varchar(255) null,
+	iAutorizaRepasse 	char(1) null,
+	iIndicadorAdesaoOASNE 	smallint null,
+	DataCorteSNE 		datetime null,
+	DataAdesaoSNE 		datetime null,
+	Usuario			char(8) null,
+	DataOperacao		datetime null,
+	DataEntradaRadar	datetime null,
+	DataSaidaRadar		datetime null,
+	iIndicadorAdesaoRadar	char(1)  null*/
+
+
+	declare
+	@Cod				numeric(6,0),
+	@CodLogOrgaoAtuI		numeric(6,0),
+	@DescricaoI 			char(40),
+	@OperacaoI			char(1),
+	@UFI 				char(2),
+	@SituacaoI 			char(1),
+	@PermiteEfeitoSuspI		char(1),
+	@MunicipioI 			numeric(6,0),
+	@ConvMunicipioI 		char(1),
+	@UsaProtWinI 			char(1),
+	@CancelaComEfeitoSuspI 		char(1),
+	@RENAINFI 			char(1),
+	@DataMunicipalizacaoI 		datetime,
+	@DataFimMunicipalizacaoI	datetime,
+	@sCNPJI 			varchar(14),
+	@sEnderecoI 			varchar(50),
+	@sBairroI 			varchar(30),
+	@sCidadeI 			varchar(30),
+	@sCEPI 				char(8),
+	@BloqueioI 			varchar(1) ,
+	@NomeCompletoI 			varchar(255) ,
+	@iAutorizaRepasseI 		char(1) ,
+	@iIndicadorAdesaoOASNEI 	smallint ,
+	@DataCorteSNEI 			datetime,
+	@DataAdesaoSNEI 		datetime ,
+	@UsuarioI			char(8),
+	@DataOperacaoI			datetime ,
+	@DataEntradaRadarI		datetime,
+	@DataSaidaRadarI		datetime ,
+	@iIndicadorAdesaoRadarI		char(1)
+
+	--DADOS ATUAIS
+	declare
+	@CodLogOrgaoAtuE		numeric(6,0),
+	@DescricaoE 			char(40),
+	@OperacaoE			char(1),
+	@UFE 				char(2),
+	@SituacaoE 			char(1),
+	@PermiteEfeitoSuspE		char(1),
+	@MunicipioE 			numeric(6,0),
+	@ConvMunicipioE 		char(1),
+	@UsaProtWinE 			char(1),
+	@CancelaComEfeitoSuspE 		char(1),
+	@RENAINFE 			char(1),
+	@DataMunicipalizacaoE 		datetime,
+	@DataFimMunicipalizacaoE	datetime,
+	@sCNPJE 			varchar(14),
+	@sEnderecoE 			varchar(50),
+	@sBairroE 			varchar(30),
+	@sCidadeE 			varchar(30),
+	@sCEPE 				char(8),
+	@BloqueioE 			varchar(1) ,
+	@NomeCompletoE 			varchar(255) ,
+	@iAutorizaRepasseE 		char(1) ,
+	@iIndicadorAdesaoOASNEE 	smallint ,
+	@DataCorteSNEE 			datetime,
+	@DataAdesaoSNEE 		datetime ,
+	@UsuarioE			char(8),
+	@DataOperacaoE			datetime ,
+	@DataEntradaRadarE		datetime,
+	@DataSaidaRadarE		datetime ,
+	@iIndicadorAdesaoRadarE		char(1)
+
+
+	select  	
+		@CodLogOrgaoAtuI	=	Cod,
+		@DescricaoI 		=	Descricao,
+		--@OperacaoI			char(1),
+		@UFI 			=	UF,
+		@SituacaoI 		=	Situacao,
+		@PermiteEfeitoSuspI	=PermiteEfeitoSusp,
+		@MunicipioI 		=	Municipio,
+		@ConvMunicipioI 	=	ConvMunicipio,
+		@UsaProtWinI 		=	UsaProtWin,
+		@CancelaComEfeitoSuspI 	=	CancelaComEfeitoSusp,
+		@RENAINFI 		=	RENAINF,
+		@DataMunicipalizacaoI 	=	DataMunicipalizacao,
+		@DataFimMunicipalizacaoI=	DataFimMunicipalizacao,
+		@sCNPJI 		=	sCNPJ,
+		@sEnderecoI 		=	sEndereco,
+		@sBairroI 		=	sBairro,
+		@sCidadeI 		=	sCidade,
+		@sCEPI 			=	sCEP,
+		@BloqueioI 		=	Bloqueio ,
+		@NomeCompletoI 		=	NomeCompleto ,
+		@iAutorizaRepasseI 	=	iAutorizaRepasse,
+		@iIndicadorAdesaoOASNEI =	iIndicadorAdesaoOASNE ,
+		@DataCorteSNEI 		=	DataCorteSNE,
+		@DataAdesaoSNEI 	=	DataAdesaoSNE ,
+		--@UsuarioI		=	Usuario,
+		--@DataOperacaoI		=	DataOperacao ,
+		@DataEntradaRadarI	=	DataEntradaRadar,
+		@DataSaidaRadarI	=	DataSaidaRadar ,
+		@iIndicadorAdesaoRadarI	=	iIndicadorAdesaoRadar
+	from inserted
+               
+  	select  	
+		@CodLogOrgaoAtuE	=	Cod,
+		@DescricaoE 		=	Descricao,
+		--@OperacaoE			char(1),
+		@UFE 			=	UF,
+		@SituacaoE 		=	Situacao,
+		@PermiteEfeitoSuspE	=PermiteEfeitoSusp,
+		@MunicipioE 		=	Municipio,
+		@ConvMunicipioE 	=	ConvMunicipio,
+		@UsaProtWinE 		=	UsaProtWin,
+		@CancelaComEfeitoSuspE 	=	CancelaComEfeitoSusp,
+		@RENAINFE 		=	RENAINF,
+		@DataMunicipalizacaoE 	=	DataMunicipalizacao,
+		@DataFimMunicipalizacaoE=	DataFimMunicipalizacao,
+		@sCNPJE 		=	sCNPJ,
+		@sEnderecoE 		=	sEndereco,
+		@sBairroE 		=	sBairro,
+		@sCidadeE 		=	sCidade,
+		@sCEPE 			=	sCEP,
+		@BloqueioE 		=	Bloqueio ,
+		@NomeCompletoE 		=	NomeCompleto ,
+		@iAutorizaRepasseE 	=	iAutorizaRepasse,
+		@iIndicadorAdesaoOASNEE =	iIndicadorAdesaoOASNE ,
+		@DataCorteSNEE 		=	DataCorteSNE,
+		@DataAdesaoSNEE 	=	DataAdesaoSNE ,
+		--@UsuarioE		=	Usuario,
+		--@DataOperacaoE		=	DataOperacao ,
+		@DataEntradaRadarE	=	DataEntradaRadar,
+		@DataSaidaRadarE	=	DataSaidaRadar ,
+		@iIndicadorAdesaoRadarE	=	iIndicadorAdesaoRadar
+	from deleted                                                            
+                                                                                                                                                                                                                                                                                                              
+  		--	limpar dados que não sofreram alteração
+		--if 	@CodLogOrgaoAtuI = @CodLogOrgaoAtuE 
+		--	select @CodLogOrgaoAtuE	= null		
+		
+		if 	@DescricaoI = @DescricaoE 
+			select @DescricaoE	= null		
+		
+		if 	@OperacaoI = @OperacaoE 
+			select @OperacaoE	= null
+					
+		if 	@UFI = @UFE 
+			select @UFE		= null		
+			
+		if 	@SituacaoI = @SituacaoE 
+			select @SituacaoE	= null		
+			
+		if 	@PermiteEfeitoSuspI = @PermiteEfeitoSuspE 
+			select @PermiteEfeitoSuspE= null
+					
+		if 	@MunicipioI = @MunicipioE 
+			select @MunicipioE 	= null		
+			
+		if 	@ConvMunicipioI = @ConvMunicipioE 
+			select @ConvMunicipioE= null		
+			
+		if 	@UsaProtWinI = @UsaProtWinE 
+			select @UsaProtWinE	= null		
+			
+		if 	@CancelaComEfeitoSuspI = @CancelaComEfeitoSuspE 
+			select @CancelaComEfeitoSuspE= null		
+			
+		if 	@RENAINFI = @RENAINFE
+			select @RENAINFE	= null		
+			
+		if 	@DataMunicipalizacaoI = @DataMunicipalizacaoE 
+			select @DataMunicipalizacaoE= null		
+			
+		if 	@DataFimMunicipalizacaoI = @DataFimMunicipalizacaoE 
+			select @DataFimMunicipalizacaoE= null		
+			
+		if 	@sCNPJI = @sCNPJE 
+			select @sCNPJE		= null		
+			
+		if 	@sEnderecoI = @sEnderecoE 
+			select @sEnderecoE	= null		
+			
+		if 	@sBairroI = @sBairroE 
+			select @sBairroE	= null		
+			
+		if 	@sCidadeI = @sCidadeE
+			select @sCidadeE	= null		
+			
+		if 	@sCEPI = @sCEPE
+			select @sCEPE		= null		
+			
+		if 	@BloqueioI = @BloqueioE 
+			select @BloqueioE	= null		
+			
+		if 	@NomeCompletoI = @NomeCompletoE 
+			select @NomeCompletoE	= null		
+			
+		if 	@iAutorizaRepasseI = @iAutorizaRepasseE 
+			select @iAutorizaRepasseE= null		
+			
+		if 	@iIndicadorAdesaoOASNEI = @iIndicadorAdesaoOASNEE 
+			select @iIndicadorAdesaoOASNEE= null		
+			
+		if 	@DataCorteSNEI = @DataCorteSNEE
+			select @DataCorteSNEE	= null		
+			
+		if 	@DataAdesaoSNEI = @DataAdesaoSNEE
+			select @DataAdesaoSNEE	= null		
+			
+		if 	@UsuarioI = @UsuarioE 
+			select @UsuarioE	= null
+					
+		if 	@DataOperacaoI = @DataOperacaoE
+			select @DataOperacaoE	= null
+					
+		if 	@DataEntradaRadarI = @DataEntradaRadarE
+			select @DataEntradaRadarE	= null		
+			
+		if 	@DataSaidaRadarI = @DataSaidaRadarE
+			select @DataSaidaRadarE	= null		
+
+		if 	@iIndicadorAdesaoRadarI = @iIndicadorAdesaoRadarE
+			select @iIndicadorAdesaoRadarE	= null		
+                                                                                 
+
+	
+	insert into LogOrgaoAutuante
+	(
+			CodLogOrgaoAtu		,
+			Descricao		,
+			Operacao		, 
+			UF 			,
+			Situacao 		,
+			PermiteEfeitoSusp	,
+			Municipio 		,
+			ConvMunicipio 		,
+			UsaProtWin 		,
+			CancelaComEfeitoSusp 	,
+			RENAINF 		,
+			DataMunicipalizacao 	,
+			DataFimMunicipalizacao 	,
+			sCNPJ 			,
+			sEndereco 		,
+			sBairro 		,
+			sCidade 		,
+			sCEP 			,
+			Bloqueio 		,
+			NomeCompleto 		,
+			iAutorizaRepasse 	,
+			iIndicadorAdesaoOASNE 	,
+			DataCorteSNE 		,
+			DataAdesaoSNE 		,
+			Usuario			,	
+			DataOperacao		,
+			DataEntradaRadar	,
+			DataSaidaRadar		,
+			iIndicadorAdesaoRadar
+	) 
+	select  
+			@CodLogOrgaoAtuI		,
+			@DescricaoE		,
+			'A'			, 
+			@UFE 			,
+			@SituacaoE 		,
+			@PermiteEfeitoSuspE	,
+			@MunicipioE 		,
+			@ConvMunicipioE 		,
+			@UsaProtWinE 		,
+			@CancelaComEfeitoSuspE 	,
+			@RENAINFE 		,
+			@DataMunicipalizacaoE 	,
+			@DataFimMunicipalizacaoE 	,
+			@sCNPJE 			,
+			@sEnderecoE 		,
+			@sBairroE 		,
+			@sCidadeE 		,
+			@sCEPE 			,
+			@BloqueioE 		,
+			@NomeCompletoE 		,
+			@iAutorizaRepasseE 	,
+			@iIndicadorAdesaoOASNEE 	,
+			@DataCorteSNEE 		,
+			@DataAdesaoSNEE 		,
+			suser_name()		,	
+			getdate()		,
+			@DataEntradaRadarE	,
+			@DataSaidaRadarE		,
+			@iIndicadorAdesaoRadarE
+			
+	
+end   
+
+--if @@transtate = 2 or @@transtate = 3              
+--begin              
+--	if @@transtate = 2    
+--		rollback tran 		 
+--	raiserror 60000 'Erro ao tentar inserir dados na tabela de log' 
+                 
+--end  
+ 
+--commit tran  
+ 

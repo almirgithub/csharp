@@ -1,0 +1,245 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.SetorI'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.SetorI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.SetorI
+end
+GO
+
+create proc dbo.SetorI
+ /* 
+		
+	Criado por   :   	Rudi 
+
+	Data	    : 	25/09/96				
+
+	Objetivo 	:   	Inclui registro na tabela Setor	
+
+	Alteração    :  Antonio Lins 	- 05/04/2004 - Novo Campo      
+			Antonio Lins 	- 14/07/2004 - Novo Campo      
+		  	Antonio Lins 	- 13/01/2005 - ajuste validacao setor superior
+			Elissany     	- 11/04/2005 - Incluir campo Observacao. 
+			Antonio Lins 	- 26/09/2005 - Elimina critica de setor superior/subordinado
+			Adilson Santos 	- 20/04/2006 - Cadastro do servidor PayGo
+			Antonio Lins   	- 18/12/2006 - Não permite impressora antiga.
+			Karla Senna 	- 16/01/2007 - Acrescentar campo iLacreSemValidacao.
+			Kalina		- 12/03/2007 - Acrescentar campo iExigeLoteRecolhimento.
+			Antonio Lins	- 18/06/2007 - Acrescentar campo iSetorAtivo.
+                        Leonildo        - 12/08/2008 - Foi acrescentado o campo ExigeRenavam.
+                        Flávio Lago [faml] - 26/08/2009 - Novos campos: Código Tef Visa e Código Tef Rede                                                
+			Kalina		- 28/01/2010 - Acrescentar campo iVistoriaSoRecolhimento.
+			Antonio Lins    - 07/10/2010 - Alimentar DataInclusao
+			Antonio Lins    - 09/11/2010 - @SetorCaixa
+			Leonildo Junior - 12/08/2011 - Foi acrescentado o campo iSetorGrandeCliente
+			João Queiroz    - 23/10/2012 - Novo campo iPermSubstitAutoriza
+			Marcelo Silva   - 01/07/2014 - Novo campo UsuarioCadastro
+			João Queiroz - 04/12/2014 - Incluir novos campos iRealizaVeisatoria e iRealizaAtend
+			Adilson Santos - 29/06/2016 - iImplantaReciboVencido --- ADILSON -  Implanta auto de recibo automático = 'S'
+			Fernando Veras - 07/06/2017 - Incluir campo iImprimeCapaVeicRecolhido para identificar se o setor imprime capa quando arquivar um veiculo recolhido.
+			Fernando Veras - 04/07/2017 - Incluir campo @iRegMultaRecibVenciAut para identificar se o setor implanta recibo vencido.
+			Fernando Veras - 17/01/2018 - Incluir campo @iExigeFotoVistoriaForaDetran para identificar se o setor permite vistoria fora do detran.
+			Almir Felipe - 11/07/2018  - Foram incluidos dois campos para permitir o agendamento da vistoria ou do atendimento			
+			Almir Felipe - 04/07/2019  - Foi colocado um novo campo iSetorFuncionaConcessionaria para controle dos setores que funcionam em concessionária
+			Jonas Guedes - 15/07/2020  - Foi colocado um novo campo iPermiteAgendDespachante - Permite Agendamento Despachante
+			Almir Felipe  -09/12/2020  - Foram colocados dois novos campos @iEmiteDocEletronico e @iEmiteCRV 
+			Almir Felipe - 09/02/2021  - foi colocado um novo parâmetro para informar se vai usar o adobe ou não
+*/ 
+(   
+	@Cod				varchar(20)	,   
+	@CodRed				ty_Numero	,   
+	@Digito				Numeric(1,0)	,   
+	@Descricao    			ty_Descricao	,   
+	@DesSintetica  			ty_Descricao	,   
+	@EMail				ty_Descricao	,   
+	@Logradouro			ty_Descricao	,	   
+	@Municipio			Numeric(06)	,   
+	@Bairro 			Numeric(06)	,   
+	@CEP 				Numeric(08)	= null	,   
+	@Telefone 			varchar(12)	= null	,   
+	@FAX 				varchar(12) 	= null	,   
+	@Responsavel 			varchar(50) 	= null	,   
+	@Tipo 				char(01) 	= null	,   
+	@Informatizado 			char(01) 	= null	,   
+	@EmiDoc				char(01) 	='O'	,   
+	@IPREN 				varchar(20)	= null	,   
+	@PortaREN 			Int 		= null	,   
+	@Debito 			char(01) 	= null  ,   
+	@PortaSNG 			Int 		= null	,    
+	@IPSNG 				varchar(20) 	= null	,  
+	@ServicoInternet 		char(01) 	= 'S'	,  
+	@AtendeProcurador 		char(01)	= 'S'   , 
+	@iCapturaFoto 			char(01)	= 'S'   , 
+	@iVistoriaSoVeiculoNovo 	char(01)	= 'N'   , 
+	@iNaoAbreVistoriaNoPre  	char(01) 	= 'N'   , 
+	@iValidacaoVistoria     	char(01) 	= 'C'	,
+	@Observacao 			varchar(255)	= null  ,
+	@iUsaNovaImpDoc 		char(01) 	= 'N'	,
+	@ServidorPayGo 			varchar(40) 	= null	,	-- 
+	@iLacreSemValidacao 		char(01) 	= 'N'	,	
+	@iExigeLoteRecolhimento 	char(01) 	= 'N'	,
+	@ExigeRenavam 			char(01) 	= 'N'	,
+	@iSetorAtivo 			char(01) 	= 'S'	,
+	@CodTefVisa 			varchar(12)	= null  ,	-- [faml] 26/08/2009
+	@CodTefRede			varchar(12)	= null  ,	-- [faml] 26/08/2009
+	@iVistoriaSoRecolhimento 	char(01) 	= 'N'   ,
+	@SetorCaixa			int 		= null  ,
+	@iCiretranEspecial 		char(1)		= 'N',
+	@iSetorGrandeCliente 		char(1)		= null,
+	@PermSubstAutor 		char(1)		= 'N' ,-- 23/10/2012 João Queiroz Novo campo iPermSubstitAutoriza
+	@UsuarioCadastro 		char(8)		= null, -- Marcelo Silva   - 01/07/2014 - Novo campo UsuarioCadastro e DataCadastro
+	@sRealAtend			char(1)		= 'N',
+	@sRealVistoria 			char(1)		= 'N',
+	@iImprimeCapaVeicRecolhido 	char(1)		= null,
+	@iRegMultaRecibVenciAut 	char(1)		= null,
+	@iExigeFotoVistoriaForaDetran 	char(1)		= 'N',
+	@iAgendaVistoria		char(1)		= null,    -- [afs] 11/07/2018 
+	@iAgendaAtendimento 		char(1)		= null,    -- [afs] 11/07/2018
+	@iSetorConcessionaria 		char(1)		= null,    -- [afs] 04/07/2019
+	@iPermiteAgendDespachante 	char(1)		= null,    -- [jgj] 15/07/2020
+	@iEmiteDocEletronico 		char(1)		= null,    -- [afs] 09/12/2020
+	@iEmiteCRV 			char(1)		= null,    -- [afs] 09/12/2020
+	@iUsaAdobeImpDocEle		char(01) 	= 'N'  	   -- [afs] 09/02/2021
+)   
+   
+as   
+   
+declare	@tammascara 	Numeric(02),   
+	@aux 		varchar(20),   
+	@mascara 	varchar(20),   
+	@ciretran 	varchar(20),   
+	@inf 		Bit,
+	@TipoAnt 	char(1),
+	@sSetorCaixa 	varchar(20)   
+
+if @SetorCaixa is not null
+select  @sSetorCaixa = Cod   
+from    dbvcen..Setor   
+where   CodReduzido = @SetorCaixa / 10   
+and 	Digito = @SetorCaixa % 10   
+
+if @iRegMultaRecibVenciAut = 'S'
+begin
+	if @Logradouro is null or @Logradouro = ''
+	begin
+		raiserror 55000 'Quando o setor registra multa de recibo vencido automático o campo logradouro é obrigatório, pois, o mesmo será utilizado como local de cometimento da infração!'
+	   	return -900 
+	end
+end
+
+-- [faml] 26/08/2009	completar com zero apenas no código da REDECARD
+if char_length(ltrim(rtrim(@CodTefRede))) < 9
+begin
+	select @CodTefRede= replicate('0', 9-char_length(ltrim(rtrim(@CodTefRede)))) || ltrim(rtrim(@CodTefRede))
+end
+-- [faml] end
+
+select @aux = '00000000000000000000'   
+   
+select	@mascara = MascCodSetor   
+from 	dbvcen..ParametroGeral   
+   
+select 	@Municipio = convert(Int,@Municipio/10)   
+   
+/* Retira os pontos da mascara */   
+while 	charindex('.',@mascara) != 0   
+begin   
+	select 	@mascara = stuff(@mascara,charindex('.',@mascara),1,null)   
+end   
+   
+select 	@tammascara = Char_Length( ltrim(rtrim(@mascara)))   
+   
+select 	@Cod = convert(varchar(20), @Cod + Right(@aux, @tammascara - Char_Length(@Cod))) 
+
+-- Antonio Lins
+-- 18/12/2006
+select 	@iUsaNovaImpDoc = 'S'
+	   
+begin tran   
+   
+	insert	dbvcen..Setor   
+		(Cod, CodReduzido, Digito, Descricao, DescricaoSintetica, EMail, Logradouro, Municipio,   
+		Bairro, CEP, Telefone, FAX, Responsavel, Tipo, Informatizado, EmissaoDocumento, IPRenavam, 
+		PortaRenavam, BloqueiaDebito, PortaSng, IPSng, ServicoInternet, AtendeProcurador, iCapturaFoto,
+		iVistoriaSoVeiculoNovo, iNaoAbreVistoriaNoPre, iValidacaoVistoria, Observacao, iUsaNovaImpDoc,
+		ServidorPayGo, iLacreSemValidacao, iExigeLoteRecolhimento, ExigeRenavam, iSetorAtivo,
+		CodTefVisa,	-- [faml] 26/08/2009
+		CodTefRede,	-- [faml] 26/08/2009
+		iVistoriaSoRecolhimento,
+		DataInclusao, -- Antonio Lins em 07/10/2010	 
+		SetorCaixa,
+		iCiretranEspecial,
+		iSetorGrandeCliente,
+		iPermSubstitAutoriza,
+		UsuCadastro,
+		iRealizaAtend,
+		iRealizaVistoria,
+		iImplantaReciboVencido, --- ADILSON -  Implanta auto de recibo automático
+		iImprimeCapaVeicRecolhido,
+		iExigeFotoVistoriaForaDetran,
+		iAgendaVistoria,  	-- [afs] 11/07/2018 
+		iAgendaAtendimento,	-- [afs] 11/07/2018
+		iSetorFuncionaConcessionaria, -- [afs] 04/07/2019
+		iPermiteAgendDespachante, -- -- [jgj] 15/07/2020
+		iEmiteDocEletronico, -- [afs] 09/12/2020
+		iEmiteCRV, -- [afs] 09/12/2020
+		iUsaAdobeImpDocEle    -- [afs] 09/02/2021
+		)   
+	values 	(@Cod, @CodRed, @Digito, @Descricao, @DesSintetica, @EMail, @Logradouro,  @Municipio, 
+		@Bairro, @CEP, @Telefone, @FAX, @Responsavel, @Tipo, @Informatizado, @EmiDoc, @IPREN, 
+		@PortaREN, @Debito, @PortaSNG, @IPSNG, @ServicoInternet, @AtendeProcurador, @iCapturaFoto,
+		@iVistoriaSoVeiculoNovo, @iNaoAbreVistoriaNoPre, @iValidacaoVistoria, @Observacao, @iUsaNovaImpDoc, 
+		@ServidorPayGo, @iLacreSemValidacao, @iExigeLoteRecolhimento, @ExigeRenavam, @iSetorAtivo,
+		@CodTefVisa,	-- [faml] 26/08/2009
+		@CodTefRede,	-- [faml] 26/08/2009
+		@iVistoriaSoRecolhimento,
+		getdate(),
+		@sSetorCaixa,
+		@iCiretranEspecial,
+		@iSetorGrandeCliente,
+		@PermSubstAutor,
+		suser_name(),
+		@sRealAtend,
+		@sRealVistoria,
+		@iRegMultaRecibVenciAut,
+		@iImprimeCapaVeicRecolhido,
+		@iExigeFotoVistoriaForaDetran,
+		@iAgendaVistoria,  -- [afs] 11/07/2018 
+		@iAgendaAtendimento, -- [afs] 11/07/2018
+		@iSetorConcessionaria, -- [afs] 04/07/2019
+		@iPermiteAgendDespachante, -- -- [jgj] 15/07/2020
+		@iEmiteDocEletronico, -- [afs] 09/12/2020
+		@iEmiteCRV, -- [afs] 09/12/2020
+		@iUsaAdobeImpDocEle -- [afs] 09/02/2021
+
+		)   
+	   
+	if 	@@transtate=2 or @@transtate=3   
+	begin   
+		if 	@@transtate=2 	rollback tran   
+		raiserror 55000   
+	  	return   
+	end   
+   
+commit tran   
+   
+return 0   
+GO
+
+execute sp_procxmode 'dbo.SetorI', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.SetorI to desenvolvimento
+GO
+
+Grant Execute on dbo.SetorI to veiculo
+GO 

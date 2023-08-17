@@ -1,0 +1,8 @@
+-- Inserindo um novo campo na tabela 
+-- LogEstabelecimentoCredenciado
+-- afs - 05/03/2020
+
+
+alter table dbvcen..LogEstabelecimentoCredenciado
+ add iAtivoMercosul       char(1)   null
+

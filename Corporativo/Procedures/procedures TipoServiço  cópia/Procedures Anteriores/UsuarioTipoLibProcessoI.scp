@@ -1,0 +1,106 @@
+use master
+GO
+
+use dbvcen
+GO
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.UsuarioTipoLibProcessoI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.UsuarioTipoLibProcessoI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.UsuarioTipoLibProcessoI
+end
+
+GO
+
+create proc dbo.UsuarioTipoLibProcessoI 
+
+/********************************************************************************************************************************
+	Funcao 		: Fazer Insert de linhas na tabela UsuarioTipoLibProcesso		  
+	Autor  		: Antonio Lins  	- 08/07/2007                            	
+	Alteração	: Matheus Chaves 	- 27/03/2015 - Validar a quantidade de acessos já liberados por tipo de liberação
+			: Jonas Guedes 	- 11/09/2017 - Alteração na msg de validação, com verificação também na Table-dbvcen..TipoLibProcessoSetor
+********************************************************************************************************************************/  
+  
+  
+(  
+    @TipoLiberacao           ty_Numero,  
+    @Usuario                 char(8)  
+)  
+  
+as
+
+declare @QtdLib int, @SetorUsuario varchar(20), @DescTipoLib varchar(50), @DescSetor varchar(50), @QtdLimite int
+
+select @SetorUsuario = Setor from dbvcen..Usuario where Cod = @Usuario
+
+select @DescSetor = Descricao from dbvcen..Setor where Cod = @SetorUsuario
+
+select @DescTipoLib = Descricao from dbvcen..TipoLiberacaoProcesso where TipoLiberacao = @TipoLiberacao
+
+select @QtdLib = count(*) 
+from dbvcen..Usuario u,
+     dbvcen..UsuarioTipoLibProcesso ut
+where u.Setor = @SetorUsuario
+and ut.Usuario = u.Cod
+and ut.TipoLiberacao = @TipoLiberacao
+
+if exists (select 1 
+           from dbvcen..TipoLibProcessoSetor t, 
+		dbvcen..Usuario u
+	  where t.TipoLiberacaoProcesso = @TipoLiberacao 
+	    and u.Cod = @Usuario
+	    and t.Setor = u.Setor
+	    and t.QtdLimiteAcesso is not null 
+	    and @QtdLib >= t.QtdLimiteAcesso)
+begin 
+    select @QtdLimite = t.QtdLimiteAcesso 
+           from dbvcen..TipoLibProcessoSetor t, 
+		dbvcen..Usuario u
+	  where t.TipoLiberacaoProcesso = @TipoLiberacao 
+	    and u.Cod = @Usuario
+	    and t.Setor = u.Setor
+	    and t.QtdLimiteAcesso is not null 
+	    and @QtdLib >= t.QtdLimiteAcesso
+    raiserror 55000 'A quantidade limite de usuários para acesso ao tipo de liberação de processo %1! e setor %2!, já atingido. Quantidade Limite: %3! e Quantidade já com Acesso: %4!' , @DescTipoLib, @DescSetor, @QtdLimite, @QtdLib
+    return 
+end  
+  
+begin tran  
+  
+insert  dbvcen..UsuarioTipoLibProcesso ( TipoLiberacao, Usuario )  
+values  ( @TipoLiberacao, @Usuario )  
+  
+if @@transtate=2 OR @@transtate=3  
+begin  
+    if @@transtate=2 rollback tran  
+    raiserror 55000  
+    return -900  
+end  
+  
+commit tran  
+  
+return 0  
+
+
+
+ 
+GO
+
+execute sp_procxmode 'dbo.UsuarioTipoLibProcessoI', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.UsuarioTipoLibProcessoI to desenvolvimento
+GO
+
+Grant Execute on dbo.UsuarioTipoLibProcessoI to veiculo
+GO

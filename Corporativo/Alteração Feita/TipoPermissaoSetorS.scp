@@ -1,0 +1,87 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.TipoPermissaoSetorS'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.TipoPermissaoSetorS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.TipoPermissaoSetorS
+end
+GO
+
+create proc dbo.TipoPermissaoSetorS  
+/*
+	foi feita uma concatenação para mostrar a descrição com o código do setor
+	31-01-2023
+*/           
+(
+	@TipoPermissao 	smallint,
+	@TipoRetorno 	varchar(3) -- SP = Setores Permitidos / SNP = Setores não permitidos
+)
+
+as
+
+	if @TipoRetorno = 'SP'
+	begin
+
+			select	(select convert(int, convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito))) as CodSetor,
+				convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito) || ' - ' || s.Descricao as Setor
+			from 	dbvcen..Setor s
+			where 	exists (select 	1
+						from 	dbvcen..TipoPermissaoSetor tps
+						where 	tps.Setor = s.Cod
+						and 	tps.TipoPermissao = @TipoPermissao)
+			and	s.iSetorAtivo = 'S'
+			order by s.Descricao
+	
+	end
+	else if @TipoRetorno = 'SNP'
+	begin
+		if	@TipoPermissao	=	7
+		begin 
+			select	(select convert(int, convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito))) as CodSetor,
+				(convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito) || ' - ' || s.Descricao) as Setor
+			from 	dbvcen..Setor s
+			where 	not exists (select 	1
+						from 	dbvcen..TipoPermissaoSetor tps
+						where 	tps.Setor = s.Cod
+						and 	tps.TipoPermissao = @TipoPermissao)
+			and	s.iSetorAtivo = 'S'	
+			and	s.iCapturaFoto = 'S'		
+			order by 	s.Descricao
+		end
+		else
+		begin
+			select	(select convert(int, convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito))) as CodSetor,
+				convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito) || ' - ' || s.Descricao as Setor
+			from 	dbvcen..Setor s
+			where 	not exists (select 	1
+						from 	dbvcen..TipoPermissaoSetor tps
+						where 	tps.Setor = s.Cod
+						and 	tps.TipoPermissao = @TipoPermissao)
+			and	s.iSetorAtivo = 'S'
+			order by 	s.Descricao
+		end
+	end
+
+return 0
+GO
+
+execute sp_procxmode 'dbo.TipoPermissaoSetorS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.TipoPermissaoSetorS to desenvolvimento
+GO
+
+Grant Execute on dbo.TipoPermissaoSetorS to SDSocial
+GO
+
+Grant Execute on dbo.TipoPermissaoSetorS to veiculo
+GO  

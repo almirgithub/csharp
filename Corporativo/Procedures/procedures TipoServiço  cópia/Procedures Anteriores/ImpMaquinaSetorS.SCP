@@ -1,0 +1,174 @@
+use master
+GO
+use dbvcen
+GO
+
+/* Procedure(s) */
+
+PRINT 'STORED PROCEDURE : dbo.ImpMaquinaSetorS'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.ImpMaquinaSetorS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.ImpMaquinaSetorS
+end
+GO
+
+create proc dbo.ImpMaquinaSetorS 
+/****************************************************************************************************************************************
+> Criada por	: Almir
+> Data		: 29/09/2020
+> Objetivo	: Selecionar registros da tabela MaquinaSetor 
+> Observação	: 		  
+****************************************************************************************************************************************/
+
+(
+	@SetorMaquina	int = null
+)
+
+as
+
+	declare @sSetorMaquina varchar (25)
+	declare	@Maquina1	varchar(20),
+		@Maquina2	varchar(20),
+		@Maquina3	varchar(20),		
+		@Maquina4	varchar(20),
+		@Maquina5	varchar(20),
+		@Maquina6	varchar(20),		
+		@conta		smallint,
+		@Maquinas	varchar(20),
+		@Maquina	varchar(20)
+
+	--================================= V A L I D A Ç Õ E S ====================================================--
+	select @sSetorMaquina = Cod from dbvcen..Setor where CodReduzido = @SetorMaquina/10 
+
+	select @sSetorMaquina = ltrim(rtrim(@sSetorMaquina))
+	--==========================================================================================================--
+
+	--Criando uma tabela temporária		
+	create table #tmpMaquinas(
+		Maquina1	varchar(20)	null,
+		Maquina2	varchar(20)	null,
+		Maquina3	varchar(20)	null,
+		Maquina4	varchar(20)	null,
+		Maquina5	varchar(20)	null,
+		Maquina6	varchar(20)	null
+	)
+	
+	
+	--Criando um cursor		
+	declare cursorMaq cursor 	 
+		for 	select	ms.MaquinaDetran--, ms.MaquinaDetran
+			from	dbvcen..MaquinaSetor ms, 
+			dbvcen..Setor s
+		where	ms.SetorAssociado = @sSetorMaquina
+		and	ms.SetorAssociado = s.Cod
+
+
+	--Abrindo o cursos	
+	open cursorMaq
+	
+	--Lendo o cursor
+	fetch cursorMaq 
+               into	@Maquinas
+
+
+	--Iniciando uma transação	
+	begin tran
+	
+ 	select	@conta	=	1
+ 	select 	@Maquina1	=	null,
+		@Maquina2	=	null,
+		@Maquina3	=	null,
+		@Maquina4	=	null,
+		@Maquina5	=	null,
+		@Maquina6	=	null
+ 
+	while (@@sqlstatus = 0)
+	begin
+		if @Maquinas is not null
+		begin
+		
+			if 	@conta	=	1			
+				select	@Maquina1	=	@Maquinas
+			else	if 	@conta	=	2
+				select	@Maquina2	=	@Maquinas
+			else	if 	@conta	=	3
+				select	@Maquina3	=	@Maquinas
+			else	if 	@conta	=	4	
+				select	@Maquina4	=	@Maquinas
+			else	if 	@conta	=	5
+				select	@Maquina5	=	@Maquinas
+			else	if 	@conta	=	6	
+				select	@Maquina6	=	@Maquinas
+			
+
+			select 	@conta = @conta + 1
+			
+		end
+
+		if @conta	>	6
+		begin
+
+			insert into #tmpMaquinas (Maquina1, Maquina2, Maquina3, Maquina4, Maquina5, Maquina6)
+			       values (	@Maquina1, @Maquina2, @Maquina3, @Maquina4, @Maquina5, @Maquina6)
+
+			if @@transtate=2 OR @@transtate=3    
+			begin    
+			   if @@transtate=2    
+			      rollback tran    
+			      raiserror 55000 'Erro ao tentar inserir na tabela temporária'
+			      return    
+			end   
+			select 	@Maquina1	=	null,
+				@Maquina2	=	null,
+				@Maquina3	=	null,
+				@Maquina4	=	null,
+				@Maquina5	=	null,
+				@Maquina6	=	null
+			
+			select 	@conta	=	1
+		end
+		
+		fetch cursorMaq 
+               	into	@Maquinas
+	end
+	
+	if @conta	>	1
+	begin
+
+		insert into #tmpMaquinas (Maquina1, Maquina2, Maquina3, Maquina4, Maquina5, Maquina6)
+		       values (	@Maquina1, @Maquina2, @Maquina3, @Maquina4, @Maquina5, @Maquina6)
+		if @@transtate=2 OR @@transtate=3    
+		begin    
+		   if @@transtate=2    
+		      rollback tran    
+		      raiserror 55000 'Erro ao tentar inserir na tabela temporária'
+		      return    
+		end   
+	end
+		
+	commit tran
+
+	--Fechando o cursor
+	close cursorMaq
+
+	--Mostrando os dados da tabela tempor ria
+	select * from #tmpMaquinas	
+
+
+
+
+return 
+GO
+
+execute sp_procxmode 'dbo.ImpMaquinaSetorS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE: DESENVOLVIMENTO E VEICULO'
+GO
+
+Grant Execute on dbo.ImpMaquinaSetorS to desenvolvimento
+GO
+Grant Execute on dbo.ImpMaquinaSetorS to veiculo
+GO

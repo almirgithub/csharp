@@ -1,0 +1,102 @@
+use master
+GO
+
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.TipoPermissaoUsuarioS'
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.TipoPermissaoUsuarioS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.TipoPermissaoUsuarioS
+end
+GO
+
+create proc dbo.TipoPermissaoUsuarioS  
+            
+(
+	@TipoPermissao 	smallint,
+	@Usuario 		char(8) 	= null,
+	@Setor 			int 		= null
+)
+
+as
+
+declare @sSetor varchar(21)
+
+select @Usuario = ltrim(rtrim(@Usuario))
+
+if @Usuario is null and @Setor is null
+begin
+	select	1,
+			u.Cod as CodUsuario,
+			u.Nome as Usuario,
+			(select convert(int, convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito))) as CodSetor,
+			s.Descricao as Setor
+	from 	dbvcen..Setor s, 
+			dbvcen..Usuario u,
+			dbvcen..TipoPermissaoUsuario tpu
+	where 	tpu.TipoPermissao = @TipoPermissao
+	and 	tpu.Usuario = u.Cod
+	and 	u.Setor = s.Cod
+	order by u.Nome
+end
+else if @Usuario is not null
+begin
+	select	(case 	when exists		(select 1 
+									from 	dbvcen..TipoPermissaoUsuario tpu
+									where 	tpu.Usuario = u.Cod
+									and 	tpu.TipoPermissao = @TipoPermissao)
+					then 1
+					else 0
+					end) as isPermissao,
+			u.Cod as CodUsuario,
+			u.Nome as Usuario,
+			(select convert(int, convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito))) as CodSetor,
+			s.Descricao as Setor
+	from 	dbvcen..Setor s, 
+			dbvcen..Usuario u
+	where 	u.Cod = @Usuario
+	and 	u.Setor = s.Cod
+	order by u.Nome
+end
+else if @Setor is not null
+begin
+	select @sSetor = s.Cod from dbvcen..Setor s where s.CodReduzido = @Setor/10
+
+	select	(case 	when exists		(select 1 
+									from 	dbvcen..TipoPermissaoUsuario tpu
+									where 	tpu.Usuario = u.Cod
+									and 	tpu.TipoPermissao = @TipoPermissao)
+					then 1
+					else 0
+					end) as isPermissao,
+			u.Cod as CodUsuario,
+			u.Nome as Usuario,
+			(select convert(int, convert(varchar(10), s.CodReduzido) + convert(varchar(2), s.Digito))) as CodSetor,
+			s.Descricao as Setor
+	from 	dbvcen..Setor s, 
+			dbvcen..Usuario u
+	where 	s.Cod = @sSetor
+	and		s.Cod = u.Setor
+	order by u.Nome
+end
+
+return 0
+GO
+
+execute sp_procxmode 'dbo.TipoPermissaoUsuarioS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.TipoPermissaoUsuarioS to desenvolvimento
+GO
+
+Grant Execute on dbo.TipoPermissaoUsuarioS to SDSocial
+GO
+
+Grant Execute on dbo.TipoPermissaoUsuarioS to veiculo
+GO  

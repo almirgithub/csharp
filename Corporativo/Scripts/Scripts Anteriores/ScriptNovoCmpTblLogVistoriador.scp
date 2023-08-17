@@ -1,0 +1,11 @@
+------------------------------------------------
+-- criando novo campo na tabela
+-- LogVistoriador o campo Observacao 
+-- afs - 22-04-2022
+------------------------------------------------
+
+alter table dbvcen..LogVistoriador
+ add	 Observacao 	varchar(1000) null
+
+------------------------------------------------
+

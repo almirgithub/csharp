@@ -1,0 +1,94 @@
+/*  Database 'dbvcen'  */
+use dbvcen
+go
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.ConsultaLogOrgaoAutuanteS'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.ConsultaLogOrgaoAutuanteS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.ConsultaLogOrgaoAutuanteS
+end
+go
+
+create proc dbo.ConsultaLogOrgaoAutuanteS
+-- Funcao : Selecionar os dados da tabela LogOrgaoAutuante
+-- Autor  : afs - 05-08-2022
+(
+  	@sUsuario 	char(8), 
+	@dDataInicial 	datetime,
+	@dDataFinal 	datetime	
+)
+as  
+
+	select 	@sUsuario	=	ltrim(rtrim(@sUsuario))
+
+	if	(@dDataInicial	is 	null	and
+		@dDataFinal	is 	not	null) or
+		(@dDataInicial	is 	not	null and
+		@dDataFinal	is 	null) 
+	begin
+	        raiserror 60000 'Período inválido!'      
+	        return -900      
+	end
+
+
+	if	@dDataInicial	is 	not	null	and
+		@dDataFinal	is 	not	null
+	begin
+		select @dDataInicial = convert(char(20),@dDataInicial,112)+ ' 00:01' 
+		select @dDataFinal = convert(char(20),@dDataFinal,112)+ ' 23:59' 
+	end
+	
+	select 	UF, (convert(varchar(7), CodLogOrgaoAtu) + ' ' + Descricao) as orgao, 
+		(select Descricao from dbvcen..Municipio where Cod = l.Municipio) as munic, DataMunicipalizacao,
+		DataAdesaoSNE, DataCorteSNE,
+		(case	when Situacao  = 'A' then 'Ativo'
+			else	'Inativo'
+		end) as sit,   	 
+		(case	when iAutorizaRepasse  = 'S' then 'Sim'
+			else	'Não'
+		end) as repasse,   	 
+		(case	when ConvMunicipio  = 'S' then 'Sim'
+			else	'Não'
+		end) as ConvMunic,   	 
+		(case	when CancelaComEfeitoSusp  = 'A' then 'Automático'
+			else	'Manual'
+		end) as CancelEfeito,   
+		(case	when RENAINF  = 'S' then 'Sim'
+			else	'Não'
+		end) as RENAI,   		
+		(case	when UsaProtWin  = 'S' then 'Sim'
+			else	'Não'
+		end) as UsaProt,  
+		(case	when PermiteEfeitoSusp  = 'A' then 'Atomático'
+			when PermiteEfeitoSusp  = 'M' then 'Manual'
+			else	'Todos'
+		end) as EfeitoSusp, 
+		DataEntradaRadar,	DataSaidaRadar, Operacao, Usuario, iIndicadorAdesaoRadar,
+		DataOperacao
+	from	dbinfracao..LogOrgaoAutuante l	
+	where 	(l.Usuario = @sUsuario or @sUsuario is null)
+	and	(l.DataOperacao between @dDataInicial and @dDataFinal or @dDataInicial is null)
+	
+
+
+return  
+go
+
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.ConsultaLogOrgaoAutuanteS to desenvolvimento
+go
+
+Grant Execute on dbo.ConsultaLogOrgaoAutuanteS to veiculo
+go
+
+

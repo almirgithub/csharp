@@ -1,0 +1,11 @@
+------------------------------------------------------------
+-- Inserir nosvos campos na tabela HistoricoParametro
+-- afs - 06-12-2020
+------------------------------------------------------------
+
+alter table dbvcen..HistoricoParametro
+	add	iOperandoRenave		char(1)		null,
+		IPWebService		char(20)	null,
+		PortaWebService		numeric(5,0)	null
+
+-------------------------------------------------------------

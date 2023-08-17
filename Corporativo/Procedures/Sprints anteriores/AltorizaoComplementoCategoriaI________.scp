@@ -1,0 +1,101 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.AutorizacaoCategoriaMunicipioI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.AutorizacaoCategoriaMunicipioI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.AutorizacaoCategoriaMunicipioI
+end
+GO
+
+
+/* 
+	Autor : Almir - 30/10/2018 -> Procedure para inserir os dados na tabela UsuarioCategMunicipio 
+*/
+
+create proc dbo.AutorizacaoCategoriaMunicipioI
+(
+	@sUsuarioOrigem		char(8),
+	@sUsuarioDestino		char(8)
+)
+as 
+
+Begin
+
+
+	declare  	@usuario			char(8),
+			@categoria		numeric(4,0),
+			@complemento	numeric(4,0)
+
+         --Select serve para atribuir uma valor a uma vari vel
+         select @sUsuarioOrigem	=  	rtrim(ltrim(@sUsuarioOrigem))
+         select @sUsuarioDestino	=  	rtrim(ltrim(@sUsuarioDestino))
+         
+	--Criando um cursor	 para pegar os complemento por categoria
+	declare 	c_CompCategoria cursor 	 
+			for select		@sUsuarioOrigem, 
+						s.Categoria,
+						s.Cod as Complemento		
+			from			dbvcen..ComplementoCategoria s, 
+						dbvcen..UsuarioComplCategoria u 
+			where		s.Cod = u.ComplCategoria 
+			and 			s.Categoria = u.Categoria 
+			and 			u.Usuario = @sUsuarioOrigem
+		
+
+	--Abrindo o cursos	
+	open c_lerUser
+	
+	--Lendo o cursor
+	fetch c_CompCategoria
+               into 	@usuario	, @categoria, @complemento
+
+	begin tran
+	
+	--Ficando em loop para gravar os dados na tabela temporária
+	while (@@sqlstatus = 0) --(@@sqlstatus != 2 and @@sqlstatus != 1 )  --
+	begin
+
+			if not exists (	select 1 from dbvcen..UsuarioComplCategoria ct
+						where 	ct.Usuario =  @usuario
+						and		ct.Categoria = @categoria
+						and		ct.ComplCategoria = @complemento)
+			begin
+				insert into dbvcen..UsuarioComplCategoria (Usuario, Categoria, ComplCategoria)
+			       values (@usuario	, @categoria, @complemento)
+			end
+
+
+			fetch c_CompCategoria
+               			into 	@usuario	, @categoria, @complemento
+
+	end
+	
+	commit tran
+
+	--Fechando o cursor
+	close c_CompCategoria
+
+end 
+
+
+return 0 
+execute sp_procxmode 'dbvcen..AutorizacaoCategoriaMunicipioI', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbvcen..AutorizacaoCategoriaMunicipioI to desenvolvimento
+GO
+
+Grant Execute on dbvcen..AutorizacaoCategoriaMunicipioI to veiculo
+GO
+

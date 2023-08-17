@@ -1,0 +1,67 @@
+/*  Database 'dbvcen'  */
+use dbvcen
+go
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.TipoServicoTransacaoBinI'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.TipoServicoTransacaoBinI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.TipoServicoTransacaoBinI
+end
+go
+
+create proc dbo.TipoServicoTransacaoBinI
+-- Funcao : Selecionar os dados da tabela TipoServicoTransacaoBinI
+-- Autor  : afs - 30/01/2021
+(
+	@TipoServico int, 
+	@Transacao int
+)  
+as  
+
+
+	if exists(select 1 from dbvcen..TipoServicoTransacaoBin
+		where TipoServico = @TipoServico and  Transacao = @Transacao)
+	begin
+		raiserror 55000 'Já existem cadastrados o serviço %1! e a transação %2! na tabela', @TipoServico, 	@Transacao
+		return - 900
+	end
+
+	begin transaction
+
+		insert 	into	dbvcen..TipoServicoTransacaoBin (TipoServico, Transacao)
+		values	(	@TipoServico, 
+				@Transacao
+			)
+  
+		if 	@@transtate 	= 2 or 
+			@@transtate 	= 3       
+		begin       
+			if @@transtate = 2      
+				rollback tran       
+
+			raiserror 55000 'Problemas ao tentar inserir na tabela TipoServicoTransacaoBin'   
+			return -900       
+		end    
+
+	commit transaction
+
+  
+return  
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.TipoServicoTransacaoBinI to desenvolvimento
+go
+
+Grant Execute on dbo.TipoServicoTransacaoBinI to veiculo
+go

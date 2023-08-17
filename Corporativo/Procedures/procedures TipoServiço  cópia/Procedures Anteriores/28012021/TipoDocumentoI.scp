@@ -1,0 +1,110 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 23007 SMP SP130 /P/Sun_svr4/OS 5.10/ase157sp13x/3819/64-bit/FBO/Sat Aug 23 01:36:19 2014) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.TipoDocumentoI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.TipoDocumentoI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.TipoDocumentoI
+end
+
+GO
+
+create proc dbo.TipoDocumentoI    
+/* Funcao  : Inclusao do registro. */  
+/* Autor    : Celso - 111196       */  
+/* Alateração: afs - 05/01/2021 - foi colocados novs parâmetros   
+	@EmiteDocEletronico  char(1) 
+	@UrlIniWsSerpro      varchar(200),
+	@UrlFimWsSerpro      varchar(200), 
+	@UrlIniWsRenave      varchar(200),
+	@UrlFimWsRenave      varchar(200)
+*/
+
+(
+	@Cod       ty_Numero,  
+    	@Sigla      varchar( 10),  
+    	@Descricao  ty_Descricao,  
+    	@DocNecessario  char(1),  
+    	@DocEmitido char(1),  
+  	@DocProvisorio  char(1),  
+    	@DocVistoria    char(1),  
+    	@ControlaEstoque char(1),     
+    	@PreImpresso     char(1),  
+    	@UnidadeEstoque varchar( 6) = null,
+    	@ControlaAR char(1),
+	@EmiteDocEletronico  char(1),
+	@UrlIniWsSerpro      varchar(200),
+	@UrlFimWsSerpro      varchar(200), 
+	@UrlIniWsRenave      varchar(200),
+	@UrlFimWsRenave      varchar(200)
+
+)  
+  
+as  
+  
+  
+    	if char_length(ltrim(rtrim(@UnidadeEstoque))) is NULL  
+      		select @UnidadeEstoque = NULL  
+  
+  	if @ControlaEstoque = 'S' AND @UnidadeEstoque is null  
+  	begin  
+        	raiserror 55000 'O codigo da unidade de estoque e obrigatorio!'  
+    		raiserror 55000 'Para geracao de debitos de infracao, e obrigatorio informar o Auto, Serie e a Infracao cometida'  
+  
+        	return  
+    	end  
+      
+	begin tran  
+  
+	    insert	dbvcen..TipoDocumento (Cod, Sigla, Descricao, DocNecessario, DocEmitido,   
+	        	ControlaEstoque, UnidadeEstoque, DocProvisorio, DocVistoria, TipoFormulario, iControleAR,
+			iEmiteDocEletronico, UrlIniWsSerpro, UrlFimWsSerpro, UrlIniWsRenave, UrlFimWsRenave)  
+	    values  	(@Cod, @Sigla, @Descricao, @DocNecessario, @DocEmitido,   
+	       	 	@ControlaEstoque, @UnidadeEstoque, @DocProvisorio, @DocVistoria, @PreImpresso, @ControlaAR,
+			@EmiteDocEletronico, @UrlIniWsSerpro, @UrlFimWsSerpro, @UrlIniWsRenave, @UrlFimWsRenave)  
+	  
+	    if @@transtate=2  
+	    begin  
+	        rollback tran  
+	        raiserror 55000  
+	        return  
+	    end  
+	    else if @@transtate=3  
+	    begin  
+	        raiserror 55000  
+	        return  
+	    end  
+  
+	commit tran  
+return  
+
+GO
+
+execute sp_procxmode 'dbo.TipoDocumentoI', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.TipoDocumentoI to desenvolvimento
+GO
+
+Grant Execute on dbo.TipoDocumentoI to veiculo
+GO

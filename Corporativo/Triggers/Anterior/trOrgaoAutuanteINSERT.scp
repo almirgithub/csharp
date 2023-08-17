@@ -1,0 +1,63 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/12.5.0.3/EBF 10975 ESD#1/P/RS6000/AIX 5.1/rel12503/1919/64-bit/FBO/Tue Mar 25 00:12:06 2003) on rs6000
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Trigger(s)
+*/
+
+PRINT 'TRIGGER : dbo.BairroINSERT'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.BairroINSERT') and type = 'TR')
+begin
+ drop trigger dbo.BairroINSERT
+end
+
+GO
+
+create trigger dbo.BairroINSERT     
+/********************* INSERT ********************************/ 
+ 
+/* Insert Trigger da tabela Bairro */  
+on Bairro for INSERT as  
+begin  
+  
+	/* numero de registros incluidos */  
+	declare	@num_rows int  
+	select	@num_rows = @@rowcount  
+	if @num_rows = 0  
+		return  
+
+
+	declare	@geralog	char(1)  
+  
+	select	@geralog = GeraLogFisepe from dbvcen..ParametroGeral 
+  
+	if @geralog = 'S'  
+	begin  
+		insert	dbarrecadacao..LogFisepe  
+		select	'dbvcen', 'Bairro', 'I',  
+			convert(varchar, Municipio) + ',' + convert(varchar, Cod), 0, getdate()  
+		from	inserted  
+	end	  
+--
+end
+--
+
+GO
+
+
+/* ** WARNING ** Only users with SA_ROLE or SSO_ROLE role can get information from audflags column in master.dbo.syslogins */
+/* 'sp_auditlogin' script cannot be generated */
+
+

@@ -1,0 +1,53 @@
+use master
+go
+
+/*  Database 'Prot'  */
+use dbvcen
+go
+
+/*
+  Table(s)
+*/
+
+PRINT 'TABLE : dbo.OrgaoTransporteAluguel'
+go
+
+if exists (select 1 
+            from  sysobjects c 
+            join  sysconstraints s on (s.constrid = c.id and s.tableid = object_id('MunicipioTranspAluguelOrgao'))
+            where name = 'fkOrgaoTpAlugMunicipioTpAlug' and type = 'RI')
+   alter table MunicipioTranspAluguelOrgao
+      drop constraint fkOrgaoTpAlugMunicipioTpAlug
+go
+
+
+if exists (select 1
+            from  sysobjects
+            where id = object_id('OrgaoTransporteAluguel')
+            and   type = 'U')
+   drop table OrgaoTransporteAluguel
+go
+
+
+/*==============================================================*/
+/* Table: 	OrgaoTransporteAluguel                        */
+/* Descriá∆o: 	permitir a cadastro dos ¢rg∆os de transportes */
+/* Autor:	Almir				  	 */
+/* Criada em:	25-03-2020				 */
+/*==============================================================*/
+create table OrgaoTransporteAluguel
+(
+   OrgaoTransporteAluguel	int		not null,
+   NomeOrgao			varchar(50)     not null,
+   constraint pkOrgaoTransporteAluguel	primary key (OrgaoTransporteAluguel)
+)
+go
+
+
+Grant select on OrgaoTransporteAluguel to desenvolvimento
+go
+
+Grant select on OrgaoTransporteAluguel to veiculo
+go
+
+

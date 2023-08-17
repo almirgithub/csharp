@@ -1,0 +1,8 @@
+--------------------------------------------------------------------------
+-- novo campo para a tabela Parâmetro Geral
+-- afs - 03-10-2022
+--------------------------------------------------------------------------
+
+alter table 	dbvcen..HistoricoParametro 
+  add	iARFileServer 		char(01) null
+
