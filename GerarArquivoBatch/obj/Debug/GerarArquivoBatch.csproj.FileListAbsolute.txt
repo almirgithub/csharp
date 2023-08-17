@@ -1,0 +1,61 @@
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.exe.config
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.exe
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.pdb
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.AssemblyReference.cache
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.Properties.Resources.resources
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.GenerateResource.cache
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.CoreCompileInputs.cache
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.exe
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.pdb
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmPrincipalBatch.resources
+D:\Sistemas\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmTelaBatch.resources
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.exe.config
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.exe.manifest
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.application
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.exe
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.pdb
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.AssemblyReference.cache
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmPrincipalBatch.resources
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmTelaBatch.resources
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.Properties.Resources.resources
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.GenerateResource.cache
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.CoreCompileInputs.cache
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.exe.manifest
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.application
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.exe
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.pdb
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmAguarde.resources
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.exe.config
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.exe.manifest
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.application
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.exe
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\bin\Debug\GerarArquivoBatch.pdb
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.AssemblyReference.cache
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmAguarde.resources
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmPrincipalBatch.resources
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmTelaBatch.resources
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.Properties.Resources.resources
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.GenerateResource.cache
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.CoreCompileInputs.cache
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.exe.manifest
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.application
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.exe
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.pdb
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\Newtonsoft.Json.dll
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\bin\Debug\Newtonsoft.Json.xml
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.CopyComplete
+F:\Sistema\GerarArquivoBatch\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmGeraArquivoImg.resources
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\bin\Debug\Newtonsoft.Json.dll
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\bin\Debug\Newtonsoft.Json.xml
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmGeraArquivoImg.resources
+F:\SVN\Outros Projetos\QuebraArquivoTexto\Construcao\Implementacao\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.CopyComplete
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.AssemblyReference.cache
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmAguarde.resources
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmGeraArquivoImg.resources
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmPrincipalBatch.resources
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.frmTelaBatch.resources
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.Properties.Resources.resources
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.GenerateResource.cache
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.csproj.CoreCompileInputs.cache
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.exe
+F:\SVN\ProjetosComuns\branches\Desenvolvimento\GerarArquivoBatch\obj\Debug\GerarArquivoBatch.pdb
