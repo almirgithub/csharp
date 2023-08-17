@@ -1,0 +1,5 @@
+--Script para atualizaá∆o da data de vers∆o
+
+update MPS..Sistema 
+set DataVersao = '20230607' 
+where Cod = 106

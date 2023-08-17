@@ -1,0 +1,62 @@
+
+use master
+GO
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.MaquinaTalonarioS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MaquinaTalonarioS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MaquinaTalonarioS
+end
+GO
+
+create proc dbo.MaquinaTalonarioS
+-- Versao 	: 1.0.0.0		  
+-- Funcao	: Retorna as máquinas do órgão
+-- Autor	: afs -27-10-2022
+ 
+(  
+	@Orgao		numeric(6,0)
+)  
+as   
+
+		
+		select	Maquina, 
+			Sequencial, 
+			DataCadastro,   
+			UsuarioCadastro, 	--suser_name()
+			Situacao ,
+			(case	when Situacao = 'A' then 'Ativa'
+				when Situacao = 'I' then 'Inativa'
+				else	 null
+			end) as DescSituacao,
+			DataInativacao, 
+			UsuarioInativou, 
+			rtrim(ltrim(Observacao))
+		from	dbinfracao..MaquinaTalao
+		where	OrgaoAutuante		=	@Orgao
+		order	by	3, 1
+					
+
+  
+return	0   
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.MaquinaTalonarioS to desenvolvimento
+GO
+
+Grant Execute on dbo.MaquinaTalonarioS to veiculo
+go

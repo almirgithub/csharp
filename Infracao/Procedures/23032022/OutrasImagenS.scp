@@ -1,0 +1,40 @@
+use dbvcen
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.MotivoCancelamentoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.OutrasImagenS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.OutrasImagenS
+end
+
+GO
+
+create proc dbo.OutrasImagenS  
+as  
+
+	select 	rtrim(ltrim(Nome)) Arquivo, 
+		rtrim(ltrim(Caminho || '//' || Guid || Extensao)) Caminho 
+	from  MPS..Arquivo
+
+
+return  
+GO
+
+execute sp_procxmode 'dbo.OutrasImagenS', 'unchained'
+GO
+
+print 'CREATING PRIVILEGE : '
+GO
+
+grant execute on dbo.OutrasImagenS to veiculo
+GO
+
+grant execute on dbo.OutrasImagenS to desenvolvimento
+go

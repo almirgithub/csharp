@@ -1,0 +1,74 @@
+
+use master
+GO
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.ConsultaImagemArFileServerS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.ConsultaImagemArFileServerS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.ConsultaImagemArFileServerS
+end
+GO
+
+create proc dbo.ConsultaImagemArFileServerS
+-- Versao 	: 1.0.0.0		  
+-- Funcao	: Verifica se a chave di file server está ligada ou desligada
+-- Autor	: afs - 04-10-2022
+ 
+(  
+	@ArCorreio 		varchar(255)	=	null
+)  
+as   
+
+	declare	@Caminho	varchar(255),
+		@sChave		char(01),
+		@Retorno	char(01)
+
+
+
+	select 	@ArCorreio 	=	rtrim(ltrim(@ArCorreio ))
+	select	@Caminho	=	null
+	select	@Retorno	=	'N'
+
+
+	select	@sChave		=	(select	rtrim(ltrim(iARFileServer))	from	dbvcen..ParametroGeral )
+	
+	select 	@sChave		=	isnull(@sChave,'N')
+
+	if	@sChave		=	'S'
+	begin
+		--select 	@Retorno	=	'S'
+		select	@Caminho = (select im.sCaminho + '\' + im.sGuid + im.sExtensao 
+								from 	dbfisc01..ImagemArServidorArquivo im, 
+									dbvcen..AvisoRecebimento av
+								where 	av.ARCorreio 	= 	@ArCorreio 
+								and 	av.ImagemAR = 	im.sNomeArquivo)
+	end
+
+
+	select	@Caminho	=	rtrim(ltrim(@Caminho))
+	
+	select 	@sChave, @Caminho     ---rtrim(ltrim(@Retorno)), @Caminho
+
+  
+return	0   
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.ConsultaImagemArFileServerS to desenvolvimento
+GO
+
+Grant Execute on dbo.ConsultaImagemArFileServerS to veiculo
+go

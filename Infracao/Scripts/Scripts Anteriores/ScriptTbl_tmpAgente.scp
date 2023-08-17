@@ -1,0 +1,35 @@
+use master
+GO
+
+use dbinfracao
+GO
+
+if exists (select 1
+            from  sysobjects
+            where id = object_id('dbo.tmpAgente')
+            and   type = 'U')
+   drop table dbo.tmpAgente
+go	
+
+
+/*==============================================================*/
+/* Table: tmpAgente                                             */
+/*==============================================================*/                                                  
+create table dbo.tmpAgente 
+(
+	Spid 		smallint	not null,
+	Agente	 	numeric(09)	null,
+	Desdobramento 	int 		null,
+	Nome		varchar(50)	null
+)
+go
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Select on dbo.tmpAgente to desenvolvimento
+GO
+
+Grant Select on dbo.tmpAgente to veiculo
+GO
+

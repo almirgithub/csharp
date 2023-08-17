@@ -1,0 +1,167 @@
+if not exists(select  u.Cod ,s.Tipo ,  s.Descricao, count(*)
+from    
+    dbvcen..Setor s,  
+    dbvcen..Usuario u
+where s.Cod = u.Setor
+and (s.Tipo in ('X', 'I') or (s.Tipo = 'F' and Prefeitura  = 'S'))
+and u.Cod = 'aaao' --suser_name()
+group by s.Descricao)
+begin
+  select 'não faz nada'
+end
+else
+begin
+  select 'processa'
+end
+
+update dbvcen..Setor
+set Tipo = 'X'
+where Cod = 'almirfs'
+
+select top 3 *  from dbvcen..Setor where Descricao like '%DUI%'   --09010000000000    --9501-0
+
+select top 50 *  from dbvcen..Setor where Cod = '00080708000000'
+
+Exec dbvcen..ConsultaOrgaoPertecenteDetranS @Maquina =  'HPD-217'
+
+select top 10 * from dbvcen..Usuario where Setor = '00080708000000'
+
+exec dbinfracao..AutoS_EntregaNotificacao   @Serie =  'DE', @Auto =  40207536, @OrgaoAutuante= 117100, @Maquina =  'HPD-217'
+
+
+select a.Guid ,av.ImagemAR ,av.ARCorreio , a.Nome,   a.Caminho + '\' + a.Guid + a.Extensao 
+		from 	MPS..Arquivo a, 
+				dbvcen..AvisoRecebimento av
+		where 	a.Guid = '19876196000000112022090519'      and av.ARCorreio 	= 	'BG514239412BR'
+		and 		av.ImagemAR = 	a.Nome)
+
+select top 10   * from MPS..Arquivo where Guid = '19876196000000112022090519'
+
+
+
+anome =117100DE4603171-8_AUTO
+
+select top 5 * from dbvcen..AvisoRecebimento where ARCorreio = 'BG514239412BR'
+
+
+
+
+select * from MPS..Arquivo a where a.Guid = '19876196000000112022090519'      
+
+
+select   * from MPS..Arquivo 
+where Caminho  = '\\intranet\dfs\Arquivo\HOMOLOGACAO\Infracao\AppFisc\ImagensAuto\2021\6' --\22303f26-e4ff-4394-8ea6-414dfe2c2ed7.tif'
+
+
+update MPS..Arquivo 
+set Extensao = '.TIF'
+where Guid = '19876196000000112022090519'
+and Caminho  = '\\intranet\dfs\Arquivo\HOMOLOGACAO\Infracao\AppFisc\ImagensAuto\2021\6'
+
+update dbvcen..AvisoRecebimento 
+set ImagemAR  = '19876196000000112022090519.tif' 
+where ARCorreio = 'BG514239412BR'
+---------------------------------------------------------------------------------------------------------------
+
+
+
+select * from MPS..Arquivo 
+where Guid = '19876196000000112022090519'	
+
+
+-- \\intranet\dfs\Arquivo\HOMOLOGACAO\Infracao\AppFisc\ImagensAuto\2021\6\19876196000000112022090519.tif
+
+--\\intranet\dfs\Arquivo\HOMOLOGACAO\Infracao\AppFisc\ImagensAuto\2021\6\19876196000000112022090519.tif    --       22303f26-e4ff-4394-8ea6-414dfe2c2ed7.jpg
+
+
+
+Exec dbinfracao..ImagemARS @Nome = '19876196000000112022090519.tif', @Maquina =  'HPD-217'
+
+update dbimg01..ImagemAR 
+set Nome = '19876196000000112022090519.TIF' 
+where  Cod = 740
+
+select top 10 * from dbimg01..ImagemAR
+
+Select Tamanho, Imagem from dbimg01..ImagemAR where Nome = '19876196000000112022090519.tif'
+
+   Exec dbinfracao..ImagemARS @Nome =  '19876196000000112022090519.TIF', @Maquina =  'HPD-217'
+
+ exec dbinfracao..AutoS_EntregaNotificacao   @Serie =  'DE', @Auto =  40207536, @OrgaoAutuante= 117100, @Maquina =  'HPD-217'
+
+select top 10 *  from 	dbvcen..AvisoRecebimento where ImagemAR = '19876196000000112022090519.tif'
+
+
+
+
+
+
+declare @TipoLiberacao int, @UsuCad char(08), @UsuLib char(08)
+select @TipoLiberacao = 28
+select @UsuCad = 'snf'
+select @UsuLib = 'snf'
+
+	select 	s.Descricao as SetorCad, 
+		t.Descricao,  
+		a.Placa,  
+		a.Chassi,  
+		(select CodReduzido*10+Digito from dbvcen..Setor where Cod = a.Setor) as Setor,  
+		a.Processo,  
+		a.NumRestricaoSNG,  
+		a.Usuario,  
+		a.DataCad,  
+		a.TipoLiberacao,  
+		a.UsuarioCad,  
+		a.Carroceria,  
+		a.CPFCGC,  
+		a.SetorApreensao,  
+		a.Apreensao,  
+		a.Observacao,  
+		a.CasaPlaca,  
+		a.Exercicio,  
+		a.Vistoria,  
+		a.MunicipioEmplacamento,  
+		a.Renavam,  
+		a.Proprietario, 
+		(select Nome from dbvcen..Usuario where Cod = a.UsuarioCad) as NomeUsuario 
+	      
+	from     dbvcen..AutorizacaoLibProcesso a (index AutorizacaoLibProcesso_DataCad),  
+	         dbvcen..TipoLiberacaoProcesso t, 
+	         dbvcen..Usuario u, 
+	         dbvcen..Setor s  
+	           
+	where a.DataCad between '20190101' and '20190220' 
+	and t.TipoLiberacao = a.TipoLiberacao  
+	and (@TipoLiberacao is null or a.TipoLiberacao = @TipoLiberacao) 
+
+        order by  a.UsuarioCad 
+ 
+	and (@UsuCad is null or a.UsuarioCad = @UsuCad)  
+	and (@UsuLib is null or a.Usuario = @UsuLib)  
+	and u.Cod = a.UsuarioCad 
+	and s.Cod = u.Setor 
+        order by  a.UsuarioCad 
+
+
+	and (@sSetor  is null or u.Setor = @sSetor) 
+	order by s.Descricao, t.Descricao, a.UsuarioCad 
+
+
+select top 10 * from  dbvcen..TipoLiberacaoProcesso t where TipoLiberacao = 58
+
+
+select top 10 * from  dbvcen..AutorizacaoLibProcesso a where TipoLiberacao = 58
+
+
+
+ Exec dbinfracao..ConsultaImagemArFileServerS @ArCorreio  =  'BG514239412BR', @Maquina =  'HPD-217'
+
+select a.Caminho + '\' + a.Guid + a.Extensao 
+								from 	MPS..Arquivo a, 
+										dbvcen..AvisoRecebimento av
+								where 	av.ARCorreio 	= 	'BG514239412BR'
+								and 		av.ImagemAR = 	a.Nome
+
+
+ exec dbrelat..AutorizacaoLibProcessoR  @TipoLiberacao =  103,   @DataIni =  '20190101',  @DataFim =  '20190103',   @UsuCad =  '',   @UsuLib =  '',  @nSetor =  NULL, @Maquina =  'HPD-217'
+

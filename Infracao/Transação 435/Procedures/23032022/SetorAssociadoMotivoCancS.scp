@@ -1,0 +1,67 @@
+/*  Database 'dbinfracao'  */
+use dbinfracao
+go
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.SetorAssociadoMotivoCancS'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.SetorAssociadoMotivoCancS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.SetorAssociadoMotivoCancS
+end
+go
+
+create proc dbo.SetorAssociadoMotivoCancS
+-- Funcao : Selecionar os dados da tabela SetorAssociadoMotivoCancS
+-- Autor  : afs - 25-03-2021
+(
+	@Motivo int, 
+--	@Transacao int,
+	@Associado char(1) = 'N'
+)  
+as  
+
+
+	-- Retorna todos os dados que não estão associados a tabela de relacionamento.  
+	if @Motivo is not null and @Associado = 'N'  
+	begin  
+
+		select 	s.Cod,	s.Descricao
+		from 	dbvcen..Setor s
+		where 	not exists( select 1 from dbinfracao..MotivoCanSetor m
+						where	m.CodSetor = s.Cod
+						and	m.CodMotivo = @Motivo)
+
+	end  
+
+	--Retorna todos os dados que estão associados a tabela de relacionamento.  
+	else if @Motivo is not null and @Associado = 'S'  
+	begin  
+
+		select 	st.Cod, st.Descricao
+		from 	dbvcen..Setor st,
+			dbinfracao..MotivoCanSetor mt
+		where 	st.Cod = mt.CodSetor
+		and	mt.CodMotivo = @Motivo
+		
+	end   
+  
+
+return  
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.SetorAssociadoMotivoCancS to desenvolvimento
+go
+
+Grant Execute on dbo.SetorAssociadoMotivoCancS to veiculo
+go
+

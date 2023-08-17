@@ -1,0 +1,86 @@
+
+
+select Cod,AutoRENAINF,AutoINFRAEST,OrgaoAutuante,OrgaoCompetencia,Placa,
+ iIndicadorAdesaoSNE   ,
+    DataAdesaoSNE  , 
+    iIndicadorAdesaoOASNE  ,
+    DataCancAdesaoSNE   ,
+    iIndAdesaoPossuidorEpocaSNE   ,
+    HoraAdesaoPossuidorEpocaSNE  ,
+    iIndicadorAdesaoPCSNE   ,    
+    HoraAdesaoPCSNE    ,
+    iIndAdesaoInfAbordadoIndSNE   ,
+    HoraAdesaoInfAbordadoIndSNE  ,
+    DataAdesaoPossuidorEpocaSNE  ,
+    DataAdesaoPCSNE  ,
+    DataAdesaoInfAbordadoIndSNE  
+from dbinfracao..Auto
+where Serie = 'ST'
+and Cod in(1104, 1105,1106)
+and Placa = 'ABA2B15'
+
+
+select ma.*
+from dbinfracao..Auto a, dbinfracao..MovimentoAuto ma 
+where a.Serie = 'ST'
+and a.Cod in (1104, 1105,1106)
+and a.Placa = 'ABA2B15'
+and a.Serie = ma.Serie 
+and a.OrgaoAutuante = ma.OrgaoAutuante
+and a.Cod = ma.Auto 
+and ma.TipoMovimento in ('1','2','3','N')
+
+
+--apagando os movimentos
+delete MovimentoAuto
+from dbinfracao..Auto a, dbinfracao..MovimentoAuto ma 
+where a.Serie = 'ST'
+and a.Cod in (1104, 1105,1106)
+and a.Placa = 'ABA2B15'
+and a.Serie = ma.Serie 
+and a.OrgaoAutuante = ma.OrgaoAutuante
+and a.Cod = ma.Auto 
+and ma.TipoMovimento in ('1','2','3')
+
+
+
+--limpando os campos da tabela
+update  dbinfracao..Auto
+set iIndicadorAdesaoSNE =  null,
+    DataAdesaoSNE = null, 
+    iIndicadorAdesaoOASNE = null,
+    DataCancAdesaoSNE  = null,
+    iIndAdesaoPossuidorEpocaSNE  = null,
+    HoraAdesaoPossuidorEpocaSNE = null,
+    iIndicadorAdesaoPCSNE  = null,    
+    HoraAdesaoPCSNE   = null,
+    iIndAdesaoInfAbordadoIndSNE  = null,
+    HoraAdesaoInfAbordadoIndSNE = null,
+    DataAdesaoPossuidorEpocaSNE = null,
+    DataAdesaoPCSNE = null,
+    DataAdesaoInfAbordadoIndSNE = null
+where Serie = 'ST'
+and Cod in(1104, 1105,1106)
+and Placa = 'ABA2B15'
+
+
+
+select * from MPS..Sistema
+
+
+dbinfracao.dbo.RNFNotificacaoPenalidade
+
+
+
+exec Operacao..ArquivoProcOnLineS @Situacao = ''
+
+select CodRetorno,Arquivo, * from dbinfracao..RNFArquivoTranBatch --where Auto in(1104, 1105,1106)
+where Arquivo like  'K3249%' --.H33210PE.D230710.V0026.T413.R0000'
+
+
+select * from dbinfracao..RNFArquivoTranBatch 
+
+update dbinfracao..RNFArquivoTranBatch 
+set CodRetorno = null
+where Auto in(1104, 1105,1106)
+and Transacao = 413

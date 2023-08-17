@@ -1,0 +1,47 @@
+/*==============================================================*/
+/* Script para criação da tabela CrlvDigitalBatch               */
+/*==============================================================*/
+use dbvcen
+go
+
+
+/*==============================================================*/
+/* Table: CrlvDigitalBatch                                       */
+/*==============================================================*/
+create table CrlvDigitalBatch
+(	
+	CodSetor   		int		null,  
+        Processo   		int		null, 
+        Transacao  		int		null, 
+        Placa      		char(7)		null, 
+        UFPlaca    		char(02)	null, 	
+        Veiculo    		int		null, 
+        TipoDocumento 		int		null, 
+        NumeroDoc  		numeric(12)	null, 
+        NroVia  		int		null, 
+        Exercicio 		numeric(4)	null,
+        DataRetorno		datetime	null,
+        DataEnvio		datetime	null,
+        CodRetorno		int		null, 	
+        RegistroBatch		text		null
+	
+	
+)
+go
+
+
+/*==============================================================*/
+-- Criando o indice da tabela	                                
+/*==============================================================*/
+create 	index 	CodSetorProcCrlvDigitalBatch
+	on 	CrlvDigitalBatch (CodSetor, Processo)
+
+
+
+
+/*==============================================================*/
+-- Criando o indice da tabela	                                
+/*==============================================================*/
+create 	index 	PlacaCrlvDigitalBatch
+	on 	CrlvDigitalBatch (Placa)
+

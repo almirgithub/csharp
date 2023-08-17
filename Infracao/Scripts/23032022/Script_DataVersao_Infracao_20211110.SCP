@@ -1,0 +1,6 @@
+--Script para atualizaá∆o da data de vers∆o
+--afs - 12-09-2021
+
+update MPS..Sistema 
+set DataVersao = '20211110' 
+where Cod = 106

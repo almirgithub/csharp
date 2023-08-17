@@ -1,0 +1,8 @@
+-- Inserindo um novo campo na tabela de Usuario
+-- afs - 03/01/2020
+
+use dbvcen
+GO
+
+alter Table Usuario
+ add iCanPenalidade char(1) null

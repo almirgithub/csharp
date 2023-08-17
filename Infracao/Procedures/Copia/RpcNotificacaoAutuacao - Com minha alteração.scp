@@ -1,0 +1,2191 @@
+use master
+GO
+
+/*
+  Script for Server VEICULO_DS (Adaptive Server Enterprise/15.7/EBF 28253 SMP SP140 /P/Sun_svr4/OS 5.10/ase157sp140x/4122/64-bit/FBO/Thu May 24 14:24:10 2018) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.RpcNotificacaoAutuacao'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.RpcNotificacaoAutuacao') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.RpcNotificacaoAutuacao
+end
+
+GO
+
+create proc dbo.RpcNotificacaoAutuacao     
+/* Funcao   : Seleciona dados para arquivo das notificacoes de multa para o FISEPE  		*/        
+/* Autor    : Adilson        - 28/05/2002                          				*/        
+/* Alteracao: Adilson        - 23/09/2005 - Alterada para atender a comunicação de venda 		*/      
+/*          : Kalina Luna    - 11/10/2005 - Tratamento da restrição de penhor - Parametrizacao	*/	      
+/*          : Adilson Santos - 12/04/2006 - alterado para colocar o limite de bonificação com 10 anos*/    
+/*          : Antonio Lins   - 24/04/2007 - Concatena o numero ao logradouro   */    
+/*          : Adilson Santos - 26/07/2007 - Foi trocado o join de a.Veiculo = v.Cod para a.Placa = v.Placa    
+                                            Essa alteração visa emitir a notificação para o veiculo que era    
+                                            de outra UF e passou a ser nosso   */    
+/*	    : Adilson Santos - 05/12/2007 - Altera?Æo para receber as datas de inicio e fim de gera?Æo */      
+/*                                          e notificar veiculos que cometeram infra?äes antes de serem */    
+/*                                          roubados 						        */    
+/*   	    Adilson Santos: 04/03/2008 - Desdobramento 	*/    
+/*          Adilson Santos: 24/09/2008 - Imprimir as informações dos equipamentos */    
+/* 	    Adilson Santos: 04/11/2008 - Evitar overflow no aferido permitido considerada e pontos*/     
+/*          Adilson Santos: 12/11/2008 - Notificar carro roubado Simiramis Processo: 2008.098871    
+				         e restrições*/    
+/* 	    Adilson Santos: 22/12/2008 - Se o veiculo tem a restrição, porém, não tem a comunicação de venda registrada,    
+					o sistema irá notificar o proprietario anterior    
+					Altorizado por Simiramis - solicitado pelo DER	*/	    
+/*          Adilson Santos: 09/11/2009 - Complemento do endereço, a variavel estava com 20 posicoes */			             
+/*          Adilson Santos: 15/03/2010 - Atender a bafometro descartavel e multa de alcoolemia */     
+/*          Adilson Santos: 05/04/2010 - Prefixo do AR de RV para DT - SOLICITAÇ+O DOS CORREIOS */      
+/* 	    Adilson Santos: 04/08/2010 - Melhoria para pegar mais autos assinados*/    
+/* 	    Adilson Santos - libera?Æo de AR */    
+/* 	    Adilson Santos - libera?Æo de AR - retorno pois os correios informou a nova faixa */    
+/* 	    Adilson Santos - 04/01/2012  - Ordenação do arquivo texto pelo número do AR - Solicitação da ATI */     
+/* 	    Djalma Júnior - 13/03/2012  - Remover consulta a tabela DiaNaoUtilFix */    
+/*          Adilson Santos - 03/07/2012  - Tratar codigo dos equipamentos eletrônicos como alfanumericos*/    
+/*          Adilson Santos - 21/01/2013 - Foi inserido o ltrim e rtrim abaixo    
+					 isnull(ltrim(rtrim(a.CodigoEquipamento)),isnull((select 'S' where a.IndAssinatura = 'S'),null)),  */    
+    
+/*          Adilson Santos - 25/06/2013 - Aumento dos campos nome do orgão e codigo do equipamento  */    
+/*          Adilson Santos - 30/01/2014 - Forceplan na query principal pois estava fazendo um plano errado */    
+/*          Adilson Santos - 28/04/2014 - Alterações para atender as mudanças nas NAs e NPs*/    
+/* Alterada: Adilson Santos 14/10/2014 - Order by por CEP*/       
+/* Alterada: Adilson Santos 19/11/2014 - campo especie vazio estava disposicionando */    
+/* Alterado: Adilson Santos - 19/11/2014 - Acrescentar o campo UF DA PLACA ANTERIOR, não estava sendo impressa - solicitacao de angela - Vide email em sua pasta de emails - DETRAN Talao eletronico.*/    
+/* Alterado: Adilson Santos - 07/12/2015 - Multa de recibo vencido automático, pegar o endereço da tmp*/    
+/* Alterado: Adilson Santos - 20/09/2016 - Melhoria na busca dos autos de recibo vencido, pois, quando o veiculo vinha de outras UFS não existe o registro na tabela de veiculo Situacao<=49*/    
+/* Alterado: Adilson Santos - 01/11/2016 - Imprimir o amparo legal da infração 7579-0 baseado na tada de cometimento da infracao*/    
+/* Alterado: Adilson Santos - 04/05/2017 - Não emitir a notificação de autuação caso não tenha o código INFRAEST - Ivo*/   
+/* Alterado: Adilson Santos - 04/05/2017 - Desfeito alteração acima - Ivo*/   
+/* Alterado: Adilson Santos - 12/06/2017 - Não emitir a notificação de autuação caso não tenha o código INFRAEST, pois, houve uma redução do prazo para implantação do auto - Ivo */   
+/* Alterado: Adilson Santos - 21/08/2017 - isnull(IndAssinatura,'N') */   
+--AlteraÝÒo: Almir - 27/11/2019 - Foi colocado um trecho para verificar a notificaÝÒo do condutor principal
+--AlteraÝÒo: Almir - 29/11/2019 - Foram criadas novas variîveis para guardar o endereÝo do principal condutor
+/* Alterado: Adilson Santos - 07/02/2020 - tratar casos que o auto foi lavrado com a placa antes de ter a mudança para mercosul
+					   notificar com a placa que o auto foi lavrado*/
+
+   
+    
+(     
+    @TipoArq   	     tinyint,      
+    @TipoNotificacao char(20),    
+    @NotificacaoI    datetime,    
+    @NotificacaoF    datetime    
+)      
+as        
+     
+	declare @Cometimento1   		char( 255),   --Desd    
+		@Cometimento2   		char( 255),       
+		@Cometimento3   		char( 255),       
+		@Registro8		char(255),     
+		@Serie 			char(02),      
+		@Auto 			numeric (10),      
+		@Lote 			char(09),      
+		@MunicipioCom  		char( 15),      
+		@Digito 			numeric(1),      
+		@DataCom  		char( 14),       
+		@CodMunicipio 		smallint,      
+		@Com 			char(75),      
+		@Local      		char( 100),       
+		@Valor      		char( 9),       
+		   
+		@Orgao 			char(20),	     
+		@OrgaoAutuante 		numeric(06) ,       
+		@Infracao 		numeric(4),      
+		@CodigoEquipamento 	char(50),        
+		@VelocidadeConsiderada 	int,           
+		@Permitido  		int,        
+		@Aferido    		int,           
+		@Agente     		int,        
+		@Exercicio		numeric(4),      
+		@NumDoc     		char(14),             
+		@Pontos     		int,        
+		@nNumDoc    		numeric(14)  ,        
+		@autoDPRF 		CHAR(10),       
+		@AutoDPRF 		CHAR(22) ,      
+		@AgenteEquip 		numeric(06),      
+		@Complemento 		char(25),        
+		@Placa  			char(7),      
+		@UFPlaca 		char(02),      
+		@Proprietario 		char(45),      
+		@Tipo 			char(10),      
+		@Categoria 		char(15),      
+		@Especie 		char(4),      
+		@Marca 			char(15),      
+		@Endereco 		varchar(60),       
+		@CEP 			char(08),      
+		@Bairro 			char(20),      
+		@Registro1  		char(255),      
+		@Registro2 		char(255),  --Desd    
+		@NumNotAR 		numeric(08),      
+		@DataEmissao   		char( 8),      
+		@PlacaAnt   		char(7),      
+		@NumBancario   		char( 18),      
+		@UFPlacaAnt 		char(2),      
+		@Ciretran   		smallint,      
+		@ciretran   		char(2),      
+		@Cidade     		char( 15),      
+		@Controle   		char( 9),      
+		@NumEndereco    		char( 6),      
+		@Municipio  		char( 15) ,      
+		@FaixaFinal 		int,      
+		@ultnotif   		int,      
+		@ultnotifSeq   		int,      
+		@dig	    		tinyint ,      
+		@ultseqdoc		integer,       
+		@numautonot		tinyint,      
+		@setor			varchar(20),       
+		@veiculo			integer,      
+		@notaux			varchar(11) ,      
+		@MunicipioEmpl  		char(15),      
+		@Sequencial		int,      
+		@Arquivo			char(20),      
+		@Seq			int,      
+		@DataCriacao   		datetime,      
+		@vencimento		datetime,      
+		@PrazoLimiteDefesaAut	int,      
+		@hoje			datetime,      
+		@Vencto			char(08),      
+		@TipoNot			char(01),      
+		@numbancario		varchar(40),      
+		@setordeb		varchar(20),       
+		@deb			int,      
+		@sitdeb			char(01),      
+		@municipio		numeric(6,0),      
+		@ValorMoeda 		double precision,      
+		@ValorTotal 		double precision,      
+		@retorno			int,      
+		@Tipodebito		int,      
+		@nValor			ty_Valor,      
+		@DataCad			datetime,      
+		@Moeda			int,      
+		@limdesconto		datetime,      
+		@perdesconto		numeric(5,2),      
+		@Contador		int,      
+		@ContInfracoes		int,      
+		@AutoAnt			Numeric(10),      
+		@NumMulta		int,      
+		@posicao    		tinyint,       
+		@Rua			char(40),      
+		@Situacao		char(01),      
+		@TipoPessoa 		char(01),      
+		@numautonotif		int,      
+		@Arrendatario		char(50),      
+		@NumNotificacoes		int,      
+		@FaixaInicial		int  ,    
+		@ARCompleto		char(13),    
+		@ControleDig 		varchar(55),     
+		@DigitoAR 		int,    
+		@DescInfAgente		varchar(80),    
+		@CGCEmbarcador		numeric(14),    
+		@NomeEmbarcador		varchar(60),    
+		@CGCTransportador		numeric(14),    
+		@NomeTransportador	varchar(60),    
+		@AmparoLegal		varchar(60),    
+		@Desdobramento		smallint,    
+		@Registro6		varchar(255),     
+		@Registro7		varchar(255),    
+		   
+		@NumeroEquip		char(50),     
+		@DataAfericao   		datetime,        
+		@ModeloEquip		char(50),    
+		@MarcaEquip		char(50),    
+		@BafDesc			char(01),     
+		@RecusaAlcoolemia		char(01),    
+		@Prefixo			char(02),    
+		@Sufixo			char(02),    
+		@SerieEquip       	char(20),    
+		@NumeroTeste      	char(10),    
+		@IndAssinatura    	char(01),    
+		@UnidadeMedida    	char(10),    
+		@CNHCondutor	  	NUMERIC(14),    
+		@CPFCondutor	  	NUMERIC(14),    
+		@NomeCondutor	  	char(50),       
+		@UFCNH		  	char(02),      
+		@SetorProcessoReciboVencido char(20),     
+		@ProcessoReciboVencido	int,    
+		@TemReciboVencido		int ,    
+		@NomeInfrator 		char(100),    
+		@NumDoctoInfra		CHAR(14),    
+		@DataInfracao		datetime,   
+		@CodigoRENAINF		numeric(11) ,   
+		@CGCCPFProprietario	CHAR(14),   
+		@Token 			varchar(255),   
+		@Cpf 			varchar(14) ,   
+		@Mensagem		text ,
+
+		@TotalRegistro		int, --asf
+	
+		--Endereço do principal condutor - afs 29/11/2019
+		@nControlePcondutor    	int,
+		@sLogradouroPcondutor  	char(60),
+		@sComplementoPcondutor 	char(15),
+		@sBairroPcondutor      	char(30),
+		@nCepPcondutor         	int,
+		@sMunicipioPcondutor   	char(30),
+	  	@nDddTelefonePcondutor 	smallint,
+	  	@sTelefonePcondutor    	char(15),
+	  	@sComplTelefonePcondutor char(15),
+	  	@sTelefone2Pcondutor   	char(15),
+	  	@nNumeroPcondutor      	numeric(06)
+		------  
+ 	    
+	select 	@NumNotificacoes =	0      
+      
+	select  @DataCad = max( DataCad)        
+  	from    dbarrecadacao..MoedaCotacao m      
+    	where   Moeda = 5 
+	and DataCad <= getdate()        
+        
+	if	@DataCad is null --        
+	begin        
+		rollback tran      
+	        raiserror 60000 'A cotacao da moeda principal nao esta cadastrada! '        
+	        return -900        
+	end        
+        
+	select  @ValorMoeda = Valor        
+	from    dbarrecadacao..MoedaCotacao m      
+	where   Moeda = 5 
+	and DataCad = @DataCad        
+      
+      
+	if ltrim(rtrim(@TipoNotificacao)) = 'ELETRONICA'      
+	   	SELECT @TipoNot = 'E'      
+	else      
+	   	SELECT @TipoNot = 'N'         
+      
+	select 	@DataCriacao = getdate()        
+      
+    	select 	@hoje = getdate()       
+
+	select 	@PrazoLimiteDefesaAut = PrazoDefesaAutuacao      
+	from 	dbvcen..ParametroGeral      
+      
+      
+	select 	@Exercicio = datepart(year, @hoje)
+
+	select 	@Valor = '000000000'      
+
+	select 	@NumNotAR	=	null         
+	select 	@NumNotAR = Ultimo + 1 ,@FaixaFinal = CodFinal   , @Prefixo = PrefixoARCorreios ,@Sufixo =  SufixoARCorreios -- ajs 26/06/2013 prefixo e sufixo --    
+	from 	dbinfracao..NotificacaoAR         
+	where 	Vigencia = (select max(Vigencia)         
+	from 	dbinfracao..NotificacaoAR         
+	where 	Vigencia <= getdate() )       
+	and 	Ultimo < CodFinal - 3000    
+	      
+	      
+    
+	if     	@NumNotAR = null         
+	begin          
+	       	rollback tran         
+	       	raiserror 55000 'A numeracao de lotes AR esgotou - Entre em contato com os correios para fornecer nova faixa! '         
+	       	return -900         
+	end         
+   
+	   
+	----Tabela temporária do app mobile   
+	Create table  #tmpMobile   
+	(   
+		Placa	char(07)  null,   
+		CGCCPF	CHAR(14) NULL,   
+		OrgaoAutuante numeric(06)  null,   
+		DataInfracao datetime  null,   
+		Infracao   numeric(06)  null,   
+		Desdobramento smallint ,
+		--afs novos campos 
+		TipoArquivo	int null, 
+		SeqArquivo	int null, 
+		DataCriacao	datetime null, 
+		Sequencial	int null
+		-----
+	)	               
+	    
+	select 	@FaixaInicial = @NumNotAR       
+      
+	select 	@DataEmissao = right( convert( char( 3), 100 + datepart( dd, getdate())), 2)        
+	       	+ right( convert( char( 3), 100 + datepart( mm, getdate())), 2)        
+	       	+ right( convert( char( 5), 10000 + datepart( yy, getdate())), 4)        
+         
+ 	select 	@vencimento = convert( datetime, convert( varchar( 20), dateadd(day, @PrazoLimiteDefesaAut, @hoje), 101))       
+
+	while 	exists (select 1 from dbvcen..DiaNaoUtil where Data = @vencimento)       
+		select @vencimento = dateadd(dd, 1, @vencimento)       
+
+	-- VERIFICA DATAVENCIMENTO e DATALIMDESCONTO SABADO E DOMINGO       
+	if 	datepart(dw,@vencimento) = 1       
+		select @vencimento = dateadd(dd,1,@vencimento)       
+	else if datepart(dw,@vencimento)=7       
+		select @vencimento = dateadd(dd,2,@vencimento)       
+      
+	select	@Vencto= right( convert( char( 3), 100 + datepart( dd, @vencimento)), 2)        
+                + right( convert( char( 3), 100 + datepart( mm, @vencimento)), 2)        
+                + right( convert( char( 5), 10000 + datepart( yy, @vencimento)), 4)      
+                                  
+	select 	@PlacaAnt 	= 	null      
+   
+	select 	@AutoAnt 	=	0      
+
+	begin tran      
+      
+		exec 	dbinfracao..RNFNumNotifAutuacao @Documento = 89, @Ultimo = @ultnotif output       
+		select 	@ultnotifSeq = @ultnotif      
+      
+      
+		select 	@Arquivo = 'B'+      
+		right  	( convert( char( 3), 100 + datepart( dd, getdate())), 2)  +      
+		right  	( convert( char( 3), 100 + datepart( mm, getdate())), 2)  +      
+		right  	( convert( char( 3), 100 + datepart( hh, getdate())), 2)  +      
+		right  	( convert( char( 3), 100 + datepart( mi, getdate())), 2)  +      
+		right  	( convert( char( 3), 100 + @TipoArq), 2)  + '.TXT'      
+		      
+      
+	      
+		select 	@Sequencial = max(Sequencial)+1       
+		from 	dbinfracao..ArqNotMultaNC      
+		where 	TipoArquivo = @TipoArq	      
+		and 	TipoNotificacao  = 2       
+      
+ 		if 	Exists (select 1       
+				from 	dbinfracao..ArqNotMultaNC      
+				where 	TipoArquivo = @TipoArq	      
+				and 	TipoNotificacao  = 2      
+				and	ltrim(rtrim(Arquivo)) = ltrim(rtrim(@Arquivo)))      
+		begin      
+			select 	@Arquivo = 'B'+      
+				right  	( convert( char( 3), 100 + datepart( dd, getdate())), 2)  +      
+				right  	( convert( char( 3), 100 + datepart( mm, getdate())), 2) +      
+				right  	( convert( char( 3), 100 + datepart( hh, getdate())), 2)  +      
+				right  	( convert( char( 3), 100 + datepart( mi, getdate())), 2)  +      
+				right  	( convert( char( 3), 100 + @TipoArq), 2)+'X'  + '.TXT'      
+		end      
+       
+      
+		if	@Sequencial	=	null or @Sequencial = 0      
+			select 	@Sequencial	=	1      
+
+		select @Seq = 1      
+		select @Contador = 0      
+		select @NumMulta = 1      
+		select @PlacaAnt = null      
+	      
+		select @numautonotif=NumInfracoes from dbinfracao..TipoArqNot       
+		where Cod=@TipoArq       
+		    
+		set forceplan on	    
+		      
+	    
+		declare cInfracao cursor for       
+      
+		select 	a.Cod,       
+			a.Serie,       
+	   
+			substring(o.DescricaoOrgaoNotif + space(20), 1, 20) ,     
+			a.DigitoVerificador,      
+			isnull( right( convert( varchar( 11), 10000000000 + a.Lote), 9), '000000000') ,      
+			isnull( right( convert( char( 3), 100 + datepart( dd, a.DataInfracao)), 2)        
+			         + right( convert( char( 3), 100 + datepart( mm, a.DataInfracao)), 2)        
+			         + right( convert( char( 5), 10000 + datepart( yy, a.DataInfracao)), 4)        
+			         + right( convert( char( 3), 100 + datepart( hh, a.DataInfracao)), 2)        
+			         + right( convert( char( 3), 100 + datepart( mi, a.DataInfracao)), 2)      
+			         + right( convert( char( 3), 100 + datepart( ss, a.DataInfracao)), 2), '0000000000') ,        
+	    
+					               
+			i.Cod,       
+			convert(char(60), (case when i.Cod = 7579 and i.Desdobramento = 0  and a.DataInfracao<= '20161031 23:59' then 'Art. 277, § 3Ý c/c o Art. 165 ambos do CTB.'  else i.AmparoLegal end))    
+			+ rtrim(convert(char(04),i.Cod))+convert(char(01),i.Digito) +  convert(char(01),i.Desdobramento)    
+			+ isnull( convert( char( 10), substring( vg.Categoria + space(10), 1, 10)), '          '),                 
+			o.OrgaoAutuante,       
+			o.Cod,       
+			a.CodigoEquipamento,   
+			a.DataAfericao,        
+			inf.VelocidadeConsiderada,      
+			inf.Permitido,      
+			inf.Aferido,      
+			a.Agente  ,       
+			a.AutoDPRF,       
+			a.Municipio        ,      
+			e.Complemento,        
+			a.Placa,        ----antes era v.Placa 07/02/2020 - proejto mercosul - notificar com a placa que foi lavrado o auto
+			'PE',       
+			substring( convert( char( 45), p.Nome) + space(45), 1, 45),        
+			convert(char(10), (select Descricao from dbvcen..TipoVeiculo where Cod = v.Tipo)),        
+			convert(char(15), (select Descricao from dbvcen..CategoriaVeiculo where Cod = v.Categoria)),        
+			convert(char(4), (select Descricao from dbvcen..EspecieVeiculo where Cod = v.Especie)),        
+			convert(char(15), (select Descricao from dbvcen..MarcaVeiculo where Cod = v.Marca)),        
+			(CASE WHEN e.Numero is null THEN e.Logradouro ELSE substring(e.Logradouro,1,54)||' '||e.Numero END),    
+			convert(char(08),e.CEP),      
+			convert(char(20),(select Descricao from dbvcen..Bairro where Cod=e.Bairro and Municipio = e.Municipio)),        
+			p.NumDoc,      
+			'0000',     
+			v.Cod,     
+			mun.Descricao ,      
+			convert( char( 100), substring(a.Local+space(50),1,50)+      
+			substring(a.ComplementoLocal+space(50),1,50)) as Local,      
+			mcom.Descricao,      
+			(isnull(i.Peso, 1) * vg.Valor),       
+			vg.Moeda,      
+			vg.PerDesconto,      
+			di.TipoDebito  ,      
+			p.TipoPessoa  ,    
+			inf.Desdobramento,   
+			a.DescricaoInfracao,    
+			a.CPFCNPJEmbarcador,     
+			a.NomeEmbarcador ,    
+			a.CPFCNPJTransportador,    
+			a.NomeTransportador ,    
+			convert(char(60), (case when i.Cod = 7579 and i.Desdobramento = 0  and a.DataInfracao<= '20161031 23:59' then 'Art. 277, § 3Ý c/c o Art. 165 ambos do CTB.'  else i.AmparoLegal end)),    
+			convert(char(20),a.NumeroEquip) ,    
+			a.ModeloEquip,    
+			a.MarcaEquip,    
+			inf.BafDesc,    
+			inf.RecusaAlcoolemia,    
+			a.SerieEquip    ,    
+			a.NumeroTeste   ,    
+			a.IndAssinatura,     
+			convert(char(10),(select Descricao from dbinfracao..RNFUnidadeMedida where Codigo=inf.UnidadeMedida)),     
+			a.CPFCondutor,   
+			a.CNH,    
+			a.UFCNH,    
+			a.Condutor,   
+			v.UFAnterior,    
+    
+			a.SetorProcessoReciboVencido,    
+		 	a.ProcessoReciboVencido,    
+		 	a.NomeInfra,    
+		 	a.NumDoctoInfra,    
+		 	a.DataInfracao, --- pref recife    
+			inf.CodigoINFRAEST ,   
+			p.NumDoc    
+		from   	dbinfracao..MovimentoAuto ma /*(index MovimentoAuto_DataAtu)*/,      
+	        	dbinfracao..Auto a,       
+	        	dbinfracao..InfracaoAuto inf,       
+	        	dbinfracao..Infracao i,       
+	        	dbinfracao..AgenteEquip o,       
+	        	dbinfracao..GrupoInfracao g ,      
+	        	dbvcen..ParametroGeral par,      
+	              
+	        	dbvcen..Municipio mcom/*(index Municipio_KEY)*/,      
+	        	dbinfracao..TipoArqNot ta,       
+			dbinfracao..TipoArqNotInfracao tai,       
+			dbinfracao..LoteOrgao l,      
+			dbvcen..Veiculo v,      
+			dbvcen..Endereco e,      
+			dbvcen..Proprietario p,      
+			dbvcen..Municipio mun/*(index Municipio_KEY)*/,      
+			dbinfracao..ValorGrupo vg,      
+			dbarrecadacao..DebitoInfracao di      
+      	              
+		where   ma.DataAtualizacao  between @NotificacaoI and @NotificacaoF    
+      
+		        and ma.TipoMovimento 		= 'I'      
+		        and a.OrgaoAutuante 		= o.OrgaoAutuante        
+		        and a.AgenteEquip 		= o.Cod        
+		        and i.Grupo 			= g.Cod        
+		        and (inf.Situacao 		='A'       
+		        or (inf.Situacao='P' and a.NumNotifAutuacao = null and isnull(a.IndAssinatura,'N') != 'S'      
+		        and '20040419' <=(select max(convert(char(08),ma1.DataAtualizacao,112)) from        
+		        		   dbinfracao..MovimentoAuto ma1        
+		        		   where ma1.Serie = ma.Serie        
+		        		   and ma1.OrgaoAutuante = ma.OrgaoAutuante        
+		        		   and ma1.Auto = ma.Auto       
+		        		   and ma1.Infracao = ma.Infracao      
+		        		   and ma1.Desdobramento = ma.Desdobramento--Desd    
+	       		and ma1.TipoMovimento ='I')))        
+		        and a.Cod 			= ma.Auto        
+		        and ma.Serie			= a.Serie      
+		        and ma.OrgaoAutuante 		= a.OrgaoAutuante      	      
+		              
+		        and ((convert(char(08),Dateadd(dd,-par.PrazoNotAutuacao,getdate()),112)     
+		            <= convert(char(08),a.DataInfracao,112)) or (a.IndAssinatura = 'S' and inf.Situacao='A'))    
+		              
+		        and ma.Auto         		= inf.Auto      
+		        and ma.Infracao     		= inf.Infracao      
+		        and ma.Desdobramento		= inf.Desdobramento--Desd    
+		        and ma.Serie 	     		= inf.Serie       
+		        and ma.OrgaoAutuante 		= inf.OrgaoAutuante        
+	      
+			      
+		        and ma.Infracao			= i.Cod      
+		        and ma.Desdobramento		= i.Desdobramento--Desd    
+		        and a.Municipio			= mcom.Cod      
+		              
+		       	and a.OrgaoAutuante 		= l.OrgaoAutuante       
+			and a.Lote			= l.Cod       
+			and a.AgenteEquip 		= l.AgenteEquip       
+			and ta.Cod 			= @TipoArq      
+			and ta.Cod 			= tai.TipoArqNot       
+			and a.OrgaoCompetencia 		= ta.OrgaoCompetencia       
+			and inf.Infracao 		= tai.Infracao       
+			and inf.Desdobramento 		= tai.Desdobramento   --Desd    
+			and (l.TipoLote = ta.TipoLote       
+			or (l.TipoLote in ('D','A') and ta.TipoLote is null))		      
+	--	              
+	      
+			and a.Placa			in (v.Placa      , v.PlacaAnterior) ---07/02/2020 - placa anterior passou a ser a placa cinza
+											---apos a entrada no mercosul em PE
+			and (v.Situacao 			in ('N','P','R'))    
+			and v.Proprietario		= p.Cod                                       
+	    
+			and v.Proprietario	        = e.Proprietario      
+			and v.Endereco			= e.Cod		      
+	 	         and e.Municipio		 	= mun.Cod      
+		              
+		         and i.Grupo 			= vg.Grupo       
+			and vg.Vigencia 		= (select Max(Vigencia)       
+								from dbinfracao..ValorGrupo vg1       
+								where vg1.Grupo = vg.Grupo       
+								and Vigencia <= a.DataInfracao)       
+	      
+			and di.OrgaoAutuante 		= a.OrgaoAutuante       
+			and di.AgenteEquip		= a.AgenteEquip       
+			and di.Infracao 		= i.Cod      
+			and di.Desdobramento		= i.Desdobramento--Desd    
+			    
+			and not exists (select 1 from 	dbvcen..CaixaProcesso cp,    
+						dbvcen..Processo p    
+				  where 	cp.Setor 	=	a.SetorProcessoReciboVencido    
+	 			  and 	cp.Processo	=	a.ProcessoReciboVencido    
+	 			  and    p.Placa		=	a.Placa    
+	 			  and  	cp.SetorProcesso  =	p.Setor    
+				  and 	cp.Processo	=	p.Cod    
+	 			  and 	p.Situacao	!=	50)    
+	 			      
+	 		and inf.CodigoINFRAEST	   !=null --- não emitir se não tiver o código RENAINF 12/06/2017 - Ivo.   
+    
+		--AFS caso for realizar algum testes comentar a linha anterior  (and inf.CodigoINFRAEST	   !=null)
+		-------------20/09/2016-------melhoria recibo vencido    
+		    
+			union    
+			    
+			select 	a.Cod,       
+				a.Serie,       
+				substring(o.DescricaoOrgaoNotif + space(20), 1, 20) ,   -- DEPOIS 25/06/2013 - ajs --- mudou o campo na tabela agente equipamento    
+				a.DigitoVerificador,      
+				isnull( right( convert( varchar( 11), 10000000000 + a.Lote), 9), '000000000') ,      
+				isnull( right( convert( char( 3), 100 + datepart( dd, a.DataInfracao)), 2)        
+				         + right( convert( char( 3), 100 + datepart( mm, a.DataInfracao)), 2)        
+				         + right( convert( char( 5), 10000 + datepart( yy, a.DataInfracao)), 4)        
+				         + right( convert( char( 3), 100 + datepart( hh, a.DataInfracao)), 2)        
+				         + right( convert( char( 3), 100 + datepart( mi, a.DataInfracao)), 2)      
+				         + right( convert( char( 3), 100 + datepart( ss, a.DataInfracao)), 2), '0000000000') ,        
+		    
+						               
+				i.Cod,       
+	   
+			convert(char(60), (case when i.Cod = 7579 and i.Desdobramento = 0  and a.DataInfracao<= '20161031 23:59' then 'Art. 277, § 3Ý c/c o Art. 165 ambos do CTB.'  else i.AmparoLegal end))    
+			+ rtrim(convert(char(04),i.Cod))+convert(char(01),i.Digito) +  convert(char(01),i.Desdobramento)    
+			+ isnull( convert( char( 10), substring( vg.Categoria + space(10), 1, 10)), '          '),                 
+			o.OrgaoAutuante,       
+			o.Cod,       
+			a.CodigoEquipamento,    
+			a.DataAfericao,        
+			inf.VelocidadeConsiderada,      
+			inf.Permitido,      
+			inf.Aferido,      
+			a.Agente  ,       
+			a.AutoDPRF,       
+			a.Municipio        ,      
+			e.Complemento,        
+			a.Placa,      ----antes era v.Placa 07/02/2020 - projeto mercosul - notificar com a placa lavrada no auto
+			'PE',       
+			substring( convert( char( 45), p.Nome) + space(45), 1, 45),        
+			convert(char(10), (select Descricao from dbvcen..TipoVeiculo where Cod = v.Tipo)),        
+			convert(char(15), (select Descricao from dbvcen..CategoriaVeiculo where Cod = v.Categoria)),        
+			convert(char(4), (select Descricao from dbvcen..EspecieVeiculo where Cod = v.Especie)),        
+			convert(char(15), (select Descricao from dbvcen..MarcaVeiculo where Cod = v.Marca)),        
+			(CASE WHEN e.Numero is null THEN e.Logradouro ELSE substring(e.Logradouro,1,54)||' '||e.Numero END),    
+			convert(char(08),e.CEP),      
+			convert(char(20),(select Descricao from dbvcen..Bairro where Cod=e.Bairro and Municipio = e.Municipio)),        
+			p.NumDoc,      
+			'0000',  --- retirar do campo logradouro (numero)      
+			v.Veiculo,  -- tabela temporaria    
+			mun.Descricao ,      
+			convert( char( 100), substring(a.Local+space(50),1,50)+ substring(a.ComplementoLocal+space(50),1,50)) as Local,      
+			mcom.Descricao,      
+			(isnull(i.Peso, 1) * vg.Valor),       
+			vg.Moeda,      
+			vg.PerDesconto,      
+			di.TipoDebito  ,      
+			p.TipoPessoa  ,    
+			inf.Desdobramento,    
+			a.DescricaoInfracao,    
+			a.CPFCNPJEmbarcador,     
+			a.NomeEmbarcador ,    
+			a.CPFCNPJTransportador,    
+			a.NomeTransportador ,    
+			convert(char(60), (case when i.Cod = 7579 and i.Desdobramento = 0  and a.DataInfracao<= '20161031 23:59' then 'Art. 277, § 3Ý c/c o Art. 165 ambos do CTB.'  else i.AmparoLegal end)),    
+			convert(char(20),a.NumeroEquip) ,    
+			a.ModeloEquip,    
+			a.MarcaEquip,     
+			inf.BafDesc,    
+			inf.RecusaAlcoolemia,    
+			a.SerieEquip    ,    
+			a.NumeroTeste   ,    
+			a.IndAssinatura,     
+			convert(char(10),(select Descricao from dbinfracao..RNFUnidadeMedida where Codigo=inf.UnidadeMedida)), -- 25/04/2014--ajs    
+			a.CPFCondutor,   
+			a.CNH,    
+			a.UFCNH,    
+			a.Condutor,   
+			v.UFAnterior,    
+			a.SetorProcessoReciboVencido,    
+		 	a.ProcessoReciboVencido,    
+		 	a.NomeInfra,    
+		 	a.NumDoctoInfra,    
+		 	a.DataInfracao,    
+			inf.CodigoINFRAEST,   
+			p.NumDoc   
+		from    dbinfracao..MovimentoAuto ma ,   
+		       	dbinfracao..Auto a,        
+		        dbinfracao..InfracaoAuto inf,        
+		        dbinfracao..Infracao i,        
+		        dbinfracao..AgenteEquip o,        
+		        dbinfracao..GrupoInfracao g ,       
+		        dbvcen..ParametroGeral par,       
+		        dbvcen..Municipio mcom,/*(index Municipio_KEY)*/      
+		        dbinfracao..TipoArqNot ta,        
+			dbinfracao..TipoArqNotInfracao tai,        
+			dbinfracao..LoteOrgao l,       
+			dbvcen..tmpVeiculo v,       
+			dbvcen..tmpEndereco e,       
+			dbvcen..tmpProprietario p,       
+			dbvcen..Municipio mun/*(index Municipio_KEY)*/,       
+			dbinfracao..ValorGrupo vg,       
+			dbarrecadacao..DebitoInfracao di    
+	               
+	        where    ma.DataAtualizacao  between @NotificacaoI and @NotificacaoF    
+	        and ma.TipoMovimento 		= 'I'       
+	        and a.OrgaoAutuante 		= o.OrgaoAutuante         
+	        and a.AgenteEquip 		= o.Cod         
+	        and i.Grupo 			= g.Cod         
+	        and (inf.Situacao 		='A'        
+	        or (inf.Situacao='P' and a.NumNotifAutuacao = null and isnull(a.IndAssinatura,'N') != 'S'       
+	        and '20040419' <=(select max(convert(char(08),ma1.DataAtualizacao,112)) from         
+	        		   dbinfracao..MovimentoAuto ma1         
+	        		   where ma1.Serie = ma.Serie         
+	        		   and ma1.OrgaoAutuante = ma.OrgaoAutuante         
+	        		   and ma1.Auto = ma.Auto        
+	        		   and ma1.Infracao = ma.Infracao       
+	        		   and ma1.Desdobramento = ma.Desdobramento--Desd     
+       		and ma1.TipoMovimento ='I')))         
+	        and a.Cod 			= ma.Auto         
+	        and ma.Serie			= a.Serie       
+	        and ma.OrgaoAutuante 		= a.OrgaoAutuante       
+       
+	               
+	        and ((convert(char(08),Dateadd(dd,-par.PrazoNotAutuacao,getdate()),112)      
+	            <= convert(char(08),a.DataInfracao,112)) or (a.IndAssinatura = 'S' and inf.Situacao='A'))     
+	               
+	        and ma.Auto         		= inf.Auto       
+	        and ma.Infracao     		= inf.Infracao       
+	        and ma.Desdobramento		= inf.Desdobramento--Desd     
+	        and ma.Serie 	     		= inf.Serie        
+	        and ma.OrgaoAutuante 		= inf.OrgaoAutuante         
+       
+		       
+	        and ma.Infracao			= i.Cod       
+	        and ma.Desdobramento		= i.Desdobramento--Desd     
+	        and a.Municipio			= mcom.Cod       
+	               
+	       	and a.OrgaoAutuante 		= l.OrgaoAutuante        
+		and a.Lote			= l.Cod        
+		and a.AgenteEquip 		= l.AgenteEquip        
+		and ta.Cod 			= 1 ---- pra garantir que só será gerado multa de recibo vencido para o tipo arquivo 01    
+		and ta.Cod 			= @TipoArq       
+		and ta.Cod 			= tai.TipoArqNot        
+		and a.OrgaoCompetencia 		= ta.OrgaoCompetencia        
+		and inf.Infracao 		= tai.Infracao        
+		and inf.Desdobramento 		= tai.Desdobramento   --Desd     
+		and (l.TipoLote = ta.TipoLote        
+		 or (l.TipoLote in ('D','A') and ta.TipoLote is null))		       
+	               
+       
+		and a.Placa			= v.Placa --07/02/2020 - projeto mercosul aqui mantevesse a placa pois é recibo vencido
+		and (v.Situacao 			in ('N','P','R'))     
+		and v.Setor		= p.Setor                                        
+		and v.Processo		= p.Processo                                        
+     
+		and v.Setor		        = e.Setor    
+		and v.Processo			= e.Processo		       
+ 	        and e.Municipio		 	= mun.Cod       
+	               
+	        and i.Grupo 			= vg.Grupo        
+		and vg.Vigencia 		= (select Max(Vigencia)        
+							from dbinfracao..ValorGrupo vg1        
+							where vg1.Grupo = vg.Grupo        
+							and Vigencia <= a.DataInfracao)        
+       
+		and di.OrgaoAutuante 		= a.OrgaoAutuante        
+		and di.AgenteEquip		= a.AgenteEquip        
+		and di.Infracao 			= i.Cod       
+		and di.Desdobramento		= i.Desdobramento--Desd     
+		and exists (select 1 from	dbvcen..CaixaProcesso cp,    
+						dbvcen..Processo p    
+			  	where 	cp.Setor 	=	a.SetorProcessoReciboVencido    
+				and 	cp.Processo	=	a.ProcessoReciboVencido    
+				and     p.Placa		=	a.Placa    
+	 			and  	cp.SetorProcesso=	p.Setor    
+				and 	cp.Processo	=	p.Cod    
+	 			and 	p.Situacao	!=	50)    
+ 		and inf.CodigoINFRAEST	   !=null --- não emitir se não tiver o código RENAINF 12/06/2017- Ivo.		      
+
+		--Caso for realizar algum teste, comentar a linha anterior (and inf.CodigoINFRAEST	   !=null)
+		-------------20/09/2016 -----fim melhoria recibo vencido    
+		    
+	        order by 20,21, 55,1---- PLACA UFPLACA INDASSINATURA AUTO    
+		for read only        
+	      
+		open 	cInfracao        
+		fetch 	cInfracao into                      
+			@Auto,       
+			@Serie,       
+			@Orgao,       
+			@Digito,      
+			@Lote,      
+			@DataCom,        
+			@Infracao,       
+			@Com,                 
+			@OrgaoAutuante,       
+			@AgenteEquip,       
+			@CodigoEquipamento,      
+			@DataAfericao,        
+			@VelocidadeConsiderada,      
+			@Permitido,      
+			@Aferido,      
+			@Agente,       
+			@autoDPRF,       
+			@CodMunicipio,      
+			@Complemento,        
+			@Placa,       
+			@UFPlaca,       
+			@Proprietario,        
+			@Tipo,        
+			@Categoria,        
+			@Especie,        
+			@Marca,        
+			@Endereco,       
+			@CEP,      
+			@Bairro,        
+			@NumDoc,      
+			@NumEndereco,      
+			@veiculo ,      
+			@MunicipioEmpl,      
+			@Local,      
+			@MunicipioCom,      
+			@nValor,  	      
+			@Moeda,      
+			@perdesconto,      
+			@Tipodebito,      
+			@TipoPessoa  ,    
+			@Desdobramento,   
+			@DescInfAgente,    
+			@CGCEmbarcador,    
+			@NomeEmbarcador,    
+			@CGCTransportador,    
+			@NomeTransportador,    
+			@AmparoLegal,    
+			@NumeroEquip,    
+			@ModeloEquip,    
+			@MarcaEquip,    
+			@BafDesc,    
+			@RecusaAlcoolemia,    
+			@SerieEquip    ,    
+			@NumeroTeste   ,    
+			@IndAssinatura,     
+			@UnidadeMedida ,    
+		  	@CPFCondutor	,   
+			@CNHCondutor	,   
+			@UFCNH	,   
+			@NomeCondutor,   
+			@UFPlacaAnt,    
+			@SetorProcessoReciboVencido,    
+		 	@ProcessoReciboVencido,    
+		 	@NomeInfrator ,    
+		 	@NumDoctoInfra,    
+		 	@DataInfracao, --- pref recife    
+		 	@CodigoRENAINF,   
+		 	@CGCCPFProprietario   
+	
+		select @AutoAnt = @Auto	      
+	      
+      
+		while 	@@sqlstatus != 1 and @@sqlstatus != 2        
+		begin       
+	      
+			/* Trata Comunicação de venda 23/09/2005 */      
+			/* Se o veiculo tem a restrição, porém, não tem a comunicação de venda registrada,    
+			o sistema irá notificar o proprietario anterior    
+			Altorizado por Simiramis - solicitado pelo DER*/ 	      
+			    
+			if	exists 	(select  1 from dbvcen..RestricaoVeiculo rv           
+					 where	rv.Veiculo=@veiculo           
+					 and 	rv.Restricao		= 12          
+					 and 	rv.DataFin 		is null)        
+				and      
+				exists (  select 	1      
+					  from	 	dbvcen..Veiculo v,          
+					  	         dbvcen..ComunicacaoVenda cv,          
+							dbvcen..Proprietario p,          
+							dbvcen..Endereco e,          
+							dbvcen..Municipio mun(index Municipio_KEY)          
+					  where		v.Cod			= @veiculo          
+				 	  and 		v.Cod			= cv.Veiculo          
+				 	  and 		cv.Situacao		= 'A'			            
+					  and 		cv.Proprietario		= p.Cod          
+					  and 		cv.Proprietario	        = e.Proprietario          
+					  and 		cv.Endereco		= e.Cod		          
+					  and		e.CEP			IS NOT NULL          
+			        	  	  and 		e.Municipio		= mun.Cod     )     
+		      
+			begin      
+		      
+					 select 		@Proprietario		=	null, -- Se permanecer nulo, não existe Comunicação de venda      
+			   					@CGCCPFProprietario 	=	null   
+					 select 		@Proprietario 		= 	substring( convert( char( 45), p.Nome) + space(45), 1, 45),        
+							@Endereco 		=	(CASE WHEN e.Numero is null THEN e.Logradouro ELSE substring(e.Logradouro,1,54)||' '||e.Numero END),       
+							@CEP			=	convert(char(08),e.CEP),      
+							@Bairro 			=	convert(char(20),(select Descricao from dbvcen..Bairro       
+											where Cod=e.Bairro and Municipio = e.Municipio)),        
+							@NumDoc			=	p.NumDoc,      
+		      
+							@MunicipioEmpl		=	mun.Descricao 	,      
+							@Complemento		=	e.Complemento,   
+							@CGCCPFProprietario	=	p.NumDoc	       
+					       
+					       
+					  from	 	dbvcen..Veiculo v,      
+					  	        dbvcen..ComunicacaoVenda cv,      
+							dbvcen..Proprietario p,      
+							dbvcen..Endereco e,      
+							dbvcen..Municipio mun/*(index Municipio_KEY)*/      
+					   	      
+					   		      
+					  where		v.Cod			= @veiculo      
+				 	  and 		v.Cod			= cv.Veiculo      
+				 	  and 		cv.Situacao		= 'A'			        
+					  and 		cv.Proprietario		= p.Cod      
+					  and 		cv.Proprietario	        = e.Proprietario      
+					  and 		cv.Endereco		= e.Cod		      
+					  and		e.CEP			IS NOT NULL      
+			        	  and 		e.Municipio		= mun.Cod      
+		      
+			end			 		       
+		      
+		      
+			if		@Proprietario		!=	null	-- Para quem tem comunicação, O proprietário foi obtido no registro da       
+										-- Comunicação, para veículos sem comunicação de venda,      
+										-- o conteúdo vem da primeira query      
+												      
+			begin      
+					select 	@TemReciboVencido	=	0    
+					if	@OrgaoAutuante		=	117100	    
+						and 	@Serie		=	'RV' -- Rotina de implantação automática    
+						and 	@Infracao	=	6920 -- Recibo vencido    
+						    
+						--- obtenção do endereço---     
+						--[ajs]    
+						-- Caso o processo não esteja fechado    
+						-- Tenta obter o endereço da temporária    
+						-- Caso não exista o endereço na temporária devido a exclusão após 90 dias    
+						-- Obtem o endereço da LogtmpEndereco    
+						-- Não existindo na log, será emitido para o endereço do proprietário registrado para o veículo, pois, na rotina manual já é assim.    
+						---[ajs]    
+					begin    
+			    
+					    
+						if	exists	(select 1 from 	dbvcen..CaixaProcesso cp,    
+										dbvcen..Processo p    
+								 where 	cp.Setor 	=	@SetorProcessoReciboVencido    
+					 			 and 	cp.Processo	=	@ProcessoReciboVencido    
+					 			 and     p.Placa		=	@Placa    
+					 			 and  	cp.SetorProcesso  =	p.Setor    
+								 and 	cp.Processo	=	p.Cod    
+					 			 and 	p.Situacao	!=	50) -- o teste está sendo realizado com a situação 50 porque    
+					 			 				    -- os autos que foram gerados de RV estavam na epoca da     
+					 			 				    -- geração com a situação entre 20 e 49    
+					 			 				    -- pois após 3 meses o processo fica cancelado    
+					 			 				    -- Situação 100    
+					 	begin    
+					 			     
+							 	 if	not exists(select 1 from     
+							 		 		 dbvcen..CaixaProcesso cp,    
+											 dbvcen..Processo p,    
+					 		 		   		 dbvcen..tmpEndereco e    
+											 where 	cp.Setor 	=	@SetorProcessoReciboVencido    
+								 			 and 	cp.Processo	=	@ProcessoReciboVencido    
+								 			 and     p.Placa		=	@Placa    
+								 			 and  	cp.SetorProcesso=	p.Setor    
+											 and 	cp.Processo	=	p.Cod    
+											 and     e.Setor 	=	p.Setor    
+									 		 and	e.Processo	=	p.Cod) -- se não existir na temporária vai obter da logtmpEndereco    
+									 					   								-- não encontrando vai emitir para o endereço do veículo    
+								 begin    
+							 		  	    
+							 		  	 if	exists(select 1 from        dbvcen..CaixaProcesso cp,    
+														 dbvcen..Processo p,    
+								 		 		   		 dbvcen..LogtmpEndereco e    
+														 where 	cp.Setor 	=	@SetorProcessoReciboVencido    
+											 			 and 	cp.Processo	=	@ProcessoReciboVencido    
+											 			 and     p.Placa		=	@Placa    
+											 			 and  	cp.SetorProcesso=	p.Setor    
+														 and 	cp.Processo	=	p.Cod    
+														 and     e.Setor 	=	p.Setor    
+												 		 and	e.Processo	=	p.Cod) -- se não existir na temporária vai obter da logtmpEndereco    
+									         begin    
+								 		  		 select  @TemReciboVencido	=	1    
+									 		  	 select  @Proprietario 		= 	@NomeInfrator     
+											  	 select  @Endereco 		=	(CASE WHEN e.Numero is null THEN e.Logradouro ELSE substring(e.Logradouro,1,54)||' '||e.Numero END),       
+													 @CEP			=	convert(char(08),e.CEP),      
+													 @Bairro 		=	convert(char(20),(select Descricao from dbvcen..Bairro       
+																	where Cod=e.Bairro and Municipio = e.Municipio)),        
+													 @NumDoc		=	@NumDoctoInfra,      								      
+													 @MunicipioEmpl		=	m.Descricao 	,      
+													 @Complemento		=	e.Complemento     ,   
+													 @CGCCPFProprietario	=	@NumDoctoInfra   
+													     
+												 from     	 dbvcen..CaixaProcesso cp,    
+														 dbvcen..Processo p,    
+								 		 		   		 dbvcen..LogtmpEndereco e,    
+						 		 		   		 		 dbvcen..Municipio m    
+												 where 	cp.Setor 	=	@SetorProcessoReciboVencido    
+									 			 and 	cp.Processo	=	@ProcessoReciboVencido    
+									 			 and    p.Placa		=	@Placa    
+									 			 and  	cp.SetorProcesso=	p.Setor    
+												 and 	cp.Processo	=	p.Cod    
+												 and    e.Setor 	=	p.Setor    
+										 		 and	e.Processo	=	p.Cod    
+										 		 and 	e.Municipio 	=	m.Cod    
+										 		 and 	e.iOperacao     	=	'I'    
+												 and    e.DataOperacao  	= 	(select max(DataOperacao)     
+												 				from    dbvcen..LogtmpEndereco e1    
+																 where 	e1.Setor 	=	p.Setor    
+														 		 and	e1.Processo	=	p.Cod    
+														 		 and 	e1.iOperacao	=	'I')    
+												     
+												     
+												     
+										 end    
+								 			     
+								 end    
+								 		 ---- else não existindo na LogtmpEndereço, seguira o fluxo normal    
+							 		     
+							 	 else --[ajs] else do existe na tmpEndereco    
+								 begin -- obter o endereço da temporária     
+								 		     
+								 		  select 	@TemReciboVencido		=	1    
+								 		  select 	@Proprietario 		= 	@NomeInfrator     
+										  select 	@Endereco 		=	(CASE WHEN e.Numero is null THEN e.Logradouro ELSE substring(e.Logradouro,1,54)||' '||e.Numero END),       
+											 	@CEP			=	convert(char(08),e.CEP),      
+											 	@Bairro 			=	convert(char(20),(select Descricao from dbvcen..Bairro       
+																where Cod=e.Bairro and Municipio = e.Municipio)),        
+											 	@NumDoc			=	@NumDoctoInfra,      						      
+											 	@MunicipioEmpl		=	m.Descricao ,      
+											 	@Complemento		=	e.Complemento,   
+												@CGCCPFProprietario	=	@NumDoctoInfra    
+										   from     
+							 		 		 dbvcen..CaixaProcesso cp,    
+											 dbvcen..Processo p,    
+					 		 		   		 dbvcen..tmpEndereco e,    
+					 		 		   		 dbvcen..Municipio m    
+											 where 	cp.Setor 	=	@SetorProcessoReciboVencido    
+								 			 and 	cp.Processo	=	@ProcessoReciboVencido    
+								 			 and    p.Placa		=	@Placa    
+								 			 and  	cp.SetorProcesso=	p.Setor    
+											 and 	cp.Processo	=	p.Cod    
+											 and    e.Setor 	=	p.Setor    
+									 		 and	e.Processo	=	p.Cod    
+									 		 and 	e.Municipio 	=	m.Cod    
+									    
+									    
+								 end    
+						 			     
+				                end    
+				    
+				    
+					end 	----[AJS]--Fim rotina multa de recibo vencido    
+							      
+					if isnull(@perdesconto, 0) > 0      
+						select @limdesconto = dateadd(yy,10,@vencimento)	      
+					else      
+						select @limdesconto = null      
+			      
+					if     @NumNotAR > @FaixaFinal        
+				        begin         
+				               rollback tran        
+				     	       raiserror 55000 'A numeracao de lotes AR esgotou - Entre em contato com os correios para fornecer nova faixa! '        
+				               return -900        
+				        end        
+				      
+					IF 	@PlacaAnt		= 	null      
+					begin       
+						select @Contador	= 	0      
+						SELECT @PlacaAnt	=	@Placa      
+			   
+					end       
+				      
+					select 	@ContInfracoes		=	0      
+					      
+					if 	@Auto			!= 	@AutoAnt and @Placa = @PlacaAnt      
+					begin      
+						      
+						select 	@ContInfracoes	= count(1)      
+						from	dbinfracao..InfracaoAuto ia       
+						where   ia.Serie 		= @Serie       
+						and	ia.OrgaoAutuante 	= @OrgaoAutuante      
+						and 	ia.Auto			= @Auto      
+			      
+					end						      
+					      
+			      
+					select 	@Contador		= 	@Contador + 1      
+					      
+					      
+					if	@ContInfracoes		=	2  -- DESD    
+					begin      
+						if	@AutoAnt 	!=	@Auto      
+							select 		@Contador	=	9      
+					end      
+			    
+			    
+						      
+					if	@ContInfracoes		=	2  -- DESD    
+					begin      
+						if	@AutoAnt 	!=	@Auto      
+							if		@Contador	>	1  --DESD    
+									select 		@Contador	=	9      
+					end			      
+			      
+				      
+			      
+					select 	@AutoAnt			= 	@Auto		       			      
+					if 	@PlacaAnt		!=	@Placa OR @Contador  > @numautonotif      
+					begin      
+			      
+			      
+			      
+						--Insere na DocVeiculo       
+			    
+						exec 	dbinfracao..RNFDocNotifAutI @Placa = @PlacaAnt, @TipoDocumento = 89,        
+							@NumeroDoc = @ultnotif,@NumeroARCorreios = @NumNotAR  , @AR=@ARCompleto output,    
+							@Arquivo = @Arquivo    
+						      
+							   
+						insert  dbinfracao..NotMultaNC       
+						 	(TipoArquivo, SeqArquivo, DataCriacao,       
+						 	Sequencial, Registro1, Registro2,       
+						 	Registro3, Registro4, Registro5,         
+					         	Registro6, Registro7,Registro8,      
+					         	TipoNotificacao,NumeroNotificacao,DataNotificacao,Processo,NotificacaoAutuacao,TipoFormulario)        
+						 select @TipoArq, @Sequencial, @DataCriacao,      
+					        	@Seq, @Registro1, @Registro2,      
+					        	@Cometimento1, @Cometimento2, @Cometimento3,       
+					        	@Registro6,  @Registro7,  @Registro8, 	2,@ultnotif,@hoje,0,0,05  --desd    
+				        	 if @@transtate=2 OR @@transtate=3          
+						 begin          
+							if @@transtate=2       
+							   rollback tran         
+							raiserror 55000 'Erro durante a gravacao!'          
+					  		return -900          
+						 end   	           
+			                      
+						select @Seq = @Seq + 1 --essa linha estva em baixo da linha do exec
+
+			--   			insert	 #tmpMobile   
+			--   			select 	 @PlacaAnt,@CGCCPFProprietarioAnt   
+			--   			   
+			   		   
+			                      
+						select 	@Cometimento1 = space(255),      
+							@Cometimento2 = space(255),      
+							@Cometimento3 = space(255),      
+							@Registro6    = space(255),  --desd    
+							@Registro7    = space(255),      
+							@Registro8    = space(59)      
+						select @ultnotifSeq = @ultnotifSeq + 1      
+						select @NumNotAR = @NumNotAR + 1      
+			      
+						select  @PlacaAnt		=	@Placa    
+			--			select  @CGCCPFProprietarioAnt   = @CGCCPFProprietario   
+						select 	@Contador		= 	1      
+					end      
+					      
+					      
+					      
+					if @OrgaoAutuante = 225310 and @AgenteEquip = 2       
+			                       select @Orgao = 'ZONA'       
+			                                
+			                if ((@AgenteEquip=4 or @AgenteEquip=6) and @OrgaoAutuante = 117100)         
+			                        select @Orgao = 'ZONA'        
+			                               
+			                if @OrgaoAutuante = 100 -- POLICIA RODOVIARIA FEDERAL       
+			                BEGIN       
+			                      SELECT 	@AutoDPRF = 'AUTO DPRF - '+@autoDPRF       
+			                      SELECT 	@Local = substring(@Local,1,50)+ SPACE(08) +        
+			                        	SUBSTRING(@AutoDPRF+SPACE(22),1,22)+SPACE(13)+substring(@Local,94,7)       
+			                END       
+			                ELSE       
+			                       SELECT @AutoDPRF = NULL   		      
+					      
+			      
+					if @Contador = 1      
+					BEGIN      
+						select @Valor = '000000000'      
+						select  @Cometimento1 = @Serie + substring(convert(char(10),100000000+@Auto), 2, 8)      
+						+convert(char(1), @Digito) +       
+						@Lote +       
+						@DataCom +       
+						substring(@Local+space(100),1,100) +        
+						substring(convert(char(05),10000+@CodMunicipio),2,4)      
+						+substring(@MunicipioCom + space(15), 1,15) +       
+						substring(@Com + space(75), 1, 75) +  --desd    
+						substring(convert(char(07),1000000+@OrgaoAutuante),2,6)+      
+						space(6) +  --- ajs depois da alteração para 20 posições ---     
+						@Valor        
+						    
+						--- depois 25/06/2013 ---- ajs--  primeiro órgão  --- as 40 primeiras posições refere-se aos nomes dos órgãos autuantes    
+					         select @Cometimento3 = substring(@Orgao + space(20), 1, 20)+space(20)+SUBSTRING(@Cometimento3+space(255),41,214)  --- para manter o código do equipamento registro 5 da table NotMultaNC    
+					         --- fim depois 25/06    
+			    
+					END	    
+					--25/04/2014-- o cometimento que era destinado ao segundo auto foi utilizado para inserir os novos campos abaixo.    
+					select  	@Cometimento2 = isnull(ltrim(rtrim(substring(convert(char(12),100000000000+@CPFCondutor), 2, 11))),space(11)) + isnull(ltrim(rtrim(substring(convert(char(15),100000000000000+@CNHCondutor), 2, 14))),space(14))     
+						+substring(@UFCNH + space(02), 1,02) +substring(@NomeCondutor + space(50), 1,50)    
+						+ isnull(ltrim(rtrim(substring(convert(char(12),100000000000+@CodigoRENAINF), 2, 11))),space(11)) ---- RENAINF TOTAL   
+						   
+			      
+					select @notaux = convert(varchar(11), @ultnotifSeq)       
+					exec dbvcen..DigitoModulo11 @notaux, @dig output       
+					select @ultnotif = convert(numeric(10), @notaux) * 10 + @dig       
+			      
+					select 	@Situacao = Situacao      
+					from 	dbinfracao..InfracaoAuto		      
+					where 	OrgaoAutuante 	= @OrgaoAutuante       
+					and Serie 		= @Serie       
+					and Auto 		=  @Auto       
+					and Infracao 		= @Infracao      
+					and Desdobramento	= @Desdobramento--Desd    
+					      
+			      
+					if 	@Situacao  = 'A'      
+					begin      
+						      
+						update dbinfracao..Auto       
+						set TipoNotificacao = 'C',       
+						NumNotifAutuacao = @ultnotif,       
+						DataNotificacaoAutuacao = @hoje,       
+						Situacao = 'D' , DataLimiteDefesaAutuacao = @vencimento      
+						where OrgaoAutuante = @OrgaoAutuante       
+						and Serie = @Serie       
+						and Cod =  @Auto       
+						update dbinfracao..InfracaoAuto       
+						set Situacao = 'D'       
+						where OrgaoAutuante = @OrgaoAutuante       
+						and Serie = @Serie       
+						and Auto =  @Auto       
+						and Infracao = @Infracao      
+						and Desdobramento = @Desdobramento--Desd    
+						      
+						      
+			      
+					end      
+					else  					      
+					begin      
+						update dbinfracao..Auto       
+						set TipoNotificacao = 'C',       
+						NumNotifAutuacao = @ultnotif,       
+						DataNotificacaoAutuacao = @hoje,       
+						DataLimiteDefesaAutuacao = @vencimento      
+						where OrgaoAutuante = @OrgaoAutuante       
+						and Serie = @Serie       
+						and Cod =  @Auto       
+					end		      
+					     
+					      
+			      
+					exec dbinfracao..MovimentoAutoI       
+					@Serie			= @Serie,      
+					@Auto			= @Auto,      
+					@Infracao		= @Infracao,      
+					@TipoMovimento		= 'D',      
+					@OrgaoAutuante		= @OrgaoAutuante  ,    
+					@Desdobramento		= @Desdobramento--Desd    
+							      
+					select @setordeb = null, @deb = null --       
+					      
+					select @setordeb = Setor, @deb = Cod, @sitdeb = Situacao        
+					from dbarrecadacao..Debito        
+					where OrgaoAutuante = @OrgaoAutuante and        
+					Serie = @Serie and Auto = @Auto and Infracao = @Infracao       
+					and  Desdobramento = @Desdobramento--Desd    
+					and Situacao in ('A','P','D','T')       
+			       
+					select  @Tipodebito = @Tipodebito * 10       
+					select 	@numbancario = null      
+					      
+					if @setordeb is null and @deb is null --       
+					begin      
+					      
+			      
+						exec @retorno 	= dbvcen..GeraDebito       
+						@Setor		='50090000000000',       
+						@TipoDebito	=@Tipodebito,       
+						@DataEmissao	=@hoje,        
+						@DataGeracao	=@hoje,       
+						@ValorMoeda	=@nValor,       
+						@Infracao	=@Infracao,       
+						@OrgaoAutuante 	=@OrgaoAutuante,      
+						@Veiculo	=@veiculo,      
+						@Auto		=@Auto,       
+						@Serie		=@Serie,       
+						@Moeda		=@Moeda,       
+						@Exercicio	=@Exercicio,       
+						@DataVencimento	=@vencimento, -- calcular      
+						@DataLimDesconto=@limdesconto,       
+						@PerDesconto	=@perdesconto,  -- sera gerado com o valor cheio      
+						@GeraNumBan 	= 'N',        
+						@TipoDocumento 	= 'C',       
+						@Placa 		= @Placa,      
+						@UF 		= @UFPlaca,      
+						@Situacao 	= 'D',      
+						@Desdobramento  = @Desdobramento,--Desd    
+						@NumBancario	=@numbancario output       
+					end      
+					else      
+			      
+					begin			                        
+			      
+						update 	dbarrecadacao..ParcelaDebito       
+							set 	DataVencimento = @vencimento,      
+								DataLimDesconto = @limdesconto      
+						from 	dbinfracao..InfracaoAuto ia,      
+							dbarrecadacao..Debito d /*(index Debito_Infra)*/ ,      
+							dbarrecadacao..ParcelaDebito pd      
+						where 	ia.Auto 		= @Auto      
+						and 	ia.Serie 		= @Serie      
+						and	ia.OrgaoAutuante  	= @OrgaoAutuante      
+						and 	ia.Infracao		= @Infracao      
+						and     ia.Desdobramento	= @Desdobramento--Desd    
+						and 	ia.Auto 		= d.Auto      
+						and 	ia.Serie 		= d.Serie      
+						and	ia.OrgaoAutuante  	= d.OrgaoAutuante      
+						and 	ia.Infracao		= d.Infracao      
+						and     ia.Desdobramento 	= d.Desdobramento--Desd    
+						and 	d.Setor			= pd.Setor      
+						and 	d.Cod			= pd.Debito      
+						and 	pd.Parcela		= 99      
+			      
+			      
+						update  dbarrecadacao..Debito set Situacao='D'      
+						where OrgaoAutuante = @OrgaoAutuante and        
+						Serie = @Serie and Auto = @Auto and Infracao = @Infracao     
+						and Desdobramento = @Desdobramento  --Desd    
+						and Situacao ='A'      
+								      
+				      
+						      
+					end      
+					      
+					if 	@numbancario = null      
+						select @numbancario = '000000000000000000'      
+										      
+			                	select  @Vencto = right( convert( char( 3), 100 + datepart( dd, par.DataVencimento)), 2)        
+			                        + right( convert( char( 3), 100 + datepart( mm, par.DataVencimento)), 2)        
+			                        + right( convert( char( 5), 10000 + datepart( yy, par.DataVencimento)), 4),        
+			                        @Valor = right( str( 10000000000000 + round(((par.SaldoMoeda * @ValorMoeda) * 100) - (isnull(par.PerDesconto,0) * (par.SaldoMoeda * @ValorMoeda)), 2), 14, 0), 9),        
+			                        @ValorTotal = @ValorTotal + round(((par.SaldoMoeda * @ValorMoeda) * 100) - (isnull(par.PerDesconto,0) * (par.SaldoMoeda * @ValorMoeda)), 2),        
+			                        @NumBancario = 	(select max(convert( char(19), right( NumBancario,  18)))        
+				                                	from dbarrecadacao..ParcelaNumBan ban        
+				                                	where par.Setor = ban.Setor         
+				                    		and par.Debito = ban.Debito         
+				                                	and par.Parcela = ban.Parcela        
+				                                	and ban.Especie = 'C')        
+			                      
+			                from    dbarrecadacao..Debito deb /*(index Debito_Infra)*/,       
+			                	      dbarrecadacao..ParcelaDebito par /*(index ParcelaDebito_KEY)*/        
+			                where   deb.Serie = @Serie         
+			                        and deb.Auto = @Auto         
+			                        and deb.Infracao = @Infracao        
+			                        and deb.Desdobramento = @Desdobramento--Desd    
+				               and deb.OrgaoAutuante = @OrgaoAutuante        
+			                        and deb.Setor = par.Setor         
+			                        and deb.Cod = par.Debito  				      
+					            
+					select @posicao=char_length(@Endereco), @NumEndereco=null, @Rua=null -- 
+       
+			               	while @posicao>0 and substring(@Endereco, @posicao, 1) like '[0-9]'        
+			            	begin        
+			                	select @NumEndereco=substring(@Endereco, @posicao, 1)+@NumEndereco        
+			                	select @posicao=@posicao-1        
+			            	end        
+			        
+			            	select @Rua=rtrim(substring(@Endereco, 1, @posicao))        
+			            	select @NumEndereco=right('000000'+@NumEndereco, 6)        
+			      
+					select @Endereco = convert(char(40), substring(@Rua + space( 40), 1, 40)) -- Adilson        
+			            	select @NumEndereco = substring(convert(char(10), (1000000000 + convert(numeric(9), @NumEndereco))), 5, 6)        
+			            	      
+				 	       
+				       	select @Arrendatario = null --        
+				                    
+				        select @Arrendatario = Arrendatario    , @CGCCPFProprietario =CGCCPF_Arrendatario     
+				        from dbvcen..RestricaoVeiculo         
+				        where Veiculo = @veiculo         
+				        and Restricao in (select Cod from dbvcen..Restricao where iProprietarioFinanceira = 'S')     
+			        
+				        and Situacao = 'A'        
+				        and @TipoPessoa = 'J'        
+				        
+				        
+				        ---- Recibo vencido -- obtenção do nome do arrendatário para os processos não encerrados---    
+			    
+					if	@OrgaoAutuante		=	117100    
+						and @Infracao		=	6920    
+						and @Serie		=	'RV'    
+					begin	    
+			  			select 	@Arrendatario		=	isnull(rv.Arrendatario,@Arrendatario), @CGCCPFProprietario = CGCCPF_Arrendatario     
+						from	dbvcen..CaixaProcesso cp,    
+							dbvcen..Processo p,    
+							dbvcen..tmpVeiculo v,    
+							dbvcen..tmpRestricaoVeiculo rv    
+						where 	@SetorProcessoReciboVencido	=	cp.Setor    
+						and 	@ProcessoReciboVencido		=	cp.Processo	      
+						and 	@Placa				=	p.Placa    
+						and  	cp.SetorProcesso		=	p.Setor    
+						and 	cp.Processo			=	p.Cod    
+						and 	p.Situacao			between	20 and 49 --- processo não fechado    
+						and 	rv.Setor 			= 	cp.SetorProcesso     
+						and 	rv.Processo 			=	cp.Processo    
+						and     v.Setor				=	cp.SetorProcesso    
+						and     v.Processo			=	cp.Processo    
+						and     rv.Restricao			= 	1 ---    
+					 	and 	rv.DataFin 			is 	null			    
+			    
+					end    
+			   
+				            
+					if @Arrendatario is not null     
+				           select @Proprietario = @Arrendatario        
+				           		      
+					SELECT @Cidade = space(15)      
+			      
+					select @ControleDig = convert(varchar(55),@NumNotAR)      
+			    
+					exec dbinfracao..DigitoModuloARCorreios @Numero=@ControleDig, @Digito=@DigitoAR output      
+					select  @ARCompleto = @Prefixo+SUBSTRING(convert(char(09),@NumNotAR+100000000),2,8)+      
+					SUBSTRING(convert(char(02),@DigitoAR+10),2,1)+@Sufixo    
+			    
+			    
+					select  @Registro1 = substring(convert(varchar(3), @TipoArq+100),2,2) +       
+						@ARCompleto +       
+						'000000000000000000' +        
+						'00' +       
+						@Cidade +       
+						@Placa +       
+						@UFPlaca +       
+						right( convert( varchar( 11), 10000000000 + @ultnotif), 9)+ -- @Controle +  corrigir      
+						@Proprietario +       
+						convert(char(40), @Endereco+space(40)) +       
+						convert(char(06), @NumEndereco+space(06)) +      
+						convert(char(25), @Complemento+space(25)) +       
+						convert(char(15), @Bairro+space(15)) +       
+						convert(char(08), @CEP+space(08)) +       
+						convert(char(15), @MunicipioEmpl+space(15)) +       
+						convert(char(15), @Marca+space(15)) +       
+						convert(char(10), @Tipo+space(10)) + 
+						convert(char(15), @Categoria+space(15))    
+					      
+			    
+					if	@Contador = 1 -- desd    
+						select @Registro2 =  +     
+						SUBSTRING(@Categoria+space(07),9,7)+SUBSTRING(@Especie+space(04),1,4)+@DataEmissao+  		    
+						substring(convert(char(08),@PlacaAnt+SPACE(08)),1,7)+      
+						substring(convert(char(03),@UFPlacaAnt+space(03)),1,2)+    
+						convert(char(80), @DescInfAgente+space(80)) + --Desd    
+						substring(convert(char(14), @CGCEmbarcador)+space(14),1,14) +    
+						convert(char(60), @NomeEmbarcador+space(60)) +    
+						substring(convert(char(14), @CGCTransportador)+space(14),1,14) +    
+						convert(char(80), @NomeTransportador+space(60))                  
+			   
+					      
+				    	select @Pontos = 000           
+			                         
+			            	select @nNumDoc  = 99999999999        
+			        
+			               
+			           	select @nNumDoc = convert(numeric(14),@NumDoc)        
+			   
+			            	IF @TipoPessoa = 'F' and @nNumDoc < 99999999999        
+			--               	exec  dbhcen.dbo.VerificarPontuacaoUsuario  @nCpf_IN=@nNumDoc , @nPontuacao=@Pontos output                
+			                 	exec  HABILITACAO_DS.dbhcen.dbo.VerificarPontuacaoUsuario  @nCpf_IN=@nNumDoc , @nPontuacao=@Pontos output                 
+			   
+				   	if	   @Permitido > 9999     
+				   	    	   select @Permitido = 0     
+				   	if	   @Aferido > 9999     
+				   	    	   select @Aferido = 0     
+				   	if	   @VelocidadeConsiderada > 9999     
+				   	    	   select @VelocidadeConsiderada = 0     
+	
+			   	    	if	@Pontos > 9999     
+			   	    	       	select @Pontos = 0   	    	      	    	      	    	        
+				    
+				        if	    (@Infracao	=  5169 or @Infracao  = 516)   and  @BafDesc = 'S'    
+				     	begin    				     	        
+				     	    	select 	@Permitido = 999,    
+				     	    		@Aferido = 999,    
+				     	    		@VelocidadeConsiderada = 999    				     	        
+				     	end    
+				     	        
+					if   exists (select 1 from dbinfracao..Equipamento e where e.Cod = convert(Numeric(20),@NumeroEquip) and OrgaoAutuante = @OrgaoAutuante --- ajs 26/06/2013    
+						and   AgenteEquip = @AgenteEquip)    
+					begin    
+					       
+						   	select @NumeroEquip = e.CodigoEquip     
+						    	from dbinfracao..Equipamento e     
+						    	where e.Cod = convert(Numeric(20),@NumeroEquip) and OrgaoAutuante = @OrgaoAutuante    
+							and   AgenteEquip = @AgenteEquip    
+					       
+					end	     	          
+				      
+					if @TipoNot = 'N' --- 25/04/2014 -- quando notificacao de autos manuais - codigo do equipamento é atribuido ao número do equipamento, pois, esse campo é utilizado    
+				                    --- para multas de alcoolemia, portanto, o número do equipamento para esses casos estão em branco, pois, é utilizado apenas para notificações eletronicas--ajs    
+					begin    
+				    		     select @NumeroEquip = @CodigoEquipamento     
+				    		     select @CodigoEquipamento = ''    
+				    	end    
+				      
+				        select   @Registro8 = @Vencto+'000000000'+substring(convert(char(10),@CodigoEquipamento+space(10)),1,10)+      
+					          substring(convert(char(04),isnull(@Permitido,0)+1000),2,3)+        
+					          substring(convert(char(04),isnull(@Aferido,0)+1000),2,3)+        
+					          substring(convert(char(04),isnull(@VelocidadeConsiderada,0)+1000),2,3)+        
+					          isnull(right(convert( char( 3), 100 + datepart( dd, @DataAfericao)), 2)        
+					          + right( convert( char( 3), 100 + datepart( mm, @DataAfericao)), 2)        
+					          + right( convert( char( 5), 10000 + datepart( yy, @DataAfericao)), 4),'00000000')+        
+					          substring(convert(char(11),isnull(@Agente,0)+10000000000),2,10) +         
+					          substring(convert(char(04),isnull(@Pontos,0)+1000),2,3)+    
+					          space(10)+   
+					          space(30)    
+				              
+			    
+			   
+				        select 	@Cometimento3 = SUBSTRING(@Cometimento3+space(40),1,40)+substring(@NumeroEquip+space(50),1,50)+substring(@ModeloEquip+space(50),1,50)+    
+					         	substring(@MarcaEquip+space(50),1,50)    
+					         	+substring(convert(char(10),@NumeroTeste+space(10)),1,10)     
+							+substring(@SerieEquip+space(20),1,20)    
+							+substring(@IndAssinatura+space(1),1,1)    
+							+substring(@UnidadeMedida+space(10),1,10)          
+							    
+					-- afs (18/11/2019) foram colocados os campos 
+					-- TipoArquivo, SeqArquivo,  DataCriacao, Sequencialaqui					         	               
+					insert  #tmpMobile   
+					(   
+						Placa	,   
+						CGCCPF	,   
+						OrgaoAutuante ,   
+						DataInfracao ,   
+						Infracao   ,   
+						Desdobramento,
+						TipoArquivo, 
+						SeqArquivo, 
+						DataCriacao, 
+						Sequencial   
+					)   
+	
+					select 	@Placa, 
+						@CGCCPFProprietario,
+						@OrgaoAutuante,
+						@DataInfracao,
+						@Infracao,
+						@Desdobramento,
+						@TipoArq, 
+						@Sequencial, 
+						@DataCriacao,   
+						@Seq
+					------fim afs
+			   
+			      
+			end     		-----if @Proprietário !=null    
+			    
+			fetch 	cInfracao into                      
+				@Auto,       
+				@Serie,       
+				@Orgao,       
+				@Digito,      
+				@Lote,      
+				@DataCom,        
+				@Infracao,       
+				@Com,                 
+				@OrgaoAutuante,       
+				@AgenteEquip,       
+				@CodigoEquipamento,      
+				@DataAfericao,        
+				@VelocidadeConsiderada,      
+				@Permitido,      
+				@Aferido,      
+				@Agente,       
+				@autoDPRF,       
+				@CodMunicipio,      
+				@Complemento,        
+				@Placa,       
+				@UFPlaca,       
+				@Proprietario,        
+				@Tipo,        
+				@Categoria,        
+				@Especie,        
+				@Marca,        
+				@Endereco,       
+				@CEP,      
+				@Bairro,        
+				@NumDoc,      
+				@NumEndereco ,       
+				@veiculo,      
+				@MunicipioEmpl,      
+				@Local,      
+				@MunicipioCom,      
+				@nValor,  	      
+				@Moeda,      
+				@perdesconto,      
+				@Tipodebito,      
+				@TipoPessoa  ,    
+				@Desdobramento,   
+				@DescInfAgente,    
+				@CGCEmbarcador,    
+				@NomeEmbarcador,    
+				@CGCTransportador,    
+				@NomeTransportador,    
+				@AmparoLegal,    
+				@NumeroEquip,    
+				@ModeloEquip,    
+				@MarcaEquip,    
+				@BafDesc,    
+				@RecusaAlcoolemia,    
+				@SerieEquip    ,    
+				@NumeroTeste   ,    
+				@IndAssinatura,     
+				@UnidadeMedida ,       
+			  	@CPFCondutor	,   
+				@CNHCondutor	,   
+				@UFCNH	,   
+				@NomeCondutor,   
+				@UFPlacaAnt,    
+				@SetorProcessoReciboVencido,   
+			 	@ProcessoReciboVencido,    
+			 	@NomeInfrator ,    
+			 	@NumDoctoInfra,    
+			 	@DataInfracao, --- pref recife    
+		   		@CodigoRENAINF,   
+			 	@CGCCPFProprietario   
+
+			select @NumMulta = @NumMulta + 1      
+		end      
+      
+		close  cInfracao      
+		deallocate cursor cInfracao        
+       
+		if 	@Contador  >0 and ltrim(rtrim(@Cometimento1)) != ''      
+		begin      
+	      
+		      	--select @Seq = @Seq + 1      
+		    
+			exec dbinfracao..RNFDocNotifAutI @Placa = @PlacaAnt, @TipoDocumento = 89,        
+			@NumeroDoc = @ultnotif,@NumeroARCorreios = @NumNotAR , @AR=@ARCompleto output,    
+			@Arquivo = @Arquivo    
+			      
+		    
+			insert  dbinfracao..NotMultaNC       
+		 		(TipoArquivo, SeqArquivo, DataCriacao, Sequencial, Registro1, Registro2,       
+		 		Registro3, Registro4, Registro5, Registro6, Registro7,Registro8,      
+		 		TipoNotificacao, NumeroNotificacao, DataNotificacao, Processo, NotificacaoAutuacao, TipoFormulario)        
+		        select  @TipoArq, @Sequencial, @DataCriacao, @Seq, @Registro1, @Registro2,      
+			@Cometimento1, @Cometimento2, @Cometimento3, @Registro6, @Registro7,  @Registro8, 	  -- DESD    
+			2,@ultnotif,@hoje, 0,0,05      
+		      
+			if @@transtate=2 OR @@transtate=3          
+			begin          
+				if @@transtate=2       
+					rollback tran          
+					raiserror 55000 'Erro durante a gravacao!'          
+				  	return -900          
+			end   	           
+		      
+   		      	select @Seq = @Seq + 1  -- asf foi retirada do inicio do bloco
+		    
+			select 	@Cometimento1 = space(255),      
+				@Cometimento2 = space(255),      
+				@Cometimento3 = space(255),      
+				@Registro6    = space(255),     
+				@Registro7    = space(255), 
+				@Registro8    = space(255)      
+				      
+			select @NumNotAR = @NumNotAR + 1      
+			select @ultnotifSeq = @ultnotifSeq + 1      
+		      
+			select 	@Contador		= 	1      
+	 	end      
+      
+    
+		if @Seq > 1      
+   		begin      
+   			insert  ArqNotMultaNC (      
+				TipoArquivo ,      
+				Sequencial  ,      
+				DataCriacao ,                     
+				DataTermino ,                      
+				Arquivo,      
+				Diretorio,                                          
+				Usuario,        
+				PeriodoIni,                        
+				PeriodoFin,                        
+				NumRegistros,       
+				ValorTotal,                                
+				NumMultas,      
+				TipoNotificacao )      
+		   	values      
+		   	 	(@TipoArq,      
+		   		@Sequencial,      
+		   		@DataCriacao,      
+		   		getdate(),      
+		   		@Arquivo,      
+		   		'C:\MULTAS\AUTUACAO\',      
+		   		suser_name(),      
+		   		@NotificacaoI,      
+				@NotificacaoF,      
+		   		@Seq - 1 ,      
+		   		0,      
+		   		@NumMulta - 1,      
+		   		02)      
+		   		      
+			if @@transtate=2 OR @@transtate=3          
+			begin          
+				if @@transtate=2       
+					rollback tran          
+				raiserror 55000 'Erro durante a gravacao!'          
+			  	return -900          
+			end   	           
+  		end   		      
+
+	
+		-- Notificação do condutor principal afs 13/11/2019   inicio
+	
+		Create table #tmpPrincipalCondutor (
+			Placa			char(07)  null,
+			OrgaoAutuante 		numeric(06)  null,
+			DataInfracao 		datetime  null,
+			Infracao   		numeric(06)  null,
+			Desdobramento 		smallint, 
+			CpfPrincipalCondutor 	varchar(11) null,
+		 	NomePrincipalCondutor   varchar(40)  null,
+			TipoArquivo		int null, 
+			SeqArquivo		int null, 
+			DataCriacao		datetime null, 
+			Sequencial		int null
+			--NomePrincCondutor    	varchar(50),
+			--EnderecoPrincCondutor 	varchar(50),
+			--NumeroAR		varchar(13)
+		)
+	
+		declare @nVeiculo  		int,
+			@CpfPrincCondutor 	varchar(11),
+			@nNomePrincipal		varchar(40),
+			@cPlaca			char(07),
+			@cCGCCPF		CHAR(14),
+			@cOrgaoAutuante 	numeric(06),
+			@cDataInfracao 		datetime,
+			@cInfracao   		numeric(06),
+			@cDesdobramento 	smallint,
+			@TipoArquivoCond	int,
+			@SeqArquivoCond		int,
+			@DataCriacaoCond	datetime,
+			@SequencialCond		int
+		
+		declare cPrincCondutor cursor for    
+	   		select 	Placa, 
+				OrgaoAutuante, 
+				DataInfracao, 
+				Infracao, 
+				Desdobramento,
+				TipoArquivo,  SeqArquivo, DataCriacao, Sequencial
+			from	#tmpMobile
+	
+	
+		open cPrincCondutor
+	
+		fetch 	cPrincCondutor into 
+			@cPlaca,
+			@cOrgaoAutuante,
+			@cDataInfracao,
+			@cInfracao,
+			@cDesdobramento,
+			@TipoArquivoCond,
+			@SeqArquivoCond,
+			@DataCriacaoCond,
+			@SequencialCond
+	
+	
+		while @@sqlstatus != 2 and @@sqlstatus != 1   
+		begin	
+	
+	
+	  		select @nVeiculo = (Select Cod from dbvcen..Veiculo v  
+					where v.Placa = @cPlaca)
+	
+	   		if exists (select 1 from dbvcen..PrincipalCondutor pc
+			  	where pc.Veiculo = @nVeiculo
+			   	and pc.DataHoraAtivacao <= @cDataInfracao
+		            	and pc.MotivoExclusao is null)
+			begin
+	
+				select 	@CpfPrincCondutor 	=  CpfPrincipalCondutor, 
+					@nNomePrincipal 	= NomePrincipalCondutor
+				from dbvcen..PrincipalCondutor pc
+				where pc.Veiculo = @nVeiculo
+	   			and pc.DataHoraAtivacao <= @cDataInfracao
+				and pc.MotivoExclusao is null
+					
+				begin	tran   
+		   
+					insert	into #tmpPrincipalCondutor ( 
+						Placa,	
+						OrgaoAutuante, 
+						DataInfracao,
+						Infracao, 
+						Desdobramento, 
+						CpfPrincipalCondutor,
+		 				NomePrincipalCondutor, 
+						TipoArquivo,
+						SeqArquivo, 
+						DataCriacao,		
+						Sequencial)
+					values (@cPlaca, 
+						@cOrgaoAutuante, 
+						@cDataInfracao,
+						@cInfracao, 
+						@cDesdobramento, 
+						@CpfPrincCondutor,
+						@nNomePrincipal,
+						@TipoArquivoCond, 
+						@SeqArquivoCond, 
+						@DataCriacaoCond, 
+						@SequencialCond)
+	
+				commit	tran   
+			end
+			fetch 	cPrincCondutor into 
+				@cPlaca,
+				@cOrgaoAutuante,
+				@cDataInfracao,
+				@cInfracao,
+				@cDesdobramento,
+				@TipoArquivoCond,
+				@SeqArquivoCond,
+				@DataCriacaoCond,
+				@SequencialCond
+			   
+		end
+	
+		close  cPrincCondutor   
+		deallocate cursor cPrincCondutor   
+	
+	
+		-- Verificar a existência do principal condutor
+		declare @cPlacaCD   		char(07),
+			@cOrgaoAutuanteCD  	numeric(06),
+			@cDataInfracaoCD  	datetime,
+			@cInfracaoCD  		numeric(06),
+			@cDesdobramentoCD   	smallint,
+			@CpfPrincipal		char(14),
+			@NomePrincipal		char(45),
+			@TipoArquivoCD  	int,
+			@SeqArquivoCD   	int,
+			@DataCriacaoCD  	datetime,
+			@SequencialCD   	int,
+			@SequencialNC		int,
+			@NumSemDigito	int
+			
+	
+	
+		if exists (select 1 from #tmpPrincipalCondutor where TipoArquivo is not null)
+		begin
+			declare @NovoRegistro  varchar (255), 
+				@NovoRegistro1 varchar (255),
+				@NovoRegistro2 varchar (255),
+				@NovoRegistro3 varchar (255),
+				@NovoRegistro4 varchar (255),
+				@NovoRegistro5 varchar (255),
+				@NovoRegistro6 varchar (255),
+				@NovoRegistro7 varchar (255),
+				@NovoRegistro8 varchar (255),
+				@SeqMaxima int,
+				@NovoProcesso int, 
+				@NovoNotificacaoAutuacao numeric(10,0), 
+				@NovoTipoFormulario numeric(2,0), 
+				@NovoNumeroNotificacao numeric(10,0), 
+				@NovoDataNotificacao datetime   
+	
+			declare cursorCondutor cursor for    
+				select 	Placa, OrgaoAutuante, DataInfracao, Infracao, Desdobramento, CpfPrincipalCondutor,
+		 			NomePrincipalCondutor, TipoArquivo, SeqArquivo, DataCriacao, Sequencial
+				from	#tmpPrincipalCondutor
+	
+			open cursorCondutor
+	
+			fetch 	cursorCondutor into 
+				@cPlacaCD,
+				@cOrgaoAutuanteCD,
+				@cDataInfracaoCD,
+				@cInfracaoCD,
+				@cDesdobramentoCD,
+				@CpfPrincipal,
+				@NomePrincipal,
+				@TipoArquivoCD,
+				@SeqArquivoCD,
+				@DataCriacaoCD,
+				@SequencialCD
+	
+			-- pegando o n·nero da ·ltima notifica
+			exec dbinfracao..RNFNumNotifAutuacao @Documento = 89, @Ultimo = @ultnotif output 
+			select @ultnotifSeq = @ultnotif
+			
+			--incrementando o n·mero da notificaÝÒo
+			select @ultnotifSeq = @ultnotifSeq + 1
+
+			while @@sqlstatus != 2 and @@sqlstatus != 1   
+			begin	
+				select @Seq = @Seq + 1   -- asf foi colocada em 25/11/2019
+				select @Sequencial = @Sequencial + 1
+	
+				select @ControleDig = convert(varchar(55),@NumNotAR)   
+		 
+				exec dbinfracao..DigitoModuloARCorreios @Numero=@ControleDig, @Digito=@DigitoAR output   
+				select  @ARCompleto = @Prefixo+SUBSTRING(convert(char(09),@NumNotAR+100000000),2,8)+   
+				SUBSTRING(convert(char(02),@DigitoAR+10),2,1)+@Sufixo 
+
+				select 	@NovoRegistro1 = Registro1,  
+					@NovoRegistro2 = Registro2, 
+					@NovoRegistro3 = Registro3,  
+					@NovoRegistro4 = Registro4, 
+					@NovoRegistro5 = Registro5, 
+					@NovoRegistro6 = Registro6, 
+					@NovoRegistro7 = Registro7, 
+					@NovoRegistro8 = Registro8,
+					@NovoProcesso  = Processo, 
+					@NovoNotificacaoAutuacao  = NotificacaoAutuacao, 
+					@NovoTipoFormulario = TipoFormulario,
+					@NovoNumeroNotificacao = NumeroNotificacao,
+					@NovoDataNotificacao = DataNotificacao
+	
+				from  dbinfracao..NotMultaNC nt
+	 		        where 	nt.TipoArquivo = @TipoArquivoCD
+				and	nt.SeqArquivo  = @SeqArquivoCD
+				and	nt.DataCriacao = @DataCriacao --convert(char(8),@DataCriacaoCD, 112)  --@DataCriacao  --convert(char(8),@DataCriacaoCD, 112)
+				and	nt.Sequencial  = @SequencialCD
+	
+				--pegando o sequencial
+				select 	@SeqMaxima = max(Sequencial) + 1 from  dbinfracao..NotMultaNC nt
+	 		        where 	nt.TipoArquivo = @TipoArquivoCD
+				and	nt.SeqArquivo  = @SeqArquivoCD
+				and	convert(char(8),nt.DataCriacao, 112) = convert(char(8),@DataCriacao, 112) --convert(char(8),@DataCriacaoCD, 112)  --@DataCriacao  --convert(char(8),@DataCriacaoCD, 112)
+				--and	nt.Sequencial  = @SequencialCD
+	
+				-- pegando o endereÝo do condutor principal na base da habilitaÝÒo
+		                exec  HABILITACAO_DS.dbhcen.dbo.VerificarPontuacaoUsuario  	
+							@nCpf_IN 	= 	@nNumDoc , 
+							@nPontuacao	=	null,
+							@nControle 	=	1,
+							@sLogradouro	=	@sLogradouroPcondutor   	output,
+							@sComplemento	=	@sComplementoPcondutor  	output,
+							@sBairro	=	@sBairroPcondutor       	output,
+							@nCep		=	@nCepPcondutor         	  	output,
+							@sMunicipio	=	@sMunicipioPcondutor     	output,
+						  	@nDddTelefone	=	@nDddTelefonePcondutor 	  	output,
+						  	@sTelefone	=	@sTelefonePcondutor    	  	output,
+						  	@sComplTelefone	=	@sComplTelefonePcondutor   	output,
+						  	@sTelefone2	=	@sTelefone2Pcondutor   	   	output,
+						  	@nNumero	=	@nNumeroPcondutor      	 	output
+
+				--motando o novo registro com endereÝo do condutor principal
+				if @NovoRegistro1 is not null
+				begin
+
+					
+		
+					--calculando o dÝgito do n·mero da notificaÝÒo
+					select @notaux = convert(varchar(11), @ultnotifSeq)    
+					exec dbvcen..DigitoModulo11 @notaux, @dig output    
+					select @ultnotif = convert(numeric(10), @notaux) * 10 + @dig   
+
+					select 	@NovoRegistro = left(@NovoRegistro1,2) +   
+								left(@ARCompleto,13) +
+								substring(@NovoRegistro1,16,44) +   --39          
+						right( convert( varchar( 11), 10000000000 + @ultnotif), 9) + 
+						--right( convert( varchar( 11), 10000000000 + @ultnotifSeq), 9) + 
+						@NomePrincipal +    
+						convert(char(40), @sLogradouroPcondutor 	+space(40)) +    
+						convert(char(06), convert(char(6),@nNumeroPcondutor) +space(06)) +   
+						convert(char(25), @sComplementoPcondutor 	+space(25)) +    
+						convert(char(15), @sBairroPcondutor 		+space(15)) +    
+						convert(char(08), convert(char(08),@nCepPcondutor)   +space(08)) +    
+						convert(char(15), @sMunicipioPcondutor 		+space(15)) +  
+						convert(char(15), substring(@NovoRegistro1,223,15) +space(15)) +    
+						convert(char(10), substring(@NovoRegistro1,238,10) +space(10)) +    
+			 			convert(char(15), substring(@NovoRegistro1,248,15) +space(15))   
+
+				        insert  dbinfracao..NotMultaNC (
+						TipoArquivo, 
+						SeqArquivo, 
+						DataCriacao, 	
+						Sequencial, 
+						Registro1, Registro2, Registro3, Registro4, Registro5, Registro6, Registro7, Registro8,
+						TipoNotificacao, 
+						Processo, 
+						NotificacaoAutuacao, 
+						TipoFormulario, 
+						NumeroNotificacao, 
+						DataNotificacao)   
+				         	--TipoNotificacao,NumeroNotificacao,DataNotificacao,Processo,NotificacaoAutuacao,TipoFormulario)     
+				        values (
+						@TipoArquivoCD,	
+						@SeqArquivoCD, 	
+						@DataCriacao,  
+						@SeqMaxima, 	
+						@NovoRegistro, @NovoRegistro2, @NovoRegistro3, @NovoRegistro4, @NovoRegistro5, @NovoRegistro6,	@NovoRegistro7, @NovoRegistro8,
+						2,
+						@NovoProcesso,	
+						@NovoNotificacaoAutuacao,       
+						@NovoTipoFormulario, 
+						@NovoNumeroNotificacao, 
+						@NovoDataNotificacao)	
+		
+					if @@transtate=2 OR @@transtate=3       
+					begin       
+						if @@transtate=2    
+						   rollback tran      
+						raiserror 55000 'Erro durante a gravaçao!'       
+				  		return -900       
+					end   	        
+				end
+	
+	
+				fetch 	cursorCondutor into 
+					@cPlacaCD,
+					@cOrgaoAutuanteCD,
+					@cDataInfracaoCD,
+					@cInfracaoCD,
+					@cDesdobramentoCD,
+					@CpfPrincipal,
+					@NomePrincipal,
+					@TipoArquivoCD,
+					@SeqArquivoCD,
+					@DataCriacaoCD,
+					@SequencialCD
+	
+	
+				select @NumNotAR = @NumNotAR + 1 
+				select @ultnotifSeq = @ultnotifSeq + 1
+	
+			end
+	
+	
+		end
+
+		--verificando a quantidade de registro    
+		select 	@TotalRegistro = count(a.NumRegistros)
+		from   	dbinfracao..ArqNotMultaNC a,    
+			dbinfracao..NotMultaNC  n   
+		where 	a.DataCriacao =  @DataCriacao
+		and 	a.DataCriacao	= n.DataCriacao   
+		and 	a.Sequencial 	= n.SeqArquivo    
+		and 	a.TipoArquivo 	= n.TipoArquivo   
+		and 	a.TipoNotificacao = 02   
+		and 	a.TipoNotificacao = n.TipoNotificacao   	 
+
+
+		update 	dbinfracao..ArqNotMultaNC 
+		set	NumRegistros   	= @TotalRegistro			   
+		where 	DataCriacao 	=  @DataCriacao
+		and 	Sequencial 	= @SeqArquivoCD    
+		and 	TipoArquivo 	= @TipoArquivoCD   
+		and 	TipoNotificacao 	= 02   
+
+	------------------------------------------------------------------------------ fim afs
+    
+		select  @NumNotificacoes 	= 	@NumNotificacoes + (@Seq-1)          
+      
+		update dbinfracao..NotificacaoAR         
+		set Ultimo = @NumNotAR - 1      
+		where Vigencia = (select max(Vigencia)         
+		from dbinfracao..NotificacaoAR         
+		where Vigencia <= getdate()        
+		and Ultimo < CodFinal)        
+      
+		select @ultnotifSeq = @ultnotifSeq - 1      
+		exec dbinfracao..RNFNumNotifAutuacaoU @Documento = 89, @Ultimo = @ultnotifSeq       
+      
+    
+		if	(@NumNotAR - @FaixaInicial) !=  @NumNotificacoes      
+		begin          
+	         	rollback tran         
+	         	raiserror 55000 'Ocorreu um erro na geracao das notificacoes nao envie para a fisepe e comunique ao analista!'         
+	         	return -900         
+	        end         
+      
+		select 	n.TipoArquivo, convert(char(50),ltrim(rtrim(a.Diretorio))+ltrim(rtrim(a.Arquivo))) as Arquivo,       
+		        a.NumRegistros,      
+		        substring(n.Registro1+space(255),1,255) as Reg1 ,   --Desd    
+	 	        convert( char( 255), n.Registro2+space(255) ) as Reg2 ,    --Desd    
+		        isnull(substring(convert( char( 255), n.Registro3+space(255)),1,255), space(255)) as Reg3,       
+		        isnull(substring(convert( char( 255), n.Registro4+space(255)),1,255), space(255)) as Reg4,        
+		        isnull(substring(convert( char( 255), n.Registro5+space(255)),1,255), space(255)) as Reg5,       
+		        isnull(substring(convert( char( 255), n.Registro6+space(255)),1,255), space(255)) as Reg6,        
+		        isnull(substring(convert( char( 255), n.Registro7+space(255)),1,255), space(255)) as Reg7,      
+		        isnull(substring(convert( char( 97), n.Registro8+space(97)),1,97), space(97)) as Reg8, -- 23/09/2008  	                
+		        substring(convert(char(03),n.TipoFormulario+100),2,2)+      
+		        substring(convert(char(11),isnull(n.Processo+10000000000,0)),2,10)+      
+		        substring(convert(char(11),isnull(n.NotificacaoAutuacao,0)+10000000000),2,10) as Reg9      
+		from   	dbinfracao..ArqNotMultaNC a,       
+			dbinfracao..NotMultaNC  n      
+		where 	a.DataCriacao 	= @DataCriacao      
+		and 	a.DataCriacao	= n.DataCriacao      
+		and 	a.Sequencial 	= n.SeqArquivo       
+		and 	a.TipoArquivo 	= n.TipoArquivo      
+		and 	a.TipoNotificacao = 02      
+		and 	a.TipoNotificacao = n.TipoNotificacao      
+		order by	substring(n.Registro1,200,8)    
+     
+    
+      
+    
+    
+	commit tran      
+   
+   
+	-----------GERAR TABELA PARA O APP MOBILE   
+   
+	select @DataCriacao = getdate()   
+	select @DataCad = dateadd(dd,10,@DataCriacao )   
+   
+	declare APPMobile cursor for                
+		select 	distinct sToken, sPlaca, sCpf, o.Descricao,t.DataInfracao, isnull((i.Cod*10+i.Digito),i.Cod), t.Desdobramento, i.Descricao   
+		from 	#tmpMobile t ,   
+			dbvcen..dbsrvwebTokenPlacaCpf d, -- proxy table da tabela dbsrvweb01..TokenPlacaCpf   
+			dbinfracao..OrgaoAutuante o,   
+			dbinfracao..Infracao i   
+	   
+		where 	t.Placa  = d.sPlaca   
+		and   	t.CGCCPF = sCpf   
+		and   	d.siStatus ='A'    
+		and 	t.Infracao = i.Cod   
+		and 	t.Desdobramento = i.Desdobramento   
+		and     t.OrgaoAutuante = o.Cod   
+   
+     
+	open APPMobile               
+   
+	fetch APPMobile into @Token, @Placa, @Cpf ,@Cometimento1 /* descricao do órgão*/ ,@DataInfracao, @Infracao, @Desdobramento, @Cometimento2 /* Descricao da infracao*/   
+   
+	while @@sqlstatus != 1 and @@sqlstatus != 2                
+	   
+	begin    
+	
+		--18/11/2019 inicio ACESSO LOGADO
+	
+		if 	exists(select 	1
+			from 	dbinfracao..InfracaoAuto ia ,
+				dbinfracao..Auto a,
+				dbinfracao..Infracao inf
+				
+			where 	a.Serie			=	@Serie
+			and 	a.OrgaoAutuante		=	@OrgaoAutuante
+			and 	a.Cod			=	@Auto
+			and 	ltrim(rtrim(a.Condutor))	=	null
+			and     a.CNH			IN	(0,null)
+			and   	a.CPFCondutor		in	(0,null)
+			and 	ia.OrgaoAutuante 	=	a.OrgaoAutuante
+			and 	ia.Serie		=	a.Serie
+			and 	ia.Auto			=	a.Cod
+			AND      ia.Situacao		=	'D'
+			and 	ia.Infracao		=	inf.Cod
+			and 	ia.Desdobramento	=	inf.Desdobramento
+			and 	inf.Infrator		=	'C'
+			and 	not exists	(select 1 
+					 	from 	dbinfracao..IndicacaoCondutor i
+				 		where	ia.OrgaoAutuante 		=	i.OrgaoAutuante
+						and 	ia.Serie			=	i.Serie
+						and 	ia.Auto			=	i.Auto))
+					
+		begin
+			select @Mensagem= 'O prazo para realizar a identificação de condutor infrator para a infração '+  
+			ltrim(rtrim(@Cometimento2))+', é '+
+			convert(char(10),@vencimento,103)+'.'+   
+			' Você pode realizar este serviço sem comparecer ao DETRAN-PE por meio do "DETRAN-PEssoal". Para se cadastrar, acesse o site institucional do DETRAN-PE.'  
+		  
+		  	exec 	dbvcen..RpcMensagemWebInfracaoI 
+				@Token		=		null, 
+				@DataInicio	=		null,
+				@DataFinal	=		null ,
+				@Mensagem	=		@Mensagem,
+				/* acesso logado*/
+				@Tipo  	 	=		'N', /*M = mensagem , N = Notificações*/
+				@sCpfCnpj	=		@Cpf,
+				@sPlaca		=		@Placa,
+				@sTitulo	=		'INDICAÇ+O DE CONDUTOR'
+				
+		end			
+		
+		--18/11/2019 --fim
+	
+	
+		select @Mensagem= 'Seu veículo, de placa '+   
+		ltrim(rtrim(@Placa)) +   
+		', foi autuado em '+   
+		convert(char(10),@DataInfracao,103) +    
+		' pela seguinte infração: ' +    
+		ltrim(rtrim(@Cometimento2))+' / '+ ---- descricao da infração    
+		convert(char(04),@Infracao)+'-'+convert(char(01),@Desdobramento)+' / '+   
+		ltrim(rtrim(@Cometimento1))+ ----órgão autuante   
+		'. Fique atento ao recebimento da notificação, em sua residência, e aos prazos para recurso e/ou identificação de condutor infrator'   
+	   
+	    	exec 	dbvcen..RpcMensagemWebInfracaoI	   
+	    		@Token 		=	@Token,   
+			@DataInicio 	= 	@DataCriacao ,   
+			@DataFinal 	=	@DataCad ,   
+			@Mensagem	=	@Mensagem    
+	  
+    		fetch APPMobile into @Token, @Placa, @Cpf ,@Cometimento1 /* descricao do órgão*/ ,@DataInfracao, @Infracao, @Desdobramento, @Cometimento2 /* Descricao da infracao*/   
+	   
+	end          
+   
+	close APPMobile                
+	deallocate cursor APPMobile       
+   
+-------FIM-GERAR TABELA PARA O APP MOBILE      
+return 0      
+GO
+
+execute sp_procxmode 'dbo.RpcNotificacaoAutuacao', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.RpcNotificacaoAutuacao to desenvolvimento
+GO
+
+Grant Execute on dbo.RpcNotificacaoAutuacao to veiculo
+GO
+
+

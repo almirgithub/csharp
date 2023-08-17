@@ -1,0 +1,44 @@
+create proc dbo.UsuarioD                              
+/*   
+   Nome              : UsuarioD 
+   Data de criacao   : 26.03.1997 
+   Autor             : Marcio Rocha 
+   Alterada por	     : Fernando Freitas  
+   Descricao         : Exclui um registro da tabela Usuario de acordo com o parametro informado.  
+   Param. de entrada : @Cod => Codigo do usuario a ser excluido. 
+   Param. de saida   :   
+   Status de retorno : -900 Falha na transacao  
+*/  
+ 
+-- Parametros  
+(     @Cod        varchar(30) 	)  
+  
+as  
+  
+begin tran  
+  
+delete  dbvcen..UsuarioSetor  
+where   Usuario = @Cod  
+  
+if @@transtate = 2 or @@transtate = 3  
+	begin  
+       		rollback tran  
+		raiserror 55000  
+		return  
+	end  
+  
+delete  dbvcen..Usuario  
+where   Cod = @Cod  
+  
+if @@transtate = 2 or @@transtate = 3  
+	begin  
+       		rollback tran  
+		raiserror 55000  
+		return  
+	end  
+ 
+commit tran  
+return 
+  
+  
+/* ### DEFNCOPY: end of DEFINITION */

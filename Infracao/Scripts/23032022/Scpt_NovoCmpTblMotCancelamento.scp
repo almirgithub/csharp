@@ -1,0 +1,11 @@
+------------------------------------------------------------
+-- Inserir novos campo na tabela de MotivoCancelamento
+-- afs - 22-03-2021 
+------------------------------------------------------------
+
+alter table dbinfracao..MotivoCancelamento
+	add	CancelaPontuacao	char(1)		null,
+		UsoGeral		char(1)		null
+
+
+-------------------------------------------------------------

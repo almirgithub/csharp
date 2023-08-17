@@ -1,0 +1,156 @@
+declare	@OrgaoAutuante		numeric(6,0),   
+	@AgenteEquip		numeric(6,0),   
+	@DataI			datetime,   
+	@DataF			datetime,   
+	@Saida			char(1) ,  
+	@Competencia		char(20) ,  
+	@Municipio		numeric(04),
+	@Infracao		numeric(05)
+   
+   
+
+
+select  @OrgaoAutuante =  117100,   
+	@DataI =  convert(datetime,'20120101'),
+	@DataF =  '20121231',   
+	@Saida="",   	
+	@AgenteEquip= 8,   
+	@Competencia =  'Estadual',   
+	@Municipio =  2631,
+	@Infracao = 500
+
+if @DataF is not null --   
+	select @DataF = dateadd(dd,1, @DataF)   
+	   
+if 	ltrim(rtrim(@Competencia)) = 'Municipal'  
+	select @Competencia = 'M'  
+else  
+if 	ltrim(rtrim(@Competencia)) = 'Estadual'  
+	select @Competencia = 'E'  
+else  
+if 	ltrim(rtrim(@Competencia)) = 'Dupla Competência'  
+	select @Competencia = 'A'  
+  
+		   
+declare	@DataCad datetime,   
+	@ValorMoeda numeric(15,4),   
+	@TipoMovimento char(1)   
+   
+select 	@TipoMovimento = 'I'   
+   
+if @OrgaoAutuante = 100    
+	select	@TipoMovimento = 'N'  
+
+
+
+	select	ma.DataAtualizacao,   
+		a.Serie,   
+		convert(char(10),a.Cod*10+a.DigitoVerificador),   
+		i.Descricao,   
+		d.ValorMoeda as ValorMoeda,   
+		mc.Valor as ValorDaMoeda,   
+		convert(numeric(15,2),d.ValorMoeda*mc.Valor) as ValorEmREal,   
+		convert(numeric(15,2),d.ValorMoeda*mc.Valor*0.8) as ValorComDesconto ,
+		
+		( select c.Prot
+		
+		from 	Prot..Assunto ass ,
+			Prot..Comunicado c, 
+			Prot..Protocolo p
+			
+		where 	c.Serie = ma.Serie  
+		and   	c.OrgaoAutuante = ma.OrgaoAutuante  
+		and   	c.Auto = ma.Auto  
+		and   	c.Prot = p.Cod 
+		and   	p.CodDoAss = ass.Cod 
+		AND   	c.Infracao = ma.Infracao
+		and  	c.Prot =  
+			(select max(c1.Prot)  
+
+				from 
+				Prot..Comunicado  c1 
+				where c1.Auto  = c.Auto 
+				and c1.Serie = c.Serie 
+				and c1.OrgaoAutuante = c.OrgaoAutuante 
+				and c1.Infracao = c.Infracao 
+				and c1.Desdobramento =c.Desdobramento)) as Protocolo, 
+		
+		( select 
+		UPPER(ass.DescrAss) 
+		
+		from 	Prot..Assunto ass ,
+			Prot..Comunicado c, 
+			Prot..Protocolo p
+			
+		where 	c.Serie = ma.Serie  
+		and   	c.OrgaoAutuante = ma.OrgaoAutuante  
+		and   	c.Auto = ma.Auto  
+		and   	c.Prot = p.Cod 
+		and   	p.CodDoAss = ass.Cod 
+		AND   	c.Infracao = ma.Infracao
+		and     c.Prot =  
+			(select max(c1.Prot)  
+
+				from 
+				Prot..Comunicado  c1 
+				where c1.Auto  = c.Auto 
+				and c1.Serie = c.Serie 
+				and c1.OrgaoAutuante = c.OrgaoAutuante 
+				and c1.Infracao = c.Infracao 
+				and c1.Desdobramento =c.Desdobramento)) as Assunto,
+		
+		
+		( select  (isnull((select 'INDEFERIDO' where c.Deferido = 'I'), 
+			isnull((select 'DEFERIDO' where c.Deferido = 'D'), 
+			'EM ANALISE/JULGAMENTO')))
+		
+		from 	Prot..Assunto ass ,
+			Prot..Comunicado c, 
+			Prot..Protocolo p
+			
+		where 	c.Serie = ma.Serie  
+		and   	c.OrgaoAutuante = ma.OrgaoAutuante  
+		and   	c.Auto = ma.Auto  
+		and   	c.Prot = p.Cod 
+		and   	p.CodDoAss = ass.Cod 
+		AND   	c.Infracao = ma.Infracao
+		and  	c.Prot =  
+			(select max(c1.Prot)  
+
+				from 
+				Prot..Comunicado  c1 
+				where c1.Auto  = c.Auto 
+				and c1.Serie = c.Serie 
+				and c1.OrgaoAutuante = c.OrgaoAutuante 
+				and c1.Infracao = c.Infracao 
+				and c1.Desdobramento =c.Desdobramento)) as Decisao
+				  
+	from 	dbinfracao..MovimentoAuto ma, dbinfracao..Auto a, dbinfracao..Infracao i,   
+		dbarrecadacao..Debito d,dbinfracao..ValorGrupo vg,dbarrecadacao..MoedaCotacao mc /*(index Debito_Infra)*/   
+	where	ma.DataAtualizacao between @DataI and @DataF   
+	and	ma.TipoMovimento = @TipoMovimento   
+	and	ma.OrgaoAutuante = a.OrgaoAutuante   
+	and	ma.Serie = a.Serie   
+	and	ma.Auto = a.Cod   
+	and	a.OrgaoAutuante = @OrgaoAutuante   
+	and 	(a.AgenteEquip	= @AgenteEquip or @AgenteEquip = null)  
+	and	ma.OrgaoAutuante *= d.OrgaoAutuante   
+--	and	ma.Serie *= d.Serie   
+--	and	ma.Auto *= d.Auto   
+--	and	ma.Infracao *= d.Infracao   
+--	and	ma.Desdobramento *= d.Desdobramento  
+--	and	ma.Infracao = i.Cod   
+--	and	ma.Desdobramento = i.Desdobramento	  
+--	and 	(a.Municipio	= @Municipio or @Municipio = null)	  
+--	and 	(i.Competencia = ltrim(rtrim(@Competencia)) or @Competencia = null)  	
+--	and 	i.Grupo = vg.Grupo 
+--	and      vg.Vigencia = 	(select max(Vigencia) 
+--		from dbinfracao..ValorGrupo vg1 
+--		where vg1.Grupo = vg.Grupo 
+--		and Vigencia <= a.DataInfracao) 
+--	and 	vg.Moeda	= mc.Moeda			  
+--	and	mc.DataCad =    (select max(DataCad)  
+--				from dbarrecadacao..MoedaCotacao mc1  
+--				where mc1.Moeda = mc.Moeda  
+--				and   mc1.DataCad <= a.DataInfracao) 
+	and 	(i.Cod	= @Infracao or @Infracao = null)

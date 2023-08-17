@@ -1,0 +1,165 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.MaquinaTalaoEletronicoI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MaquinaTalaoEletronicoI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MaquinaTalaoEletronicoI
+end
+
+GO
+
+create proc dbo.MaquinaTalaoEletronicoI 
+(
+ 	@OrgaoAutuante      	numeric(6),
+	@Maquina            	numeric(15),
+	@Serie              	char(2),
+	@PrimeiroAuto       	numeric(7),
+	@UltimoAuto         	numeric(7),
+        @AgenteEquip     	int 
+)
+
+AS 
+declare @DataCadastro       	datetime   
+declare @DataVigencia       	datetime   
+declare @QtdeCancelados     	numeric(5)    
+declare @QtdeImplantados    	numeric(5)    
+declare @QtdeNaoImplantado  	numeric(5)    
+declare @UltimoAutoProc     	numeric(7)    
+declare @Situacao           	char(1)      
+declare @OrgaoConvenio		numeric(06) 
+
+begin
+
+if 	exists	(
+		select 	1 	
+		from 	dbinfracao..MaquinaTalaoEletronico 
+		where 	OrgaoAutuante 	!= 	@OrgaoAutuante
+		and 	Maquina		=	@Maquina
+		)
+begin        
+         raiserror 60000 'Esse smartphone já foi cadastrado para o outro órgão!(Máquina: %2!, Órgao: %1!)' , @OrgaoAutuante,  @Maquina
+         return -900        
+end     
+
+
+if 	exists	(
+		select 	1 	
+		from 	dbinfracao..MaquinaTalaoEletronico 
+		where 	OrgaoAutuante 	= 	@OrgaoAutuante
+		and 	Maquina		=	@Maquina
+		)
+begin        
+         raiserror 60000 'Esse smartphone já está cadastrado para esse órgão! (Máquina: %2!, Órgao: %1!)' , @OrgaoAutuante,  @Maquina
+         return -900        
+end     
+
+
+
+
+if 	exists	(
+		select 	1 	
+		from 	dbinfracao..MaquinaTalaoEletronico 
+		where 	OrgaoAutuante 	= 	@OrgaoAutuante
+		and 	Maquina		=	@Maquina
+		and 	Serie		=	@Serie
+		)
+begin        
+         raiserror 60000 'Já existe numeração de autos cadastrados para essa maquina do órgão autuante (Máquina: %3!, Órgao: %1!, Série: %2!)' , @OrgaoAutuante, @Serie, @Maquina
+         return -900        
+end     
+if 	exists	(
+	select 	1 	
+	from 	dbinfracao..Auto
+	where 	OrgaoAutuante 	= 	@OrgaoAutuante
+	and 	Serie		=	@Serie
+--		and 	Cod		between  @PrimeiroAuto and @UltimoAuto
+	)
+begin        
+		
+ 	raiserror 60000 'Já existem autos cadastrados para o órgão autuante/série informada. Utilize outra série! (Órgao: %1!, Série: %2!)' , @OrgaoAutuante, @Serie
+ 	return -900        
+end     
+
+if 	exists	
+(
+	select 	1 	
+	from 	dbinfracao..Auto a,
+		dbfisc01..OrgaoConveniado oc
+	where 	a.Serie			=	@Serie
+	and 	oc.nOrgaoFiscalizador	=	@OrgaoAutuante
+	and   	oc.nOrgaoConveniado 	=  	a.OrgaoAutuante
+)
+begin        
+	select 	@OrgaoConvenio = oc.nOrgaoConveniado 	
+	from 	dbinfracao..Auto a,
+		dbfisc01..OrgaoConveniado oc
+	where 	a.Serie			=	@Serie
+	and 	oc.nOrgaoFiscalizador	=	@OrgaoAutuante
+	and   	oc.nOrgaoConveniado 	=  	a.OrgaoAutuante
+
+ 	raiserror 60000 'Série (%3!) já está sendo utilizada pelo órgão autuante (%1!) que o (%2!) tem convênio!', @OrgaoConvenio, @OrgaoAutuante,@Serie
+ 	return -900        
+end     
+	
+if ((@UltimoAuto+1) - @PrimeiroAuto) < 2000
+begin
+	raiserror 60000 'Informar uma faixa igual ou superior a 2000 autos! (Máquina: %3!, Órgao: %1!, Série: %2!)' , @OrgaoAutuante, @Serie, @Maquina
+ 	return -900    
+end
+
+	
+insert dbinfracao..MaquinaTalaoEletronico (OrgaoAutuante,
+					Maquina,
+					Serie,
+					PrimeiroAuto,
+					UltimoAuto,
+					DataCadastro,
+					DataVigencia,
+					QtdeCancelados,
+					QtdeImplantados,
+					QtdeNaoImplantado,
+					UltimoAutoProc,
+					Situacao,
+					AgenteEquip)                                         
+select	@OrgaoAutuante,
+	@Maquina,
+	@Serie,
+	@PrimeiroAuto,
+	@UltimoAuto,
+	getdate(),
+	getdate(),
+	@QtdeCancelados,
+	@QtdeImplantados,
+	@QtdeNaoImplantado,
+	@UltimoAutoProc,
+	@Situacao,
+	@AgenteEquip
+end
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.MaquinaTalaoEletronicoI to desenvolvimento
+GO
+
+Grant Execute on dbo.MaquinaTalaoEletronicoI to veiculo
+GO
+

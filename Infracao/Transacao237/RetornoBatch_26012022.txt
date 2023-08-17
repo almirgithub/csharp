@@ -1,0 +1,1 @@
+Código Setor;Processo;Transação;Placa;UF;Veículo;Tipo Doc;Documento;Num. Via;Documento;Data Retorno;Data Envio;Cod. Retorno;Registro;

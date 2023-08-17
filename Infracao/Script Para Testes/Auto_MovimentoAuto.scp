@@ -1,0 +1,85 @@
+--Verificando os campos na tabela
+select Cod,AutoRENAINF,AutoINFRAEST,OrgaoAutuante,OrgaoCompetencia,Placa
+ iIndicadorAdesaoSNE   ,
+    DataAdesaoSNE  , 
+    iIndicadorAdesaoOASNE  ,
+    DataCancAdesaoSNE   ,
+    iIndAdesaoPossuidorEpocaSNE   ,
+    HoraAdesaoPossuidorEpocaSNE  ,
+    iIndicadorAdesaoPCSNE   ,    
+    HoraAdesaoPCSNE    ,
+    iIndAdesaoInfAbordadoIndSNE   ,
+    HoraAdesaoInfAbordadoIndSNE  ,
+    DataAdesaoPossuidorEpocaSNE  ,
+    DataAdesaoPCSNE  ,
+    DataAdesaoInfAbordadoIndSNE  
+from dbinfracao..Auto
+where Serie = 'ST'
+and Cod in(1053, 1054,1055)
+and Placa = 'SNE0801'
+
+
+
+select  ma.TipoMovimento, Cod,AutoRENAINF,AutoINFRAEST,a.OrgaoAutuante,a.OrgaoCompetencia,Placa
+ iIndicadorAdesaoSNE   ,
+    DataAdesaoSNE  , 
+    iIndicadorAdesaoOASNE  ,
+    DataCancAdesaoSNE   ,
+    iIndAdesaoPossuidorEpocaSNE   ,
+    HoraAdesaoPossuidorEpocaSNE  ,
+    iIndicadorAdesaoPCSNE   ,    
+    HoraAdesaoPCSNE    ,
+    iIndAdesaoInfAbordadoIndSNE   ,
+    HoraAdesaoInfAbordadoIndSNE  ,
+    DataAdesaoPossuidorEpocaSNE  ,
+    DataAdesaoPCSNE  ,
+    DataAdesaoInfAbordadoIndSNE  
+from dbinfracao..Auto a, dbinfracao..MovimentoAuto ma 
+where a.Serie = 'ST'
+and a.Cod in(1053, 1054,1055)
+and a.Placa = 'SNE0801'
+and a.Serie = ma.Serie 
+and a.OrgaoAutuante = ma.OrgaoAutuante
+and a.Cod = ma.Auto 
+and ma.TipoMovimento in ('1','2','3')
+
+begin tran
+
+--apagando os movimentos
+delete MovimentoAuto
+from dbinfracao..Auto a, dbinfracao..MovimentoAuto ma 
+where a.Serie = 'ST'
+and a.Cod in(1053, 1054,1055)
+and a.Placa = 'SNE0801'
+and a.Serie = ma.Serie 
+and a.OrgaoAutuante = ma.OrgaoAutuante
+and a.Cod = ma.Auto 
+and ma.TipoMovimento in ('1','2','3')
+
+
+
+--limpando os campos da tabela
+update  dbinfracao..Auto
+set iIndicadorAdesaoSNE =  null,
+    DataAdesaoSNE = null, 
+    iIndicadorAdesaoOASNE = null,
+    DataCancAdesaoSNE  = null,
+    iIndAdesaoPossuidorEpocaSNE  = null,
+    HoraAdesaoPossuidorEpocaSNE = null,
+    iIndicadorAdesaoPCSNE  = null,    
+    HoraAdesaoPCSNE   = null,
+    iIndAdesaoInfAbordadoIndSNE  = null,
+    HoraAdesaoInfAbordadoIndSNE = null,
+    DataAdesaoPossuidorEpocaSNE = null,
+    DataAdesaoPCSNE = null,
+    DataAdesaoInfAbordadoIndSNE = null
+where Serie = 'ST'
+and Cod in(1053, 1054,1055)
+and Placa = 'SNE0801'
+
+
+
+
+commit tran
+
+

@@ -1,0 +1,708 @@
+use master
+GO
+
+/*
+  Script for Server VEICULO_DS (Adaptive Server Enterprise/15.7/EBF 21703 SMP SP110 /P/Sun_svr4/OS 5.10/ase157sp11x/3546/64-bit/FBO/Fri Nov  8 10:44:32 2013) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.MovimentoAutoI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MovimentoAutoI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MovimentoAutoI
+end
+
+GO
+
+create proc dbo.MovimentoAutoI    
+/* Funcao : Inserir registro na tabela.				*/  
+/* Autor  : Celso - 29/01/1997 					*/  
+/* Adilson: 18/02/2008 - Desdobramento */ 
+/* Rafael Nunes: 16/11/2010 - Gera‡Æo de Caixas para a Indica‡Æo do Condutor*/ 
+/* Adilson Santos - 15/12/2010 - Alterar a quantide de processo por caixa de 150 para 100 - Soilcitado por C‚lio */ 
+/* Maria Perez - 16/04/2015 - Na indicação se Observação é nula seta observação automatica */
+/* Maria Perez - 29/01/2016 - Na indicação se a CNH for nula ou 0 pega o CPF do personagem condutor do protocolo*/
+/* Maria Perez - 26/10/2016 - Na indicação, se o protocolo já estiver na caixa de identificação não acatada, retirá-lo desta caixa*/
+/* Adilson Santos - 12/12/2016 Registrar movimento de adesão e cancelamento de adesão no SNE*/
+/* Adilson Sanotos - 16/03/2017 - RENAINF TOTAL*/
+/* Adilson Santos - 26/03/2021 - Alterações para atender ao SNE*/
+/* Almir 12-06-2023 foram colocadois novos parãmetros para os indicadores do SNE */
+  
+(
+	@Serie			char(2),  
+	@Auto			numeric (10, 0),  
+	@Infracao		numeric(6,0),  
+	@TipoMovimento		char(1),  
+	@ProcessoRecurso	ty_Numero = null,  
+	@MotivoCancelamento	ty_Numero = null,  
+	@Restituicao		ty_SimNao = null,  
+	@TipoMovDebito		ty_Numero = null,  
+	@NumeroBancario		varchar (40) = null,  
+	@DataPagamento		datetime = null,  
+	@ValorPago		ty_Valor = null,  
+	@Banco			ty_Numero = null,  
+	@Agencia			varchar(6) = null,  
+	@NumeroDoc		numeric (10) = null,  
+	@OrgaoAutuante		numeric(6,0), 
+	@CNH			numeric(12)		=NULL, 
+	@UFCNH			char(02)	=NULL, 
+	@TipoCarteiraHab		int		=NULL, 
+	@NomeCondutor		char(50)	= null, 
+	@Observacao             	varchar(255) = null, 
+	@MotivoCancRENAINF	char(01) =NULL, 
+	@ProcessoRENAINF		char(20) = null, 
+	@Indica			int	=	null , 
+	@Desdobramento		smallint = null, 
+	@SQLWindows                 char(1) = 'N',
+	@SNE			char(01) = 'N',
+	@IndicadorArgumento	int = null,
+	@NumAutoInfracao		char(10) = null,
+	@Data			datetime =null,
+	--novos campos
+	@UFPlaca			char(02) = null,
+	@iIndAdesaoPossuidorEpocaSNE	numeric(1) = null,
+	@iDataAdesaoPossuidorEpocaSNE 	datetime = null,
+	@iHoraAdesaoPossuidorEpocaSNE 	numeric(4) = null,
+	@iIndicadorAdesaoPCSNE 		numeric(1) = null,
+	@iDataAdesaoPCSNE 		datetime = null,
+	@iHoraAdesaoPCSNE 		numeric(4) = null,
+	@iIndAdesaoInfAbordadoIndSNE 	numeric(1) = null,
+	@iDataAdesaoInfAbordadoIndSNE 	datetime = null,
+	@iHoraAdesaoInfAbordadoIndSNE 	numeric(4) = null,
+	@iIndicadorAdesaoOASNE		numeric(1) = null
+
+)
+
+
+
+  
+as  
+declare @OrgaoCompetencia numeric(06), @DataDoReg datetime, @CPFCondutor numeric(11,0),
+    	@SetorProcessoCorpAnt 	varchar (30),
+    	@QteDocumentosCaixaAnt 	int,
+    	@CaixaCorpAnt 		ty_Numero,
+    	@Placa			char(07),
+    	@PlacaMercosul 		char(07)   
+
+set forceplan on
+----------- Inserir movimento de adesao ou cancelamento da adesão ao SNE
+if		@SNE		=	'S' and @OrgaoAutuante !=null and ltrim(rtrim(@NumAutoInfracao)) !=null
+begin
+	begin tran
+	
+	select 	@Placa	=	null,@UFPlaca=null
+	SELECT 	@UFPlaca=UFPlaca, @Placa = Placa
+	FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoRENAINF)
+	where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+	and 	a.AutoRENAINF 		= @NumAutoInfracao 
+	
+	IF	@Placa	=	null
+	begin
+		SELECT 	@UFPlaca=UFPlaca, @Placa = Placa
+		FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoINFRAEST)
+		where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+		and 	a.AutoINFRAEST 		= @NumAutoInfracao 
+	end	
+	if	@UFPlaca	=	null	
+	-- Converte placa comum para mercosul - projeto placa mercosul
+	if @Placa is not null
+	begin
+	    exec dbvcen..ConvertePlacaMercosul @Placa = @Placa, @PlacaConvertida = @PlacaMercosul output
+	    select @UFPlaca = 'PE' from dbvcen..Veiculo where 	Placa in (@Placa, @PlacaMercosul) and Situacao in ('N','R')
+	end 				
+						
+	if	@UFPlaca		!=	'PE'	--- veiculo de outra UF
+	Begin
+		if	@IndicadorArgumento	=	1 ---- Adesão SNE = SIM
+			and not exists(
+				SELECT 1
+					  	FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoRENAINF)
+					  		,dbinfracao..MovimentoAuto ma (index MovimentoAuto_key)
+						where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+						and 	a.AutoRENAINF 		= @NumAutoInfracao 
+						and 	a.Serie			= ma.Serie
+						and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+						and 	a.Cod			= ma.Auto
+						and 	ma.TipoMovimento	= '2'
+			and      not exists (select 1 from dbinfracao..MovimentoAuto mm  
+						where   a.Serie			= mm.Serie
+						and 	a.OrgaoAutuante		= mm.OrgaoAutuante
+						and 	a.Cod			= mm.Auto
+						and 	mm.TipoMovimento	= '3'
+						and     mm.DataAtualizacao > ma.DataAtualizacao)
+					
+			
+			
+			)
+		begin	
+		
+			insert	dbinfracao..MovimentoAuto ( Serie, Auto, Infracao, DataAtualizacao, TipoMovimento,Usuario, OrgaoAutuante,OrgaoCompetencia,Desdobramento,DataTransmissaoRENAINF)  
+			select	ma.Serie, ma.Auto, ma.Infracao, getdate() , '2', suser_name(), ma.OrgaoAutuante, ma.OrgaoCompetencia, ma.Desdobramento, getdate()
+			FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoRENAINF)
+			,dbinfracao..MovimentoAuto ma (index MovimentoAuto_key)
+			where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+			and 	a.AutoRENAINF 		= @NumAutoInfracao 
+			and 	a.Serie			= ma.Serie
+			and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+			and 	a.Cod			= ma.Auto
+			and 	ma.TipoMovimento		= 'I'	  
+	  
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro na inserção da movimento auto'
+				return -900  
+			end  		
+			update 	dbinfracao..Auto 
+				set 	DataAdesaoSNE 		= 	isnull(@Data,DataAdesaoSNE) ,
+					iIndicadorAdesaoSNE	=	@IndicadorArgumento,
+					iIndAdesaoPossuidorEpocaSNE	=	@iIndAdesaoPossuidorEpocaSNE,
+					DataAdesaoPossuidorEpocaSNE	=	@iDataAdesaoPossuidorEpocaSNE,
+					HoraAdesaoPossuidorEpocaSNE	=	@iHoraAdesaoPossuidorEpocaSNE,
+					iIndicadorAdesaoPCSNE		=	@iIndicadorAdesaoPCSNE,
+					DataAdesaoPCSNE			=	@iDataAdesaoPCSNE,
+					HoraAdesaoPCSNE			=	@iHoraAdesaoPCSNE,
+					iIndAdesaoInfAbordadoIndSNE	=	@iIndAdesaoInfAbordadoIndSNE,
+					DataAdesaoInfAbordadoIndSNE	=	@iDataAdesaoInfAbordadoIndSNE,
+					HoraAdesaoInfAbordadoIndSNE     =       @iHoraAdesaoInfAbordadoIndSNE,
+					iIndicadorAdesaoOASNE		=	@iIndicadorAdesaoOASNE
+			where   OrgaoCompetencia 	= @OrgaoAutuante   
+			and     AutoRENAINF 		= @NumAutoInfracao 			
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro na atualizacao do auto'
+				return -900  
+			end			
+		end	
+		if	@IndicadorArgumento	=	2   ---- CANCELA Adesão SNE 
+			AND 	not exists(
+						SELECT 1
+					  	FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoRENAINF)
+					  		,dbinfracao..MovimentoAuto ma (index MovimentoAuto_key)
+						where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+						and 	a.AutoRENAINF 		= @NumAutoInfracao 
+						and 	a.Serie			= ma.Serie
+						and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+						and 	a.Cod			= ma.Auto
+						and 	ma.TipoMovimento	= '3'
+			and      not exists (select 1 from dbinfracao..MovimentoAuto mm  
+						where   a.Serie			= mm.Serie
+						and 	a.OrgaoAutuante		= mm.OrgaoAutuante
+						and 	a.Cod			= mm.Auto
+						and 	mm.TipoMovimento	= '2'
+						and     mm.DataAtualizacao > ma.DataAtualizacao)
+					
+						
+			
+			)
+		begin	
+		
+			insert	dbinfracao..MovimentoAuto ( Serie, Auto, Infracao, DataAtualizacao, TipoMovimento,Usuario, OrgaoAutuante,OrgaoCompetencia,Desdobramento,DataTransmissaoRENAINF)  
+			select	ma.Serie, ma.Auto, ma.Infracao, getdate() , '3', suser_name(), ma.OrgaoAutuante, ma.OrgaoCompetencia, ma.Desdobramento, getdate()
+			FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoRENAINF)
+			,dbinfracao..MovimentoAuto ma (index MovimentoAuto_key)
+			where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+			and 	a.AutoRENAINF 		= @NumAutoInfracao 
+			and 	a.Serie			= ma.Serie
+			and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+			and 	a.Cod			= ma.Auto
+			and 	ma.TipoMovimento		= 'I'	  
+	  
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro na inserção da movimento auto'
+				return -900  
+			end  
+					
+			update 	dbinfracao..Auto 
+				set DataCancAdesaoSNE = isnull(@Data,DataCancAdesaoSNE) ,
+				iIndicadorAdesaoSNE=@IndicadorArgumento	
+			where   OrgaoCompetencia 	= @OrgaoAutuante   
+			and     AutoRENAINF 		= @NumAutoInfracao 			
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro na atualizacao do auto'
+				return -900  
+			end  			
+			
+			
+		end
+	end
+	else ---- veiculo local
+	begin
+		if	@IndicadorArgumento	=	1 ---- Adesão SNE = SIM
+			and not exists(
+				SELECT 1
+					  	FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoINFRAEST)
+					  		,dbinfracao..MovimentoAuto ma (index MovimentoAuto_key)
+						where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+						and 	a.AutoINFRAEST 		= @NumAutoInfracao 
+						and 	a.Serie			= ma.Serie
+						and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+						and 	a.Cod			= ma.Auto
+						and 	ma.TipoMovimento	= '2'
+			and      not exists (select 1 from dbinfracao..MovimentoAuto mm  
+						where   a.Serie			= mm.Serie
+						and 	a.OrgaoAutuante		= mm.OrgaoAutuante
+						and 	a.Cod			= mm.Auto
+						and 	mm.TipoMovimento	= '3'
+						and     mm.DataAtualizacao > ma.DataAtualizacao)
+					
+			
+			
+			)
+		begin	
+		
+			insert	dbinfracao..MovimentoAuto ( Serie, Auto, Infracao, DataAtualizacao, TipoMovimento,Usuario, OrgaoAutuante,OrgaoCompetencia,Desdobramento,DataTransmissaoRENAINF)  
+			select	ma.Serie, ma.Auto, ma.Infracao, getdate() , '2', suser_name(), ma.OrgaoAutuante, ma.OrgaoCompetencia, ma.Desdobramento, getdate()
+			FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoINFRAEST)
+			,dbinfracao..MovimentoAuto ma (index MovimentoAuto_key)
+			where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+			and 	a.AutoINFRAEST 		= @NumAutoInfracao 
+			and 	a.Serie			= ma.Serie
+			and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+			and 	a.Cod			= ma.Auto
+			and 	ma.TipoMovimento		= 'I'
+	  
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro na inserção da movimento auto'
+				return -900  
+			end  				  
+		
+			update 	dbinfracao..Auto 
+				set DataAdesaoSNE = isnull(@Data,DataAdesaoSNE) ,
+				iIndicadorAdesaoSNE=@IndicadorArgumento							
+			where   OrgaoCompetencia 	= @OrgaoAutuante   
+			and 	AutoINFRAEST 	= @NumAutoInfracao 
+	  
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro na atualizacao do auto'
+				return -900  
+			end  			
+				
+		end	
+		if	@IndicadorArgumento	=	2   ---- CANCELA Adesão SNE 
+			AND 	not exists(
+						SELECT 1
+					  	FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoINFRAEST)
+					  		,dbinfracao..MovimentoAuto ma (index MovimentoAuto_key)
+						where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+						and 	a.AutoINFRAEST 		= @NumAutoInfracao 
+						and 	a.Serie			= ma.Serie
+						and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+						and 	a.Cod			= ma.Auto
+						and 	ma.TipoMovimento	= '3'
+			and      not exists (select 1 from dbinfracao..MovimentoAuto mm  
+						where   a.Serie			= mm.Serie
+						and 	a.OrgaoAutuante		= mm.OrgaoAutuante
+						and 	a.Cod			= mm.Auto
+						and 	mm.TipoMovimento	= '2'
+						and     mm.DataAtualizacao > ma.DataAtualizacao)
+					
+						
+			
+			)
+		begin	
+		
+			insert	dbinfracao..MovimentoAuto ( Serie, Auto, Infracao, DataAtualizacao, TipoMovimento,Usuario, OrgaoAutuante,OrgaoCompetencia,Desdobramento,DataTransmissaoRENAINF)  
+			select	ma.Serie, ma.Auto, ma.Infracao, getdate() , '3', suser_name(), ma.OrgaoAutuante, ma.OrgaoCompetencia, ma.Desdobramento, getdate()
+			FROM     dbinfracao..Auto a (index Auto_OrgaoCompAutoINFRAEST)
+			,dbinfracao..MovimentoAuto ma (index MovimentoAuto_key)
+			where 	a.OrgaoCompetencia 	= @OrgaoAutuante  
+			and 	a.AutoINFRAEST 		= @NumAutoInfracao 
+			and 	a.Serie			= ma.Serie
+			and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+			and 	a.Cod			= ma.Auto
+			and 	ma.TipoMovimento		= 'I'	  
+	  
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro na inserção da movimento auto'
+				return -900  
+			end  
+					
+			update 	dbinfracao..Auto 
+				set DataCancAdesaoSNE = isnull(@Data,DataCancAdesaoSNE) ,
+				iIndicadorAdesaoSNE=@IndicadorArgumento	
+			where   OrgaoCompetencia 	= @OrgaoAutuante   
+			and     AutoINFRAEST 	= @NumAutoInfracao 			
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro na atualizacao do auto'
+				return -900  
+			end  			
+			
+		end				
+
+	end
+
+	commit tran	
+		
+return
+end ----- -----------FIM Inserir movimento SNE	     		
+set forceplan off	     		
+	     		
+	     		
+  
+select @OrgaoCompetencia = OrgaoCompetencia   
+   from dbinfracao..MovimentoAuto where  
+   TipoMovimento = 'I'  
+and Serie = @Serie and Auto = @Auto and OrgaoAutuante = @OrgaoAutuante  
+   and Infracao = @Infracao  
+   and Desdobramento = @Desdobramento 
+      
+ 
+declare @SetorUsuario varchar (30), @UltimaCaixa ty_Numero, @QtdeDocumentos int, @Usuario char(10) 
+select @SetorUsuario = Setor from dbvcen..Usuario where Cod = suser_name() 
+select   @Usuario = suser_name() 
+ 
+				 
+	 
+-- 	Indicacao de condutor 
+	if  @TipoMovimento = 'F'  
+		if 	@Indica		=	1 
+			begin
+			
+			if ltrim(rtrim(@Observacao)) is null
+				select @Observacao = 'Indicacao do condutor-Protocolo:'+convert(char(10),@ProcessoRecurso)+' em '+ convert(char(10),getdate(),103)+' '+convert(char(10),getdate(),108) 
+				
+			select @CPFCondutor = null
+			
+			if @CNH in (null, 0) and @ProcessoRecurso is not null and @ProcessoRecurso > 0
+			begin
+			         			         
+				select @CPFCondutor = convert(numeric(11),pe.CgcCpf)
+				from Prot..Protocolo p, Prot..PersDoProt pdp, Prot..Personagem pe 
+				where p.Cod = @ProcessoRecurso 
+				and pdp.Prot=p.Cod 
+				and pdp.TipPerDoProt = 1 --- condutor 
+				and pe.Cod = pdp.CodPers 
+				
+			end	
+			 
+			begin tran  
+
+			update	dbinfracao..Auto  
+			set 	CNH	=	@CNH,  
+			UFCNH = @UFCNH,  
+			TipoCarteiraHab = @TipoCarteiraHab, 
+			Condutor	= @NomeCondutor , Observacao = 	ltrim(rtrim(Observacao)) +' '+ltrim(rtrim(@Observacao)) 
+			where	Serie = @Serie and Cod = @Auto  
+			and OrgaoAutuante = @OrgaoAutuante  
+
+			if @@transtate = 2 or @@transtate = 3  
+			begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  'Erro atualização Auto CNH condutor'
+				return -900  
+			end  
+				
+			if @CPFCondutor is not null
+			begin
+				update	dbinfracao..Auto  
+				set 	CPFCondutor	= @CPFCondutor
+				where	Serie = @Serie and Cod = @Auto  
+				and OrgaoAutuante = @OrgaoAutuante  
+	
+				if @@transtate = 2 or @@transtate = 3  
+				begin  
+					if @@transtate = 2 rollback tran  
+					raiserror 55000  'Erro atualização Auto CPF condutor'
+					return -900  
+				end  			
+			
+			end 	
+ 
+ 
+			insert	dbinfracao..MovimentoAuto ( Serie, Auto, Infracao, DataAtualizacao, TipoMovimento, ProcessoRecurso,  
+				MotivoCancelamento, Restituicao, TipoMovDebito, NumeroBancario, DataPagamento,  
+				ValorPago, Banco, Agencia, NumeroDoc, Usuario, OrgaoAutuante,OrgaoCompetencia,MotivoCancRENAINF,ProcessoRENAINF,Desdobramento )  
+			select	@Serie, @Auto, @Infracao, getdate() , @TipoMovimento, @ProcessoRecurso, 
+		  
+				@MotivoCancelamento, @Restituicao, @TipoMovDebito, @NumeroBancario, @DataPagamento,  
+				@ValorPago, @Banco, @Agencia, @NumeroDoc, suser_name(), @OrgaoAutuante, @OrgaoCompetencia,@MotivoCancRENAINF, @ProcessoRENAINF,@Desdobramento 
+			if @@transtate != 2 and @@transtate != 3 and @TipoMovimento = 'B'  
+			 
+				begin 
+				update	dbinfracao..Auto  
+				set	Situacao = 'B'  
+				where	Serie = @Serie and Cod = @Auto  
+					and OrgaoAutuante = @OrgaoAutuante  
+		  
+		 		end	 
+		 		 
+				if @@transtate = 2 or @@transtate = 3  
+					begin  
+					if @@transtate = 2 rollback tran  
+					raiserror 55000  
+					return -900  
+					end  
+				 
+				 
+ 
+ 			if @SQLWindows = 'S' and not exists (select 1 from dbvcen..Usuario u where u.Cod = suser_name() and u.Setor in ('12000000000000','14000000000000')) 
+ 			   begin 
+-- 				declare @SetorUsuario varchar (30), @UltimaCaixa ty_Numero, @QtdeDocumentos int 
+--				select @SetorUsuario = Setor from dbvcen..Usuario where Cod = suser_name() 
+--				 
+
+				-- Se o protocolo já estiver em uma caixa de identificação não acatada, retirá-lo desta caixa
+				
+ 				if exists (select 1 from dbvcen..CaixaProcesso where Processo = @ProcessoRecurso and TipoCaixa = 6) 
+ 				begin
+ 				
+					select @SetorProcessoCorpAnt = null, @CaixaCorpAnt = null
+					
+					select @SetorProcessoCorpAnt = SetorProcesso, @CaixaCorpAnt = Caixa 
+					from dbvcen..CaixaProcesso 
+					where TipoCaixa = 6  -- caixa identificação não acatada
+					and Processo = @ProcessoRecurso 
+										       
+					-- desassocia caixa
+					
+					delete dbvcen..CaixaProcesso 
+					where TipoCaixa = 6  -- caixa identificação não acatada
+					and  SetorProcesso = @SetorProcessoCorpAnt
+					and  Caixa = @CaixaCorpAnt
+					and Processo = @ProcessoRecurso
+					  
+					if  @@transtate=2 or @@transtate=3            
+			        	begin            
+			            		if @@transtate=2 rollback tran            
+			            		raiserror 55000 'Falha na desassociação do protocolo na caixa de identificação não acatada!'            
+			            		return -900            
+			        	end
+			        	
+			        	select @QteDocumentosCaixaAnt = QteDocumentos
+			        	from dbvcen..Caixa
+			 		where  Cod = @CaixaCorpAnt
+			 		and TipoCaixa = 6 -- caixa identificação não acatada
+			 		and Setor = @SetorProcessoCorpAnt 
+			 		
+			 		if @QteDocumentosCaixaAnt = 1 -- só tem ele na caixa
+			 		begin
+				        	delete dbvcen..Caixa  
+				 		where  Cod = @CaixaCorpAnt
+				 		and TipoCaixa = 6 -- caixa identificação não acatada
+				 		and Setor = @SetorProcessoCorpAnt 
+				 		
+						if  @@transtate=2 or @@transtate=3            
+				        	begin            
+				            		if @@transtate=2 rollback tran            
+				            		raiserror 55000 'Falha na deleção da caixa de identificação não acatada!'            
+				            		return -900            
+				        	end
+				 			 		
+			 		
+			 		end
+			 		else -- tem mais documentos na caixa -- diminui a quantidade
+			 		begin
+				        	update dbvcen..Caixa  
+				 		set    QteDocumentos = QteDocumentos - 1  
+				 		where  Cod = @CaixaCorpAnt
+				 		and TipoCaixa = 6 -- caixa identificação não acatada
+				 		and Setor = @SetorProcessoCorpAnt 
+				 		
+						if  @@transtate=2 or @@transtate=3            
+				        	begin            
+				            		if @@transtate=2 rollback tran            
+				            		raiserror 55000 'Falha no ajuste da quantidade de doctos da caixa de identificação não acatada!!'            
+				            		return -900            
+				        	end
+				 			 		
+			 		end				
+				
+				end
+
+
+ 				if not exists (select 1 from dbvcen..CaixaProcesso where Setor = @SetorUsuario 
+ 					      and Processo = @ProcessoRecurso and TipoCaixa = 4) 
+ 				begin	       
+	 				 
+	 			 
+	 					 
+	 				select 	@UltimaCaixa = max(Cod) from dbvcen..Caixa where TipoCaixa = 4 and Setor = @SetorUsuario 
+	 				and     substring(convert(char(10),Cod),1,4) = convert(char(04),datepart(yy,getdate())) 
+	 				 
+	 				 
+	 				if	@UltimaCaixa = null  -- primeira vez que est  fazendo indica‡Æo de condutor--- 
+	 				 
+	 					begin 
+	 					  
+	 						set @UltimaCaixa = convert(int, convert(char(4),datepart(yy,getdate()) )+ substring(convert(char(07),1+1000000),2,6)) 
+	 						 
+	 						insert dbvcen..Caixa (Setor, TipoCaixa, Cod , QteDocumentos, Situacao, Replica, sTipoPermanenciaCaixa)  
+	 						select @SetorUsuario, 4,@UltimaCaixa, 0, 'A', 0, 'U' 
+		 					 
+	 
+		 					 
+	 					end 
+	 					 
+	 				 
+	 			 
+	 				 
+	 				select @QtdeDocumentos = QteDocumentos from   dbvcen..Caixa where TipoCaixa = 4 and Setor = @SetorUsuario and Cod = @UltimaCaixa 
+	 			 
+	 				if @QtdeDocumentos < 100 
+	 					begin 
+	 					 
+	 					update dbvcen..Caixa 
+	 					set    QteDocumentos = QteDocumentos + 1 
+	 					where  Cod = @UltimaCaixa and TipoCaixa = 4 and Setor = @SetorUsuario 
+	 					 
+	 					end 
+	 				else 
+	 					begin  -- inseri uma nova caixa 
+	 					 
+	 					       -- fecha a ultima caixa  
+		 
+			 				update dbvcen..Caixa  
+		 					set    Situacao = 'F' 
+		 					where  Cod = @UltimaCaixa and TipoCaixa = 4 and Setor = @SetorUsuario 
+	 					 
+	 					 
+							-- inseri nova caixa 
+		 					set @UltimaCaixa = @UltimaCaixa + 1 
+							 
+	 						insert dbvcen..Caixa (Setor, TipoCaixa, Cod , QteDocumentos, Situacao, Replica, sTipoPermanenciaCaixa)  
+	 						select @SetorUsuario, 4,@UltimaCaixa, 1, 'A', 0, 'U' 
+		 					 
+ 
+		 					 
+	 					end	 
+	 					 
+				   insert dbvcen..CaixaProcesso (Setor,TipoCaixa,Caixa,SetorProcesso,Processo,Replica,CaixaAnterior) 					 
+				   select @SetorUsuario,4,@UltimaCaixa,@SetorUsuario,@ProcessoRecurso,0,null 
+				    
+			     end   -- if exists caixa associada ao processo 
+			     else  -- Se o processo j  est  associado a uma caixa nao atribui outra caixa para o mesmo 
+			     	begin 
+			     	 
+			     	select @UltimaCaixa = Caixa  from dbvcen..CaixaProcesso where Setor = @SetorUsuario 
+ 				and Processo = @ProcessoRecurso 
+ 					       
+			     	end  			    
+			 
+ 			    
+ 			    
+ 			   select s.Descricao as Setor, @UltimaCaixa as NumeroCaixa  
+ 			   from	 dbvcen..Setor s where s.Cod = @SetorUsuario		 
+ 			    
+ 			  
+ 			 declare @Sequencial int, @DataAtual datetime, @LocUsuario int 
+ 			  
+ 			 set @DataAtual = getdate() 
+ 			  
+ 			  
+ 			 select   @LocUsuario = p.LocAtual, @DataDoReg = p.DataDoReg 
+                            from Prot..Protocolo p 
+                            where p.Cod = @ProcessoRecurso 
+                                                
+                            if   @DataDoReg >= '20101215 00:00' 
+                            begin                  
+ 			    
+				 exec  @Sequencial  =  Prot..MovsDoProtI_Fora  @Prot =  @ProcessoRecurso,  @DataMov = @DataAtual, 
+		                   @LocDest =  999,  @TipDec =  101,  @Usuario = @Usuario,  @Receb = 'N',  @LocUsuario =  @LocUsuario,  
+		                   @Encerrado =  1,  @Comunicado =  0, @TelaIdentificacao = 'S' 
+	                             
+ 
+			    end 
+ 
+ 
+   		          end  --@SqlWindows = 'S' 
+   		           
+   		         --- Nos casos da PRF, retornar setor e caixa ---  
+			    
+			if exists (select 1 from dbvcen..Usuario u where u.Cod = suser_name() and u.Setor in ('12000000000000','14000000000000')) 
+			begin 
+				select s.Descricao as Setor, cp.Caixa as NumeroCaixa  
+								from   dbvcen..CaixaProcesso cp, dbvcen..Setor s 
+								where  cp.Setor = @SetorUsuario 
+				 				and    cp.Processo = @ProcessoRecurso and cp.TipoCaixa = 4 
+				 				and    s.Cod = @SetorUsuario		 
+			end 
+			 
+	 		commit tran 
+	 		    
+			end  
+		else 
+			if @SQLWindows = 'S' 
+			begin 
+				select s.Descricao as Setor, cp.Caixa as NumeroCaixa  
+				from   dbvcen..CaixaProcesso cp, dbvcen..Setor s 
+				where  cp.Setor = @SetorUsuario 
+ 				and    cp.Processo = @ProcessoRecurso and cp.TipoCaixa = 4 
+ 				and    s.Cod = @SetorUsuario 
+			end 
+			else 
+				return  
+	else	 
+ 		begin 
+ 		begin tran  
+		insert	dbinfracao..MovimentoAuto ( Serie, Auto, Infracao, DataAtualizacao, TipoMovimento, ProcessoRecurso,  
+			MotivoCancelamento, Restituicao, TipoMovDebito, NumeroBancario, DataPagamento,  
+			ValorPago, Banco, Agencia, NumeroDoc, Usuario, OrgaoAutuante,OrgaoCompetencia,MotivoCancRENAINF,ProcessoRENAINF,Desdobramento )  
+		select	@Serie, @Auto, @Infracao, getdate() , @TipoMovimento, @ProcessoRecurso, 
+  
+		@MotivoCancelamento, @Restituicao, @TipoMovDebito, @NumeroBancario, @DataPagamento,  
+		@ValorPago, @Banco, @Agencia, @NumeroDoc, suser_name(), @OrgaoAutuante, @OrgaoCompetencia,@MotivoCancRENAINF, @ProcessoRENAINF,@Desdobramento 
+		 
+		if @@transtate != 2 and @@transtate != 3 and @TipoMovimento = 'B'  
+			begin 
+			update	dbinfracao..Auto  
+			set	Situacao = 'B'  
+			where	Serie = @Serie and Cod = @Auto  
+				and OrgaoAutuante = @OrgaoAutuante  
+	  
+	 		end 
+	 		 
+			if @@transtate = 2 or @@transtate = 3  
+				begin  
+				if @@transtate = 2 rollback tran  
+				raiserror 55000  
+				return -900  
+				end  
+			 
+			 
+		commit tran  
+		end 
+  
+  
+ 
+return  
+GO
+
+execute sp_procxmode 'dbo.MovimentoAutoI', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.MovimentoAutoI to desenvolvimento
+GO
+
+Grant Execute on dbo.MovimentoAutoI to veiculo
+GO
+
+

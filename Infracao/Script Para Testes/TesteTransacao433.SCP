@@ -1,0 +1,98 @@
+
+
+
+ exec dbinfracao..RNFTransmiteAuto     @Serie   =  'DN',    @CodigoOrgaoAut  =  300,     
+ @Auto   = 4106954,    @Infracao  =  7455,    @CodConsulta  =  433,    @NumAutoInfracao =  'E005454543', @Maquina =  'DAT-038'
+
+
+select top 5 * from  dbvcen..TipoServico where Cod = 433
+
+
+
+Cod          Descricao                                           BinConsulta                               BinAtualizacao                            TipoIE ObrRenavam ObrPlaca ObrChassi VeiculoBase EscolhaPlaca GeraPlaca GeraRenavam GeraDebito TransfPropriedade Vistoria SituacaoVeiculo ZeraViaCRV Observacao                                                                                                                                                                                                                                                       PermiteRoubado FechamentoProcesso VeiculoBin Placa2L Placa3L PermiteInternet BloqueiaBaixaGravame FaseBloqueiaTaxaAberta ObrCRV OrdemJudicial ConsultaSNG TransfPE BaixaGravame IncluiGravame ObrigatoriedadeSNG AlteraGravame iServicoApreensao iServicoReboque iServicoAtivo PrimEmplacamento iServicoVistoriaFora Certidao     ObrigatoriedadeCsv ConsultaContratoSNG ServicoOutraUfSemTransf FinalidadeVistoria iExigeAutorizacaoAluguel iValidaAutorizacaoAluguel iLiberaAutorizacaoAluguel iServicoRecolhimentoDoc iExigeAutorizAltCaract iValidaCarTipoEsp iServicoRegravMotor iExigeLacracao iNaoValidaCaracteristica iNaoExigeMudancaPlaca iValidaAtributosServico iExigeOrdemChassi iExigeAtuEndereco iExigeProprietario iPermiteAltQtd DataInclusao                 iExigeEmplacamento ServicoRestauracao iPermiteSolicitEmp iServicoAcertoControlado Objetivo                                                                                                                                                                                                                                                         UsuarioSolicitante GrupoServico iServicoLiberacao TipoPesoVeiculo iExigeAutorizacaoPrevia iGeradoAutomatico iExigeAgendamento iPermiteWebAcessoLogado iExigeCodigoSeguranca SistemaOrigem iServAcessoLogadoCpf iTransfPropEstoque
+100          BAIXA DE VEICULOS EXPERIENCIA S/ONUS                0                                         0                                         E      S          S        S         S           N            N         N           S          N                 N        B               N          NULL                                                                                                                                                                                                                                                             N              C                  N          N       S       N               N                    C                      N      N             S           NULL     N            N             S                  N             N                 N               N             N                                     6            N                                      N                       NULL               N                        N                         S                         S                                              S                 N                   N              N                        N                     N                       N                 N                 S                  N              Jan  5 2000 12:58PM          N                  NULL               N                                           O serviço deve ser utilizado para corrigir dados do proprietário para veículos de experiência.                                                                                                                                                                   snf                23                             NULL            NULL                    N                 N                 S                       N                     131           N                    NULL              
+101          PRIMEIRO EMPLACAMENTO/REGISTRO                      0                                         3                                         E      N          N        S         N           N            S         S           S          N                 N        N               S          Registro do veículo na base de dados estadual.                                                                                                                                                                                                                   N              C                  S          N       S       N               N                    C                      N      N             S           NULL     N            N             S                  N             N                 N               S             S                                     NULL         N                                      N                       NULL               S                        S                         N                                                 N                      S                                     S                                                                                                       S                 S                  N              Dec 16 1997  7:36AM          S                  NULL                                                           O serviço deve ser utilizado para efetuar o primeiro cadastro de um veículo sem gravame.Retirado o atributo campo de observação.                                                                                                                                 snf                1                              NULL            NULL                    N                                   N                       N                     102           N                    NULL              
+
+
+insert into dbvcen..TipoServico(Cod, Descricao) values(433, 'CONSULTA ADESÃO AO SNE')
+
+
+
+exec RENAVAM..TipoConsultaS @Transacao =  433, @Maquina =  'DAT-038'
+
+
+ Select top 10 	*    
+   From		RENAVAM..TipoConsulta TC     
+   Where	TC.CodConsulta		=433
+
+
+
+--gravando a transação na tabela TipoConsulta
+
+insert into RENAVAM..TipoConsulta
+values(433, 'T')
+
+insert into RENAVAM..TipoConsulta
+values(436, 'T')
+
+--gravandop na tabela TuipoServico
+insert into dbvcen..TipoServico(Cod, Descricao, SistemaOrigem) values(433, 'CONSULTA ADESÃO AO SNE', 106)
+insert into dbvcen..TipoServico(Cod, Descricao, SistemaOrigem) values(436, 'CONSULTA COMPLEMENTO DE INFRAÇÃO', 106)
+
+
+----------------------------------------------------------------------------------------
+--massa para teste da 436
+set @P1 ='007363436417010000000PEBRPE10506000020001171000D0558483673400SNE0801   04433319236CASA DA MÃE JOANA                                                               125NUMEROIDALMIR FELIPE DOS SANTOS                 RUA NOVA BAIRRO PRIMEIRA      125S CASA LA'
+set @P2 = 'TERAL        2331PE54325445156252233644PE125BRFH236          ALMIR FELIPE   49324209434   TRANSPORTADORA MANUEL                             ESSE É UM REGISTRO DE TESTES PARA A TRANSAÇÃO 436 QUE ESTÁ EM TESTE EM DESENVOLVIMENTO              15632895214'		declare
+
+
+select top 50 * from dbvcen..TipoServico where Cod = 436
+
+
+ exec dbinfracao..RNFTrataRetorno  @CodTransacao =  436,    @NumSeqTransacao = 5,    @CodigoOrgaoAut= 117200,   
+ @nAuto =  23790763,    @Serie= 'Q ', @Maquina =  'DAT-038'
+
+
+
+
+insert into dbvcen..TesteAlmir
+values(1,'teste 001')
+insert into dbvcen..TesteAlmir
+values(2,'teste 002')
+insert into dbvcen..TesteAlmir
+values(5,'teste 005')
+insert into dbvcen..TesteAlmir
+values(8,'teste 008')
+insert into dbvcen..TesteAlmir
+values(9,'teste 009')
+insert into dbvcen..TesteAlmir
+values(10,'teste 0010')
+
+
+
+
+select * from dbvcen..TesteAlmir order by Cod
+Results :                                                                                          
+Cod          Descricao                                                                                            
+1            teste 001                                                                                            
+2            teste 002                                                                                            
+3            teste novo01                                                                                         
+4            teste novo02                                                                                         
+5            teste 005                                                                                            
+6            teste novo03                                                                                         
+7            teste novo03                                                                                         
+8            teste 008                                                                                            
+9            teste 009                                                                                            
+10           teste 0010                                                                                           
+11           teste novo04
+
+
+exec dbinfracao..PegandonumeroDaLinha
+
+insert into dbvcen..TesteAlmir
+values(12,'teste novo04')
+
+
+
+
+delete dbvcen..TesteAlmir where Cod = 25

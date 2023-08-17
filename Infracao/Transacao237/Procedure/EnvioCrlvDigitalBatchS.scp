@@ -1,0 +1,218 @@
+use master
+go
+
+/*  Database 'dbvcen'  */
+use dbvcen
+go
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.EnvioCrlvDigitalBatchS'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.EnvioCrlvDigitalBatchS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.EnvioCrlvDigitalBatchS
+end
+GO
+
+
+create proc dbo.EnvioCrlvDigitalBatchS
+( 
+	@Veiculo	int	=	null
+) 
+as
+begin
+
+	declare	@DataAutoriz		char(08),     
+		@CodSegCRLV		numeric(11),    
+		@HoraAutoriz    	char(6) , 	 
+		@NumeroDoc		numeric(12),   
+		@Exercicio 		numeric(04),
+		@ExercicioAtual         numeric(04),
+		@NroVia 		smallint,      
+		@Sequencial		smallint    , 
+		@TipoDocumento  	smallint, 
+		@DataEnvio		datetime, 
+		@Placa			char(07), 
+		@RetProc1  		varchar(255),    
+		@RetProc2 		varchar(255), 
+		@RetProc3  		varchar(255), 
+		@DataEnvioErro		datetime, 
+		@DataAtual 		datetime 
+
+ 
+	select  @Exercicio = datepart(yy,getdate()) 
+	select  @ExercicioAtual = datepart(yy,getdate())-1 
+	select  @DataAtual = getdate() 
+
+	select  @DataEnvioErro = CONVERT(DATETIME, convert(varchar(20), CONVERT(VARCHAR(4),@ExercicioAtual) + '0101 00:00:00')) 
+	
+	create 	table 	#CrlvDigitalBatch
+		(
+			CodSetor	int null, 
+	         	Processo 	int null,
+	         	Transacao 	int null,
+	         	Placa 		char(7) null,
+	         	UFPlaca 	char(2) null,
+	         	Veiculo 	int null,
+	         	TipoDocumento 	int null,
+	         	NumeroDoc 	numeric(12) null,
+	         	NroVia 	tinyint null,
+	         	Exercicio 	numeric(4) null,
+	         	DataInclusao 	datetime null
+	         )
+
+
+
+	if not exists (select 1 from dbvcen..EnvioCrlvPrioritario where DataEnvio is null)
+	begin
+		insert into #CrlvDigital
+		-- Documento na Impressão batch para do licenciamento anual ou de processo com serviço de solicitação de CLA (680,818) 
+		SELECT  (select s.CodReduzido*10+s.Digito 
+		         from dbvcen..Setor s 
+		         where s.Cod=dv.SetorProcesso), 
+		         dv.Processo,237, v.Placa,'PE',  dv.Veiculo, dv.TipoDocumento,  null   ,null      ,dv.Exercicio ,   dv.DataInclusao
+		FROM 	dbvcen..ImpressaoBatch dv (index ImpressaoBatch_KEY) , 
+			dbvcen..Veiculo v 
+		where 	dv.Data > = @DataEnvioErro 
+		and     dv.TipoDocumento = 2 
+		and 	(dv.Exercicio = @Exercicio or (dv.Exercicio = @Exercicio-1 and datepart(yy,dv.DataInclusao)>=@Exercicio-1))
+		and     isnull(dv.iPermiteImpressao,'N') = 'S' 
+		and 	dv.Veiculo	=	v.Cod 
+		and 	v.Situacao	=	'N'
+		and     v.Categoria not in (4,6)
+	
+		and     (dv.Processo is null or (dv.Processo is not null and  
+		               exists (select 1  
+			               from dbvcen..ProcessoServico ps,   
+			    	           dbvcen..TipoServico t  
+			 	      where ps.Setor = dv.SetorProcesso  
+			               and   ps.Processo = dv.Processo  
+			               and   t.Cod = ps.TipoServico  
+			               and   t.Cod in (682,818)) ) 
+		        ) 
+		and      not     exists	(select 1 from AutorizacaoEmissaoDocVeiculo cr 
+					 where   cr.Veiculo        =dv.Veiculo        
+					 and 	cr.TipoDocumento  = 2  
+					 and	cr.Exercicio      >=dv.Exercicio 
+					 and    cr.CodigoRetorno = 0 
+					 and    cr.CodigoAutorizacao is not null
+					 and    cr.DataCancelamento is null) 
+		
+		and     not exists (select 1
+		                    from dbvcen..RestricaoVeiculo
+		                    where Veiculo = dv.Veiculo
+		                    and Restricao in (29,30) -- Documento Recolhido
+		                    and Situacao='A')
+	
+	end
+	else
+	begin
+	        -- 12/03/2021 - Antonio Lins - Envio prioritário de CRLV eletrônico
+	        insert into #CrlvDigital
+	        SELECT  distinct (select s.CodReduzido*10+s.Digito 
+		         from dbvcen..Setor s 
+		         where s.Cod=i.SetorProcesso), 
+		         i.Processo,237, v.Placa,'PE',  i.Veiculo, i.TipoDocumento,  null   ,null      ,
+		         i.Exercicio,   i.DataInclusao
+		 from dbvcen..EnvioCrlvPrioritario p,
+		      dbvcen..Veiculo v, 
+		      dbvcen..ImpressaoBatch i
+		where p.DataEnvio is null
+		and v.Placa = p.Placa
+		and i.Veiculo = v.Cod
+		and i.TipoDocumento = 2
+		and i.Exercicio = p.Exercicio
+		and isnull(i.iPermiteImpressao,'N') = 'S' 
+		and     not exists (select 1
+		                    from dbvcen..RestricaoVeiculo
+		                    where Veiculo = v.Cod
+		                    and Restricao in (29,30) -- Documento Recolhido
+		                    and Situacao='A')
+		and (not exists (select 1 
+		                from AutorizacaoEmissaoDocVeiculo 
+		                where Veiculo = i.Veiculo 
+		                and TipoDocumento = 2 
+		                and Exercicio = i.Exercicio 
+		                and CodigoRetorno=0
+		                and CodigoAutorizacao is not null
+		                and DataCancelamento is null) or p.Motivo like 'ATUALIZAR%CDT%')
+	        union
+		SELECT  distinct (select s.CodReduzido*10+s.Digito 
+		         from dbvcen..Setor s 
+		         where s.Cod=i.Setor), 
+		         i.Processo,237, v.Placa,'PE',  i.Veiculo, i.TipoDocumento,  null   ,null      ,
+		         i.Exercicio,   i.DataInclusao
+		 from dbvcen..EnvioCrlvPrioritario p,
+		      dbvcen..Veiculo v, 
+		      dbvcen..DocVeiculo i
+		where p.DataEnvio is null
+		and v.Placa = p.Placa
+		and i.Veiculo = v.Cod
+		and i.TipoDocumento = 2
+		and i.Exercicio = p.Exercicio
+		and (not exists (select 1 
+		                from AutorizacaoEmissaoDocVeiculo 
+		                where Veiculo = i.Veiculo 
+		                and TipoDocumento = 2 
+		                and Exercicio = i.Exercicio 
+		                and CodigoRetorno=0
+		                and CodigoAutorizacao is not null
+		                and DataCancelamento is null) or p.Motivo like 'ATUALIZAR%CDT%')        	                
+	        union
+		SELECT  distinct (select s.CodReduzido*10+s.Digito 
+		         from dbvcen..Setor s 
+		         where s.Cod=i.Setor), 
+		         i.Processo,237, v.Placa,'PE',  i.Veiculo, i.TipoDocumento,  null   ,null      ,
+		         i.Exercicio,   i.DataInclusao
+		 from dbvcen..EnvioCrlvPrioritario p,
+		      dbvcen..Veiculo v, 
+		      dbvcen..FilaLiberacao i
+		where p.DataEnvio is null
+		and v.Placa = p.Placa
+		and i.Veiculo = v.Cod
+		and i.TipoDocumento = 2
+		and i.Exercicio = p.Exercicio
+		and (not exists (select 1 
+		                from AutorizacaoEmissaoDocVeiculo 
+		                where Veiculo = i.Veiculo 
+		                and TipoDocumento = 2 
+		                and Exercicio = i.Exercicio 
+		                and CodigoRetorno=0
+		                and CodigoAutorizacao is not null
+		                and DataCancelamento is null) or p.Motivo like 'ATUALIZAR%CDT%')        	                
+	        	                
+	
+	        update dbvcen..EnvioCrlvPrioritario
+	        set DataEnvio = getdate()
+	        from #CrlvDigital t, dbvcen..EnvioCrlvPrioritario e
+	        where e.Placa = t.Placa
+	        and e.Exercicio = t.Exercicio
+	        and e.DataEnvio is null
+	end
+      
+
+
+
+end
+
+return 0  
+go
+
+
+execute sp_procxmode 'dbo.EnvioCrlvDigitalBatchS', 'unchained'
+go
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.EnvioCrlvDigitalBatchS to desenvolvimento
+go
+
+Grant Execute on dbo.EnvioCrlvDigitalBatchS to veiculo
+go

@@ -1,0 +1,65 @@
+/*  Database 'dbvcen'  */
+use dbvcen
+go
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.TipoServicoTransacaoBinS'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.TipoServicoTransacaoBinS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.TipoServicoTransacaoBinS
+end
+go
+
+create proc dbo.TipoServicoTransacaoBinS
+-- Funcao : Selecionar os dados da tabela TipoServicoTransacaoBinS
+-- Autor  : afs - 29/01/2021
+(
+	@TipoServico int, 
+--	@Transacao int,
+	@Associado char(1) = 'N'
+)  
+as  
+
+	-- Retorna todos os dados que não estão associados a tabela de relacionamento.  
+	if @TipoServico is not null and @Associado = 'N'  
+	begin  
+		select 	ta.Cod, ta.Descricao  
+		from	dbvcen..Transacao ta  
+		where 	exists (	select 	1   
+				from 	dbvcen..TipoServicoTransacaoBin t   
+				where 	t.TipoServico = @TipoServico  
+				and 	t.Transacao = ta.Cod )  
+	end  
+
+	--Retorna todos os dados que estão associados a tabela de relacionamento.  
+	else if @TipoServico is not null and @Associado = 'S'  
+	begin  
+		select 	ta.Cod, ta.Descricao  
+		from	dbvcen..Transacao ta   
+		where 	not exists (	select 	1   
+					from 	dbvcen..TipoServicoTransacaoBin t   
+					where 	t.TipoServico = @TipoServico  
+					and 	t.Transacao = ta.Cod )   
+	end   
+  
+
+return  
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.TipoServicoTransacaoBinS to desenvolvimento
+go
+
+Grant Execute on dbo.TipoServicoTransacaoBinS to veiculo
+go
+
+

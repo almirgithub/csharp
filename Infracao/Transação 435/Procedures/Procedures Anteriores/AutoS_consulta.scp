@@ -1,0 +1,453 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 23007 SMP SP130 /P/Sun_svr4/OS 5.10/ase157sp13x/3819/64-bit/FBO/Sat Aug 23 01:36:19 2014) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.AutoS_consulta'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.AutoS_consulta') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.AutoS_consulta
+end
+
+GO
+
+create proc dbo.AutoS_consulta     
+/* Funcao : Selecionar os Autos para tela de consulta de autos.     */   
+/* Autor  : Celso - 16/01/1997                      */   
+/* Adilson 05/04/2006 - Acrescentado a data do lote no result set. */
+/* Adilson 22/05/2007 - Permitir fazer a consulta por chassi */
+/* Adilson 24/05/2007 - Foi colocado ltrim e rtrim no chassi */
+/* Adilson 21/09/2007 - Foi colocado in ('I','N') na ultima query, para resolver um problema
+                        da DPRF - AUTO DE 2000 */
+/* Adilson 07/03/2008 - Desdobramento */   
+/* Adilson 02/12/2008 - Correção do JOIN para os casos de renotificação penultima query
+  			com a tabela RNFDocNotifAut */
+/* Adilson 08/09/2010 - Tratar a situa‡Æo X - leiloado */
+/* Leonildo junior 19/04/2013   - Foi colocado ltrim e rtrim no if da @PlacaAnt is not null and @UFPlacaAnt is not null*/
+/* Adilson Santos 08/10/2015 - Alterado para obter a situação a partir da tabela das situações cadastradas*/
+/* Adilson Santos 01/12/2015 - Retorno o numero da matricula do agente de transito*/
+/* Adilson Santos 19/10/2016 - considerar desvinculado mesmo que esteja com efeito suspensivo*/
+/* Adilson Santos 17/03/2017 - RENAINF TOTAL*/
+/* Adilson Santos 04/07/2018 - Desvinculação de debitos */
+/* Adilson Santos 15/06/2020 - Sempre Exibir os dados do SNE - Adesão e data - jonas vai acrescentar a data de cancelamentoo*/
+/* Adilson Santos 02/09/2022 - Sprint-03 incluir o filtro convertido em advertência na consulta*/
+(   
+    @Lote               numeric(10,0) = null,   
+    @Serie              char(2)     = null,   
+    @Cod                numeric(10) = NULL,   
+    @OrgaoAutuante      numeric(6)  = null,   
+    @NumBancario        varchar(40) = null,   
+    @InfracaoI          datetime    = null,   
+    @InfracaoF          datetime    = null,   
+    @Aberto             int         = 0,   
+    @Baixado            int         = 0,   
+    @Cancelado          int         = 0,   
+    @Notificado         int         = 0,   
+    @Liquidado          int         = 0,   
+    @Inconsistente      int         = 0,   
+    @Suspenso           int         = 0,   
+    @Placa              char( 7)    = null,   
+    @UFPlaca            char( 2)    = null,   
+    @Veiculo            ty_Numero   = null,   
+    @VencimentoI        datetime    = null,   
+    @VencimentoF        datetime    = null,   
+    @PagamentoI         datetime    = null,   
+    @PagamentoF         datetime    = null,   
+    @NotificacaoI       datetime    = null,   
+    @NotificacaoF       datetime    = null, 
+    @CNH                numeric(12) = null,   
+    @ProcessoRecurso    ty_Numero   = null,   
+    @Funcionario        char(8)     = null,   
+    @NumNotificacao     numeric(10) = null,  
+    @NotAutuacao        int         = 0,  
+    @AutoRENAINF        CHAR(10)    = NULL ,
+    @Chassi	            CHAR(14)    = null ,
+    @Leiloado           int         = 0,
+    @Advertencia        int         = 1  
+)   
+   
+as   
+
+declare @aberto         char(1)     ,
+        @baixado        char(1)     ,
+        @cancelado      char(1)     ,
+        @liquidado      char(1)     ,
+        @inconsistente  char(1)     ,
+        @notificado     char(1)     ,
+        @suspenso       char(1)     ,
+        @liq            char(1)     ,
+        @PlacaAnt       varchar(7)  ,
+        @UFPlacaAnt     char(2)     ,
+        @notAutuacao    char(1)     ,
+        @leiloado       char(1)     ,
+        @advertencia	char(1)	    ,	
+        @PlacaMercosul  char(7)
+   
+if @Cod is not null --   
+    select  @Cod = floor( @Cod/10)   
+   
+if char_length(ltrim( rtrim( @Placa))) = null --  
+     select @Placa = null --   
+   
+if char_length(ltrim( rtrim( @UFPlaca))) = null --   
+     select @UFPlaca = null --   
+   
+if char_length(ltrim( rtrim( @Funcionario))) = null --   
+     select @Funcionario = null --   
+
+-- limpa o chassi
+select @Chassi = ltrim(rtrim(@Chassi))
+
+if @Serie is null and @Cod is null and @OrgaoAutuante is null --   
+    if @Lote is null and @OrgaoAutuante is null --   
+        if @Veiculo is null --   
+            if @Placa is null and @UFPlaca is null --   
+                if @NumNotificacao is null --   
+                    if @NumBancario is null --   
+                       if @Chassi is null --
+                    begin   
+                        raiserror 55000 'OPCAO DE CONSULTA AINDA NAO IMPLEMENTADO!'   
+                        return -900   
+                    end   
+-- Limpa a serie
+select @Serie = ltrim( rtrim( @Serie))  
+
+-- Converte placa comum para mercosul - projeto placa mercosul
+if @Placa is not null
+begin
+    exec dbvcen..ConvertePlacaMercosul @Placa = @Placa, @PlacaConvertida = @PlacaMercosul output
+end 
+   
+if @Veiculo is null and @Placa is not null --   
+begin   
+    select @Veiculo = Cod, @PlacaAnt=PlacaAnterior, @UFPlacaAnt=UFAnterior from dbvcen..Veiculo where Placa in (@Placa, @PlacaMercosul)   
+    if @Veiculo is null and char_length(ltrim(rtrim(@Placa))) < 7   
+        select @Veiculo = Cod from dbvcen..Veiculo where PlacaAnterior = @Placa and UFAnterior = @UFPlaca   
+end   
+   
+if @InfracaoF is not null --   
+    select @InfracaoF = dateadd(dd,1, @InfracaoF)   
+   
+if @VencimentoF is not null --   
+    select @VencimentoF = dateadd(dd,1, @VencimentoF)   
+   
+if @PagamentoF is not null --   
+    select @PagamentoF = dateadd(dd,1, @PagamentoF)   
+  
+if @NotificacaoF is not null --   
+    select @NotificacaoF = dateadd(dd,1, @NotificacaoF)   
+   
+if @Aberto = 1      select @aberto = 'A'   
+if @Baixado = 1     select @baixado = 'B'   
+if @Cancelado = 1   select @cancelado = 'C'   
+if @Notificado = 1  select @notificado = 'N'   
+if @Liquidado = 1   select @liquidado = 'P', @liq = 'L'   
+if @Inconsistente = 1   select @inconsistente = 'I'   
+if @Suspenso = 1    select @suspenso = 'E'   
+if @NotAutuacao = 1     select @notAutuacao = 'D'  
+if @Leiloado = 1     select @leiloado = 'X'  
+if @Advertencia=1 select @advertencia = 'K'
+-- limpa a tmpAutoConsulta
+delete  dbvcen..tmpAutoConsulta   
+where   spid = @@spid or datediff (dd, DataSelecao, getdate()) >= 1   
+   
+if @@transtate = 2 or @@transtate = 3   
+begin   
+    raiserror 55000   
+    return -900   
+end   
+   
+create table #Auto (   
+        OrgaoAutuante numeric(6,0) not null,   
+        Serie   char( 2) not null,   
+        Auto    numeric( 9) not null)   
+   
+if @Serie is not null and @Cod is not null and @OrgaoAutuante is not null --   
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.OrgaoAutuante = @OrgaoAutuante   
+    and a.Serie = @Serie   
+    and a.Cod = @Cod   
+   
+if @ProcessoRecurso is not null --   
+    insert  #Auto   
+    select  c.OrgaoAutuante,c.Serie, c.Auto   
+    from    Prot..Comunicado c   
+    where   Prot = @ProcessoRecurso    
+   
+if @Lote is not null --and @OrgaoAutuante is not null   
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.Lote = @Lote   
+    and (a.OrgaoAutuante = @OrgaoAutuante or @OrgaoAutuante is null)   
+    and not exists (select 1 from #Auto aa where a.OrgaoAutuante = aa.OrgaoAutuante and    
+                a.Serie = aa.Serie and a.Cod = aa.Auto)   
+   
+if @Placa is not null and @UFPlaca is not null --   
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.Placa in (@Placa, @PlacaMercosul)
+    and a.UFPlaca = @UFPlaca   
+    and not exists (select 1 from #Auto aa where a.OrgaoAutuante = aa.OrgaoAutuante and    
+                a.Serie = aa.Serie and a.Cod = aa.Auto)   
+
+if ltrim(rtrim(@PlacaAnt)) is not null and ltrim(rtrim(@UFPlacaAnt)) is not null --   
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.Placa = @PlacaAnt   
+    and a.UFPlaca = @UFPlacaAnt   
+    and not exists (select 1 from #Auto aa where a.OrgaoAutuante = aa.OrgaoAutuante and    
+                a.Serie = aa.Serie and a.Cod = aa.Auto)   
+   
+if @Veiculo is not null and @Placa is null --   
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a /*(index Auto_Veiculo)*/ 
+    where   a.Veiculo = @Veiculo   
+    and not exists (select 1 from #Auto aa where a.OrgaoAutuante = aa.OrgaoAutuante and   
+                a.Serie = aa.Serie and a.Cod = aa.Auto)   
+  
+if @AutoRENAINF is not null and @OrgaoAutuante is not null  AND @AutoRENAINF !=''
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.OrgaoAutuante  = @OrgaoAutuante  
+    and a.AutoRENAINF = @AutoRENAINF   
+    and not exists (select 1 from #Auto aa where a.OrgaoAutuante = aa.OrgaoAutuante and    
+          a.Serie = aa.Serie and a.Cod = aa.Auto)   
+
+if @AutoRENAINF is not null and @OrgaoAutuante is not null  AND @AutoRENAINF !=''
+BEGIN
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.OrgaoAutuante  = @OrgaoAutuante  ---- ÓRGÃO AUTUANTE
+    and a.AutoINFRAEST = @AutoRENAINF   
+    and not exists (select 1 from #Auto aa where a.OrgaoAutuante = aa.OrgaoAutuante and    
+          a.Serie = aa.Serie and a.Cod = aa.Auto)   
+    UNION
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.OrgaoCompetencia  = @OrgaoAutuante  ----ÓRGÃO DE COMPETENCIA
+    and a.AutoINFRAEST = @AutoRENAINF   
+    and not exists (select 1 from #Auto aa where a.OrgaoAutuante = aa.OrgaoAutuante and    
+          a.Serie = aa.Serie and a.Cod = aa.Auto)   
+END                                             
+   
+if @NumNotificacao is not null --   
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.NumNotificacao = @NumNotificacao   
+       
+if @NumBancario is not null --   
+begin   
+    -- Converte num. bancario, se necessario --   
+    exec dbvcen..ConvertNumBancario @NumBancario = @NumBancario output   
+   
+    insert  #Auto   
+    select  distinct deb.OrgaoAutuante,deb.Serie, deb.Auto   
+    from    dbarrecadacao..ParcelaNumBan num, dbarrecadacao..Debito deb /*(index Debito_KEY)*/   
+    where   num.NumBancario = @NumBancario   
+    and num.Setor = deb.Setor   
+    and num.Debito = deb.Cod  
+    and deb.Serie is not null --   
+    and deb.Auto is not null --   
+    and deb.OrgaoAutuante is not null --    
+end   
+
+if @Chassi is not null 
+    insert  #Auto   
+    select  a.OrgaoAutuante,a.Serie, a.Cod   
+    from    dbinfracao..Auto a   
+    where   a.Placa is null and a.Chassi = @Chassi
+ 
+ 
+select 	* 	into #tmpSitAuto 
+from  		dbinfracao..SitInfracaoAuto
+
+
+
+insert #tmpSitAuto
+select '9' ,'SUSP. P/ LIMINAR JUDICIAL'
+     
+if exists (select 1 from #Auto)   
+begin   
+    insert  dbvcen..tmpAutoConsulta    
+            (spid, Setor, OrgaoAutuante, AgenteEquip,DesOrgao,   
+            Lote, Serie, Cod, Digito, Infracao, DesMunicipio,    
+            Situacao, Veiculo, Placa, UFPlaca, Municipio,   
+            DataInfracao, Local, NumNotificacao,   
+            DataSelecao, DataNotificacao,OrgaoCompetencia,  
+            NumNotificacaoAutuacao,DataNotificacaoAutuacao,Desdobramento)   
+    select  @@spid, a.Setor, a.OrgaoAutuante,a.AgenteEquip, ae.DescricaoSintetica, a.Lote, a.Serie,    
+            a.Cod, a.DigitoVerificador, i.Infracao, m.Descricao,    
+            i.Situacao, a.Veiculo, a.Placa, a.UFPlaca, a.Municipio,   
+            a.DataInfracao, a.Local, a.NumNotificacao, getdate(),   
+            a.DataNotificacao, a.OrgaoCompetencia,a.NumNotifAutuacao,
+            (   select max(distinct r.DataExpedicao)  
+            	from   dbinfracao..RNFDocNotifAut r 
+                where  a.NumNotifAutuacao = r.NumeroNotAut  
+                and     a.Placa    = r.Placa  
+                and     r.TipoDocumento  =  89 
+            ) as 'DataExpedicao',
+            i.Desdobramento 
+    from    #Auto t, 
+        dbinfracao..Auto a, 
+        dbinfracao..OrgaoAutuante o,    
+        dbvcen..Municipio m, 
+        dbinfracao..InfracaoAuto i, 
+        dbinfracao..AgenteEquip ae   
+    where   t.OrgaoAutuante = a.OrgaoAutuante    
+    and t.Serie = a.Serie   
+    and t.Auto = a.Cod   
+    and a.OrgaoAutuante = o.Cod   
+    and a.OrgaoAutuante = ae.OrgaoAutuante   
+    and a.AgenteEquip = ae.Cod   
+    and a.Municipio *= m.Cod   
+    and a.OrgaoAutuante = i.OrgaoAutuante and a.Serie = i.Serie and a.Cod = i.Auto   
+    and t.OrgaoAutuante = i.OrgaoAutuante and t.Serie = i.Serie and t.Auto = i.Auto   
+    and i.Situacao in (@aberto, @baixado, @cancelado, @notificado, @liquidado, @inconsistente, @liquidado, @liq,@suspenso,@notAutuacao,@leiloado,@advertencia)   
+end
+
+--------- autos desvinculados-----------------------------
+update  dbvcen..tmpAutoConsulta set Situacao = 'Z'
+from    dbvcen..tmpAutoConsulta tmp, dbinfracao..Auto a,  dbinfracao..RNFAutoDesvinculacao d
+where   spid = @@Spid   
+and     tmp.Serie = a.Serie    
+and     tmp.Cod = a.Cod   
+and     tmp.OrgaoAutuante = a.OrgaoAutuante
+and     a.OrgaoCompetencia  = d.CodigoOrgaoAut
+and     a.AutoRENAINF = d.NumAutoInfracao
+and     d.TipoLancamento		= 1  
+and     tmp.Situacao in ('D','A','N','E')
+and     not exists (select 1 
+                    from    dbinfracao..RNFAutoDesvinculacao dd  
+                    where   dd.CodigoOrgaoAut 	= d.CodigoOrgaoAut  
+                    and     dd.NumAutoInfracao	= d.NumAutoInfracao  
+                    and     dd.TipoLancamento		= 2  
+                    and     dd.DataSolicitacao > d.DataSolicitacao)
+                    
+--------autos suspensos por ordem judicial 26/11/2019 - ajs
+
+update  dbvcen..tmpAutoConsulta set Situacao = '9'
+from    dbvcen..tmpAutoConsulta tmp, dbinfracao..Auto a
+where   spid = @@Spid   
+and     tmp.Serie = a.Serie    
+and     tmp.Cod = a.Cod   
+and     tmp.OrgaoAutuante = a.OrgaoAutuante
+and     tmp.Situacao in ('D','A','N')
+and      exists (select 1 
+                from   	dbvcen..LiminarVeiculo lj,   
+			dbvcen..LiminarVeicInfracao lvi   
+		where 	tmp.OrgaoAutuante 	= lvi.OrgaoAutuante   
+		and     tmp.Cod   		=	lvi.Auto   
+		and     tmp.Serie		= 	lvi.Serie   
+		and     lvi.Chassi		=	lj.Chassi   
+		and     lvi.NumProcesso		=       lj.NumProcesso   
+		and     lj.Situacao		=	'V'   
+		and     lvi.DepJudicial 	IN 	('N',null)   )
+
+
+------------                    
+
+select distinct tmp.OrgaoAutuante, tmp.DesOrgao, tmp.Lote, tmp.Serie, (tmp.Cod *10) + tmp.Digito, 
+        tmp.DesMunicipio, 
+        
+--        isnull((select Descricao from dbinfracao..SitInfracaoAuto st where st.Cod = tmp.Situacao),tmp.Situacao) as Situacao, 
+        
+        isnull ( (select distinct 'DESVINCULADO' from dbvcen..DesvinculacaoDebito dd, dbvcen..CadastroDesvinculacao cd
+			 where 	dd.OrgaoAutuante 	= a.OrgaoAutuante
+			 and 	dd.Serie 		= a.Serie
+			 and 	dd.Auto			= a.Cod
+			 and 	dd.CodigoDesvinculacao  	= cd.CodigoDesvinculacao
+			 and 	cd.Situacao		= 'A'),isnull((select Descricao from #tmpSitAuto st where st.Cod = tmp.Situacao),tmp.Situacao)) as Situacao, 
+			 
+        tmp.Infracao, 
+        (select Descricao from dbinfracao..Infracao where Cod = tmp.Infracao and tmp.Desdobramento = Desdobramento), 
+        tmp.AgenteEquip, 
+        a.OrgaoCompetencia, 
+        ISNULL(a.AutoRENAINF, a.AutoINFRAEST),
+        ma.DataAtualizacao, 
+        a.Agente,
+        a.iIndicadorAdesaoSNE  as iIndicadorAdesaoSNE,
+        a.DataAdesaoSNE  as DataAdesaoSNE,
+
+--        (case when a.iIndicadorAdesaoSNE in (null,2,0 ) then null else a.iIndicadorAdesaoSNE end)  as iIndicadorAdesaoSNE,
+--        (case when a.iIndicadorAdesaoSNE in (null,2,0 ) then null else a.DataAdesaoSNE end)  as DataAdesaoSNE,
+
+       	a.iIndicadorPgtoComDesconto   as iIndicadorPgtoComDesconto,
+        a.DataOpcaoPgtoComDesconto   as DataOpcaoPgtoComDesconto,
+        (   select   isnull(ia.CodigoRENAINF, ia.CodigoINFRAEST) 
+            from    dbinfracao..InfracaoAuto ia 
+            where   ia.Serie    = a.Serie 
+            and     ia.Auto     = a.Cod
+            and     ia.OrgaoAutuante = a.OrgaoAutuante
+            and     ia.Infracao = ma.Infracao
+            and     ia.Desdobramento = ma.Desdobramento
+        ) as 'CodigoINFREASTRENAINF', a.Placa, a.DataInfracao,
+        (select (case when exists(select 1 	from dbvcen..Veiculo v, dbvcen..PrincipalCondutor pc
+					where v.Placa = a.Placa
+					and pc.Veiculo = v.Cod
+					and  a.DataInfracao between DataHoraAtivacao and  isnull(DataHoraExclusao,getdate())
+			      )
+		     then 'S'
+		     else  'N'
+		end)) as 'PrincCondutor' ,
+	  a.DataCancAdesaoSNE  as DataCancAdesaoSNE
+
+
+/*
+        @DataInfracao = (select DataInfracao from dbinfracao..Auto where
+			     Cod = tmp.Cod
+			     and a.DigitoVerificador = tmp.Digito
+			     and a.Serie = tmp.Serie	)
+
+        
+
+*/
+from    dbvcen..tmpAutoConsulta tmp, dbinfracao..Auto a /*(index Auto_KEY)*/ , dbinfracao..MovimentoAuto ma 
+where   spid = @@Spid 
+and     tmp.Serie = a.Serie 
+and     tmp.Cod = a.Cod 
+and     tmp.OrgaoAutuante = a.OrgaoAutuante 
+and     tmp.Serie = ma.Serie 
+and     tmp.Cod = ma.Auto 
+and     tmp.OrgaoAutuante = ma.OrgaoAutuante 
+and     tmp.Infracao = ma.Infracao 
+and     tmp.Desdobramento = ma.Desdobramento 
+and     ma.TipoMovimento ='I' 
+order by a.OrgaoCompetencia, OrgaoAutuante, AgenteEquip, Lote, Serie, (Cod *10) + Digito, Infracao  
+   
+return 0
+GO
+
+execute sp_procxmode 'dbo.AutoS_consulta', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+grant Execute on dbo.AutoS_consulta to desenvolvimento
+GO
+
+grant Execute on dbo.AutoS_consulta to veiculo
+GO

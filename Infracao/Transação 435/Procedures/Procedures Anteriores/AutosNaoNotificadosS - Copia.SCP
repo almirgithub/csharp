@@ -1,0 +1,136 @@
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.AutosNaoNotificadosS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.AutosNaoNotificadosS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.AutosNaoNotificadosS
+end
+
+GO
+
+create proc dbo.AutosNaoNotificadosS 
+/********************************************************************************************************************
+Funcao	: Consultar se os autos foram implatados e não notificados
+Autor	: Fernando Veras [fhv] - 13/01/2015
+*********************************************************************************************************************/ 
+ 
+( 
+	@OrgaoAutuante		int,
+	@DataIni		datetime,
+	@DataFin		datetime
+) 
+ 
+as 
+
+	set forceplan on
+	
+	select @DataIni = convert(char(20),@DataIni,112)+ ' 00:01' 
+	select @DataFin = convert(char(20),@DataFin,112)+ ' 23:59' 
+
+
+	select 
+		 convert(char(10),ma.DataAtualizacao,103) 								as 'DataImplatacao' 
+		,convert(varchar(50),ag.Descricao) 									as 'Agente' 
+		,a.Placa												as 'Placa' 
+		,a.Serie + substring(convert(char(20),a.Cod*10 + a.DigitoVerificador + 1000000000),2,9)			as 'Auto' 
+		,isnull(ia.CodigoRENAINF, ia.CodigoINFRAEST)								as 'Código RENIANF'
+		,convert(char(10),a.DataInfracao,103) 									as 'DataInfracao' 
+		,substring(convert(char(04),c.Cod+1000),2,3) + ' - '+convert(varchar(255),c.Descricao) 			as 'Retorno RENAINF' 
+		,ma.CodRetornoImg
+		,ma.DataRetornoImg
+		
+	from 	dbinfracao..MovimentoAuto ma (index MovimentoAuto_DataAtu), 
+		dbinfracao..Auto a, 
+		dbinfracao..InfracaoAuto ia,
+		dbinfracao..AgenteEquip ag ,
+		dbinfracao..RNFCodRetorno c
+	where ma.DataAtualizacao between 	@DataIni and @DataFin 
+	and ma.OrgaoCompetencia 		= @OrgaoAutuante 
+	and ma.TipoMovimento 		= 'I' 
+	and ma.Serie 			= a.Serie 
+	and ma.OrgaoAutuante 		= a.OrgaoAutuante 
+	and ma.Auto 			= a.Cod 
+	and a.OrgaoAutuante 		= ag.OrgaoAutuante 
+	and a.AgenteEquip 		= ag.Cod 
+	and ma.Serie 			= ia.Serie 
+	and ma.OrgaoAutuante 		= ia.OrgaoAutuante 
+	and ma.Auto 			= ia.Auto
+	and ma.Infracao 			= ia.Infracao
+	and ma.Desdobramento 		= ia.Desdobramento
+	and ia.Situacao 			= 'A'
+	and ma.CodRetorno			*=	c.Cod 
+	and not exists (select 1 
+			from dbinfracao..MovimentoAuto ma1 
+			where ma.Serie = ma1.Serie 
+			and ma.OrgaoAutuante = ma1.OrgaoAutuante 
+			and ma.Auto = ma1.Auto 
+			and ma.TipoMovimento in ('N','D'))
+			
+	union
+	
+	select 
+		 convert(char(10),ma.DataAtualizacao,103) 								as 'DataImplatacao' 
+		,convert(varchar(50),ag.Descricao) 									as 'Agente' 
+		,a.Placa												as 'Placa' 
+		,a.Serie + substring(convert(char(20),a.Cod*10 + a.DigitoVerificador + 1000000000),2,9)			as 'Auto' 
+		,isnull(ia.CodigoRENAINF, ia.CodigoINFRAEST)								as 'Código RENIANF'
+		,convert(char(10),a.DataInfracao,103) 									as 'DataInfracao' 
+		,substring(convert(char(04),c.Cod+1000),2,3) + ' - '+convert(varchar(255),c.Descricao) 			as 'Retorno RENAINF' 
+		,ma.CodRetornoImg
+		,ma.DataRetornoImg
+		
+	from 	dbinfracao..MovimentoAuto ma (index MovimentoAuto_DataAtu), 
+		dbinfracao..Auto a, 
+		dbinfracao..InfracaoAuto ia,
+		dbinfracao..AgenteEquip ag ,
+		dbinfracao..RNFCodRetorno c
+	where ma.DataAtualizacao between 	@DataIni and @DataFin 
+	and ma.OrgaoCompetencia 		= @OrgaoAutuante 
+	and ma.TipoMovimento 		= 'I' 
+	and ma.Serie 			= a.Serie 
+	and ma.OrgaoAutuante 		= a.OrgaoAutuante 
+	and ma.Auto 			= a.Cod 
+	and a.OrgaoAutuante 		= ag.OrgaoAutuante 
+	and a.AgenteEquip 		= ag.Cod 
+	and ma.Serie 			= ia.Serie 
+	and ma.OrgaoAutuante 		= ia.OrgaoAutuante 
+	and ma.Auto 			= ia.Auto
+	and ma.Infracao 			= ia.Infracao
+	and ma.Desdobramento 		= ia.Desdobramento
+	and ia.Situacao 			= 'D' --'A'
+	and ma.CodRetornoImg			*=	c.Cod 
+	and exists (select 1 
+			from dbinfracao..MovimentoAuto ma1 
+			where ma.Serie = ma1.Serie 
+			and ma.OrgaoAutuante = ma1.OrgaoAutuante 
+			and ma.Auto = ma1.Auto 
+			and ma.TipoMovimento in ('N','D'))
+				
+
+
+return 
+GO
+
+execute sp_procxmode 'dbo.AutosNaoNotificadosS', 'unchained'
+GO
+
+Grant exec on dbo.AutosNaoNotificadosS to veiculo
+Go
+
+Grant exec on dbo.AutosNaoNotificadosS to desenvolvimento
+GO
+
+

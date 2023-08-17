@@ -1,0 +1,71 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.MaquinaTalonarioComboS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MaquinaTalonarioComboS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MaquinaTalonarioComboS
+end
+
+GO
+
+create proc dbo.MaquinaTalonarioComboS 
+-- Versao 	: 1.0.0.0		   
+-- Funcao	: Retorna as máquinas do órgão 
+-- Autor	: afs -27-10-2022 
+  
+(   
+	@Orgao		numeric(6,0) 
+)   
+as    
+ 
+		 
+		select	Maquina,Maquina  
+			
+		from	dbinfracao..MaquinaTalao mt
+		where	OrgaoAutuante		=	@Orgao
+		and 	Situacao 		=	'A' 
+		and 	not exists(	select 1 
+					from MaquinaTalaoAgente mta 
+					where mta.OrgaoAutuante = mt.OrgaoAutuante 
+					and   mta.Maquina = mt.Maquina
+					and   mta.CpfAgenteTransito!=null
+					and   mta.Situacao = 'A'
+					)
+		order    by Maquina
+					 
+ 
+   
+return 
+GO
+
+execute sp_procxmode 'dbo.MaquinaTalonarioComboS', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.MaquinaTalonarioComboS to desenvolvimento
+GO
+
+Grant Execute on dbo.MaquinaTalonarioComboS to veiculo
+GO
+
+

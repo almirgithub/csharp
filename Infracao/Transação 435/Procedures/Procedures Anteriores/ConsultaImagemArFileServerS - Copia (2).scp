@@ -1,0 +1,74 @@
+
+use master
+GO
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.ConsultaImagemArFileServerS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.ConsultaImagemArFileServerS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.ConsultaImagemArFileServerS
+end
+GO
+
+create proc dbo.ConsultaImagemArFileServerS
+-- Versao 	: 1.0.0.0		  
+-- Funcao	: Verifica se a chave di file server está ligada ou desligada
+-- Autor	: afs - 04-10-2022
+ 
+(  
+	@ArCorreio 		varchar(255)	=	null
+)  
+as   
+
+	declare	@Caminho	varchar(255),
+			@sChave		char(01)
+
+	select 	@ArCorreio 	=	rtrim(ltrim(@ArCorreio ))
+
+	select	@sChave		=	(select	rtrim(ltrim(iARFileServer))	from	dbvcen..ParametroGeral )
+
+	if	@sChave		=	'S'
+	begin
+		select	@Caminho = (select a.Caminho + '\' + a.Guid + a.Extensao 
+								from 	MPS..Arquivo a, 
+										dbvcen..AvisoRecebimento av
+								where 	av.ARCorreio 	= 	@ArCorreio 
+								and 		av.ImagemAR = 	a.Nome)
+
+		if		rtrim(ltrim(@Caminho))	is	null
+		begin
+				select	@Caminho	=	'N'
+		end
+	end
+	else
+	begin
+		select	@Caminho	=	'N'
+	end
+
+-- '\\intranet\dfs\Arquivo\HOMOLOGACAO\2020\7\19876196000000112022090519.tif'      --00bbb8b4-d55b-4369-8839-3fdb2f324c42.pdf'  
+-- '\\intranet\dfs\Arquivo\HOMOLOGACAO\Infracao\AppFisc\ImagensAuto\2021\6\cc02803f-b85b-4ae4-b078-8e3b8503e528.jpg'
+
+select 	rtrim(ltrim(@Caminho))
+
+  
+return	0   
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.ConsultaImagemArFileServerS to desenvolvimento
+GO
+
+Grant Execute on dbo.ConsultaImagemArFileServerS to veiculo
+go

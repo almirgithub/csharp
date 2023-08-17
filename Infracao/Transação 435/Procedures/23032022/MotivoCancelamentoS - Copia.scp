@@ -1,0 +1,84 @@
+use dbvcen
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+PRINT 'STORED PROCEDURE : dbo.MotivoCancelamentoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MotivoCancelamentoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MotivoCancelamentoS
+end
+
+GO
+
+create proc dbo.MotivoCancelamentoS  
+
+/* Funcao	: Consulta MotivoCancelamento para tela de cadastro do mesmo	*/  
+/* Autor	: Nathan  -  23.12.96						*/  
+/* Alteração	: Giordano Lins - 18/12/2015 - Inclusão das validações e da coluna GrupoMotivoCancelamentoAuto */  
+/* 		: Jonas Guedes  - 27/11/2017 - Adição do campo "iAtivo" */
+--		: afs - 16/02/2021 - 	Foi colocado um novo campo para retorno para ser utilizado na tela de Motivo
+--					de Cancelamento de Auto de Infração
+--		foi colocado o parâmetro @ChamadaTela para verificar de onde foi chamada a procedure
+--		C -> Tela Cancelamento de Auto de Infração
+
+(  
+	@Cod 		ty_Numero = NULL,
+	@ChamadaTela	char(1) = null
+)  
+  
+as  
+	select @ChamadaTela = rtrim(ltrim(@ChamadaTela))
+
+
+	if 	  @ChamadaTela	=	'C'
+	begin
+		select	Cod, 
+			mc.Descricao, 
+			Restituicao, 
+			mc.GrupoMotivoCancelamentoAuto, 
+			gmc.Descricao as GrupoMotivoDescricao, 
+			mc.iAtivo,
+			mc.iAppFiscalizacao
+		from	dbinfracao..MotivoCancelamento mc 
+		inner join dbinfracao..GrupoMotivoCancelamentoAuto gmc 
+			on mc.GrupoMotivoCancelamentoAuto = gmc.GrupoMotivoCancelamentoAuto	 
+		where	mc.Cod = @Cod or @Cod is null 
+		and 	upper(mc.iAppFiscalizacao) = 'N' or mc.iAppFiscalizacao is null
+		and	mc.iAtivo != 'N'
+	end
+	else 
+	begin
+		select	Cod, 
+			mc.Descricao, 
+			Restituicao, 
+			mc.GrupoMotivoCancelamentoAuto, 
+			gmc.Descricao as GrupoMotivoDescricao, 
+			mc.iAtivo,
+			mc.iAppFiscalizacao
+		from	dbinfracao..MotivoCancelamento mc 
+		inner join dbinfracao..GrupoMotivoCancelamentoAuto gmc 
+			on mc.GrupoMotivoCancelamentoAuto = gmc.GrupoMotivoCancelamentoAuto	 
+		where	mc.Cod = @Cod or @Cod is null 
+	end
+
+
+return  
+GO
+
+execute sp_procxmode 'dbo.MotivoCancelamentoS', 'unchained'
+GO
+
+print 'CREATING PRIVILEGE : '
+GO
+
+grant execute on dbo.MotivoCancelamentoS to veiculo
+GO
+
+grant execute on dbo.MotivoCancelamentoS to desenvolvimento
+go

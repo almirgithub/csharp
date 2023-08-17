@@ -1,0 +1,3066 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7.0/EBF 20369 SMP ESD#02 /P/Sun_svr4/OS 5.10/ase157esd2/3109/64-bit/FBO/Sat Jul  7 10:07:17 2012) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.RNFAutoSConsulta'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.RNFAutoSConsulta') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.RNFAutoSConsulta
+end
+
+GO
+
+create proc dbo.RNFAutoSConsulta    
+/*   
+	Funcao : Selecionar os Autos para tela de consulta de autos. 	  
+	Autor  : Adilson Santos					  
+	Adilson: 12/04/2007 - Alterado para gerar os movimentos de autos ou penalidade caso haja  
+		inconsistencia com a BINIT.  
+	Adilson: 23/04/2007 - Alterado para gerar o movimento de pagamento caso o mesmo esteja   
+	    registrado na BINIT e n’o esteja em nossa base.   
+	Adilson: 17/05/2007 - Alterado para chamar a rotina de geraÎ’o de baixa a partir da 404.  
+		         apenas se o auto estiver registrado em nossa base.  
+	Adilson: 18/05/2007 - Registrar o auto caso o mesmo n’o esteja cadastrado em nossa base .  
+	Elissany - 11/06/2007 - S½ baixar pela consulta se UFPagamento <> PE.  
+	Adilson  - 19/06/2007 - Indicador de exigibilidade na 402  
+	Adilson  - 29/06/2007 - Acrescentado a placa do veiculo nas query¡s de geraÎ’o de movimento  
+	Adilson  - 14/09/2007 - Realizar o cancelamento do auto registrado por outra UF   
+			        caso o mesmo esteja na nossa base e n’o esteja na BINIT  
+			          
+	Adilson  - 17/09/2007 - Realizar pagamento para o œltimo auto registrado -- n’o est  claro  
+	                        depois explico - estou com pressa  
+	Adilson  - 26/11/2007 - Alterado para gerar a penalidade ou autua+'o apenas se o veiculo  
+				for nosso.                          
+	Adilson  - 21/12/2007 - Alterado para n'o considerar 20 dias apos o registro para   
+	                        realizar o cancelamento pela 401.  
+	Adilson  - 12/02/2008 - Alterado para cancelar o debito quando o auto n'o existir  
+				no renainf e o auto estiver cancelado no sistema de infra+"es                       				  
+	Adilson  - 18/03/2008 - Desdobramento 	  
+	Adilson  - 31/10/2008 - force index	  
+	Adilson  - 17/12/2008 - Registrar o pagamento caso haja um pagto no RENAINF com indicador  
+				de cancelado = 0 e o auto continue na Situa‡Æo 'N', esse caso ocorria quando havia  
+				um estorno e envio do segundo pagamento		  
+	Adilson - 13/01/2009 - Trata duplicidade com cancelamento do auto anterior e baixa do posterior  
+	Adilson - 14/01/2009 - Melhoria na rotina acima  
+	Adilson - 28/01/2009 - Realiza o cancelamento e registro do processo a partir da consulta no RENAINF  
+	Adilson - 30/01/2009 - Corre‡Æo do end--*  
+	Adilson - 02/02/2009 - Tratar orgao de competencia na 404  
+	Adilson - 27/08/2009 - Ler fila de transa‡Æo bin (204,206,227) antes de inserir o auto na nossa base  
+	Adilson - 03/09/2009 - Possibilitar baixar a multa tambem quando a UF de JURISDI€+O DO VEICULO FOR NOSSA, amarrei o retorno com a RETRENAVAM na transacao 401  
+	Adilson - 22/09/2009 - 	--// REALIZAR A ATUALIZA€+O DO SALDO DA PARCELA DEBITO --- PAGTO A MENOR COM DAE VENCIDO RENAINF ---- RETORNO 360----//  
+	Adilson - 23/09/2009 - -- Registro nÆo encontrado -- a diferen‡a ‚ que nessa query nÆo utilizo a placa -- altera‡Æo para cancelar auto n registrado na BINIT  
+	Adilson - 05/01/2010 - Passando o parametro chamada pela consulta na transacao 401  
+	Adilson - 09/03/2010 - Baixar o pagamento realizado em outra UF, mesmo que o auto tamb‚m tenha sido pago aqui - PE - possibilitar a restitui‡Æo  
+	Adilson - 19/03/2010 - Amarrar a inclusÆo do auto - apenas se o veiculo estiver na situacao N  
+	Adilson - 01/09/2010 - Passar para a RNFAutoU o @RegistroNaoEncontrado = 'S'  
+	Adilson - 01/09/2010 - Passar para a RNFAutoU o @RegistroNaoEncontrado = 'S'  
+	Adilson - 03/12/2012 - Dps da mudança do sistema do SERPRO, algumas datas estavam vindo errada,portanto foi trocado o '000000' por like '%0000%'
+	Adilson - 25/07/2013 - Correção da posição da placa na transacao 401. de 70 para 81.
+	Adilson - 30/08/2013 - Foram alterados os like das datas de '%00%' para '%0000%'
+	Maria Perez - 10/01/2014 - Ajustada consulta 404 - para verificar na RNFPagamento utilizar o orgão de competencia ao invés do orgão autuante 
+	Adilson Santos - 25/06/2014 - Alteração para registrar os movimentos de tramite e penalidade mesmo que o auto tenha sido pago, não altera a situação do auto.
+	Adilson Santos - 09/09/2015 - Atualizar o codigo renainf caso o mesmo esteja null	
+	Adilson Santos - 11/09/2015 - Delete na tmpconsulta pois estava trazendo o resumo geral de outra placa
+	Adilson Santos - 13/11/2015 - Alteração da query pois estava fazendo table scan
+	Adilson Santos - 21/11/2016 - Melhoria na rotina que gera a diferença a ser paga pelo usuário retoro 360 e  272
+	Adilson Santos - 31/01/2018 - Possibilitar Registrar o auto de petrolina implantado pelo RADAR e que não foi cadastrado em nossa base - na consulta da transação 401
+	Adilson Santos - 01/02/2018 -  --- incluido 13 14 15 16 ------------- novos tipos de ocorrencias criados pelo RENAINF para tratar advertencia
+	Maria Perez    - 02/02/2018 - ajuste 13 14 15 16 - gravação na tabela RNFMovimentoAutoRecurso
+	Adilson Santos - 19/02/2018 - Melhoria na rotina de atualização da nossa base baseado na consulta das ocorrencias RENAINF - Entrada de PETROLINA no RADAR - Transação 405
+					AND 	(r.UFOcorrencia != 'PE'  or (r.UFOcorrencia = 'PE' and a.OrgaoAutuante = a.AgenteEquip and a.Serie = 'PE'))  ----- PETROLINA NO RADAR AGENTE EQUIP=ORGAOAUTUANTE
+	Adilson Santos - 18/05/2018 - Correção do campo NumRegCNHRealInfr na exibição da consulta 401	
+	Adilson Santos - 03/12/2018 - Permitir atualizar o debito das infrações 500 para notificado, pois, o RENAINF não permite obter a partir da solicita transação - sem autuação			
+	Adilson Santos - 18/12/2018 - Baixar o pagamento como total para os autos RENAINF pagos em outra UF, independente do valor pago devemos assumir que está pago total
+	Adilson Santos - 17/06/2019 - Não atualizar as notificações para autos que já foram desvinculados
+	Adilson Santos - 10/07/2019 - Melhoria na atualização de saldo a pagar pelo usuário.
+	Adilson Santos - 16/08/2019 - Begin tran e commit tran na transação 401
+	Adilson Santos - 11/09/2019 - Resolver situção de debito regerado apos ter sido desvinculado pelo DETRAN placa exemplo: PFI3095
+	Adilson Santos - 24/09/2019 - Resolver problema de data de vencimento da penalidade inválida.
+	Adilson Santos - 20/01/2020 - Resolver problema de auto registrado em duplicidade pelo RENAINF
+	Adilson Santos - 21/01/2020 - O RENAINF Enviou a pontuação, porém , o auto não estava implantado,com isso o sistema registra a pontuação 
+				      considerando que apenas o condutor é de PE, quando o auto chega e é cancelado o primeiro auto continua com a pontuação registrada.
+	Adilson Santos - 13/02/2020 - Atualiza o codigo INFRAEST pela consulta	
+	
+	Adilson Santos - 06/10/2020 - Debito gerado em duplicidade ao receber uma 412 de um auto que estava com efeito suspensivo Placa = 'PCY5770' and OrgaoAutuante = 100 and Auto = 1174077  			      
+	Adilson Santos - 09/09/2021 - Verificar quais as transações deverão ser solicitadas ao RENAINF
+	Adilson Santos - 08/10/2021 - Retirada da query count(*) = 1  para registrar a baixa durante a consulta dos pagamentos no RENAINF - Transação 404
+*/  
+  
+(	  
+	@CodTransacao smallint,  
+	@NumSeqTransacao int  ,
+	@VerifTransacao char(01) = 'N',
+	@DataLeilao  datetime = null
+)  
+  
+as  
+declare @PFIXA 		char(37) ,  
+        @ano 		smallint,    
+        @dia 		smallint ,  
+        @DataEmissNotAut 	char(06),  
+        @DataLimDef 	char(06),  
+        @NumNotificacao 	numeric(10),  
+        @DataEmissaoNot	char(06),  
+        @DataVencNot 	char(06),  
+        @NumAutoInfracao 	char(10),  
+        @CodigoOrgaoAut	numeric(06),  
+        @TamTran		smallint,  
+        @PFixaTrans	char(37),  
+        @Infracao		numeric(04),  
+        @UFPagto		char(02),  
+        @NumDocArrec	numeric(16),  
+        @IndExibilidade	smallint,  
+        @DataPagtoInfr	datetime,  
+        @ValorPago	numeric(10,2),  
+        @DataCredito	datetime,  
+        @CodBcoPagto	numeric(03),  
+        @IndRegCanc	smallint,  
+        @DataCancReg	datetime,  
+        @PlacaVeiculo   char(07),  
+        @UFOrgaoAutuante char(02),  
+        @UFPlaca	char(02),  
+        @CodRetorno     numeric(03),  
+        @Desdobramento  smallint   ,
+        @dDatas	        numeric(08),
+        @CodigoRENAINF  NUMERIC(12),
+        @ValorInfracao   numeric(12,2),
+        @ValorDiferenca  numeric(12,2),
+        @AutoEstadual	 smallint,
+        @DataInfracao	datetime,
+        @Serie		char(02),
+        @Auto		numeric(12),
+        @P1		varchar(255),
+        @QuantOcorr	smallint,
+ 	@Debito 	int,
+ 	@Setor 		varchar(20)
+
+  
+select @ano = convert(smallint, datename(yy,getdate()))   
+select @dia = convert(smallint, datename(dy,getdate()))   
+  
+
+select @PFIXA=SUBSTRING(Parametro1,1,37),@CodRetorno = convert(numeric(03),substring(Parametro1,38,3))  , @P1 = Parametro1
+from RENAVAM..RetRenavam  (index RetRenavam_AnoJuliano)
+where NumSeqTransacao = @NumSeqTransacao  
+and CodTransacao = @CodTransacao  
+and AnoJuliano = @ano   
+and DiaJuliano = @dia   
+and DataHora <= getdate()   
+  
+  
+delete dbvcen..tmpAutoConsulta where spid = @@Spid    
+
+
+
+-------------recebimento da transação 409 ------------------- penalidades canceladas
+
+--SELECT @P1='1234567890123456789012345678014934567000117100CD345678906050PE12345678901021234567890196405151964081210000000001123456789019640510196412011196405151'
+
+select @TamTran = convert(smallint,substring(@P1,29,4)) 
+
+
+IF	@CodTransacao	=	409
+begin
+	select 01 as Cod,'Decisão Judicial' as Descricao into #tmpMotivos
+	union  
+	select 02, 'Atraso no recebimento de processo'
+	union
+	select 03, 'Duplicidade de cadastro'
+	union
+	select 04, 'Reemissão de notificação'
+	
+	
+	if	@TamTran	=	76
+	begin
+
+		select 	@QuantOcorr	=	1
+		if	substring(@P1,38,3)	=	'001'	
+			begin
+			     	raiserror 60000 'Nenhum registro encontrado!'   
+	     			return -900  
+			end
+		
+	end
+	else
+	if	@TamTran	>	76		
+		begin
+			
+			select  	@QuantOcorr	=	convert(smallint,substring(@P1,74,02))
+		end
+			
+	select 	@CodigoOrgaoAut 		= 	convert(numeric(6),substring(@P1, 41,6)),  
+       		@NumAutoInfracao          	= 	rtrim(substring(@P1, 47, 10))
+       	create table #tmp
+       	(
+       		NumeroNotificacao int null,
+       		DataEmissaoNotificacao datetime null,
+       		DataVencimento datetime null,
+       		TipoPenalidade int null,
+       		DataCancelamento datetime null,
+       		MotivoCancelamento int null
+       	)
+       	declare 	@Contador 	int
+       	select  	@Contador 	= 	0
+
+       	select 		@P1		=	SUBSTRING(@P1,76,255) ---PARTE QUE SE REPETE	  
+	while   	@Contador 	<	@QuantOcorr
+	begin
+		insert	#tmp 
+		select  	convert(numeric(10),substring(@P1, 1+(@Contador*37),10)),  
+	         	convert(datetime,(substring(@P1, 11+(@Contador*37),08))),  
+	         	convert(datetime,(substring(@P1, 19+(@Contador*37),08))),  
+			convert(numeric(1),substring(@P1, 27+(@Contador*37),1)),  		         			         	
+	         	(case when substring(@P1, 28+(@Contador*37),08) = '00000000' then null else convert(datetime,(substring(@P1, 28+(@Contador*37),08))) end ) ,  				
+			convert(numeric(1),substring(@P1, 36+(@Contador*37),2))  
+					         	
+		select 	@Contador	=	@Contador	+	1
+	end
+
+				
+select 	
+	#tmp.NumeroNotificacao, 
+	#tmp.DataEmissaoNotificacao, 
+	#tmp.DataVencimento, 
+	#tmp.TipoPenalidade, 
+	#tmp.DataCancelamento, 
+	m.Descricao
+from 	#tmp , #tmpMotivos m
+where 	#tmp.MotivoCancelamento = m.Cod			
+				
+return
+		
+end
+
+----fim recebimento da transação 409
+
+
+
+  
+if @CodTransacao = 401   
+begin  
+
+  
+
+
+  
+	if	@CodRetorno = 180 -- Registro nÆo encontrado -- a diferen‡a ‚ que nessa query nÆo utilizo a placa -- altera‡Æo para cancelar auto n registrado na BINIT  
+		begin  
+		  
+		select 	@DataEmissNotAut = rnf.DataEmissaoNotAut,  
+		@DataLimDef = rnf.DataLimDef,  
+		@NumNotificacao = NumNotificacao,  
+		@DataEmissaoNot = rnf.DataEmissaoNot,  
+		@DataVencNot = rnf.DataVencNot,  
+		@NumAutoInfracao = rnf.NumAutoInfracao,  
+		@CodigoOrgaoAut  = rnf.CodigoOrgaoAut,  
+		@UFOrgaoAutuante = rnf.UFOrgaoAutuante,  
+		@PlacaVeiculo    = rnf.Placa,  
+		@UFPlaca	 = isnull(ltrim(rtrim(rnf.UFPlaca)),UFJurisdVeiculo),  
+		@Infracao	 = rnf.Infracao  
+		from	dbinfracao..RNFRetorno rnf,   
+			dbinfracao..OrgaoAutuante o ,   
+		        	dbvcen..Municipio m,  
+		        	RENAVAM..RetRenavam ret (index RetRenavam_KEY)  
+		where 	PFIXA = @PFIXA  
+		and 	rnf.CodigoOrgaoAut = o.Cod   
+		and 	rnf.MunicipioInfr *= m.Cod  
+--13/11/2015		and     convert(char(08),ret.DataHora ,112) = convert(char(08),getdate() ,112)  
+		and     ret.DataHora between dateadd(hh,-2,getdate()) and dateadd(hh,2,getdate())  
+		and     ret.CodTransacao = 401  
+		and     substring(ret.Parametro1,1,37)=@PFIXA    
+  
+		end  
+	else  
+	begin	  
+	  
+	select 	@DataEmissNotAut = rnf.DataEmissaoNotAut,  
+		@DataLimDef = rnf.DataLimDef,  
+		@NumNotificacao = NumNotificacao,  
+		@DataEmissaoNot = rnf.DataEmissaoNot,  
+		@DataVencNot = rnf.DataVencNot,  
+		@NumAutoInfracao = rnf.NumAutoInfracao,  
+		@CodigoOrgaoAut  = rnf.CodigoOrgaoAut,  
+		@UFOrgaoAutuante = rnf.UFOrgaoAutuante,  
+		@PlacaVeiculo    = rnf.Placa,  
+		@UFPlaca	 = isnull(ltrim(rtrim(rnf.UFPlaca)),UFJurisdVeiculo),  
+		@Infracao	 = rnf.Infracao  ,
+		@CodigoRENAINF   = rnf.CodigoRENAINF,
+		@DataInfracao =  convert(datetime,rnf.DataInfracao)
+	from	dbinfracao..RNFRetorno rnf,   
+		dbinfracao..OrgaoAutuante o ,   
+	        	dbvcen..Municipio m,  
+	        	RENAVAM..RetRenavam ret (index RetRenavam_KEY)  
+	where 	PFIXA = @PFIXA  
+	and 	rnf.CodigoOrgaoAut = o.Cod   
+	and 	rnf.MunicipioInfr *= m.Cod  
+--13112015	and     convert(char(08),ret.DataHora ,112) = convert(char(08),getdate() ,112)  
+	and     ret.DataHora between dateadd(hh,-2,getdate()) and dateadd(hh,2,getdate()) 
+	and     ret.CodTransacao = 401  
+	and     substring(ret.Parametro1,1,37)=@PFIXA    
+	and     substring(ret.Parametro1,81,7)  = rnf.Placa  
+	  
+	end  
+	if	@Infracao	between 5000 and 5999  
+	        select @Infracao = convert(int,@Infracao/10)  
+  
+  
+  ---------------Resolver problema de débito regerado para auto que foi desvinculado pelo DETRAN
+  ---------------A procedure RNFAutoTransitoI foi alterada para não gerar. O objetivo dessa alteração é para cancelar o debito que foi regerado indevidamente  	
+  
+
+if exists(select 1 
+			 from 		  
+			   	dbinfracao..Auto a,     
+	         	    	dbinfracao..OrgaoAutuante o ,   
+	         	     	dbarrecadacao..Debito d    
+	                   where 	a.OrgaoAutuante 	=     @CodigoOrgaoAut
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+			   and   	a.OrgaoAutuante 	= o.Cod    
+			   and 		o.UF	       	        != 'PE'    
+   			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante    
+			   and 		a.Serie		        = d.Serie    
+   			   and   	d.Situacao	        = 'V'   
+			   and 		d.Auto  		= (select  max(a1.Cod) from dbinfracao..Auto a1   
+			   					   where        a1.OrgaoAutuante 	= @CodigoOrgaoAut    
+			   					   and 		a1.AutoRENAINF   	= @NumAutoInfracao)  
+	AND EXISTS (SELECT 1 
+				 from 		  
+				   	dbinfracao..Auto a,     
+		         	    	dbinfracao..OrgaoAutuante o ,   
+		         	     	dbarrecadacao..Debito d    
+		                   where 	a.OrgaoAutuante 	=     @CodigoOrgaoAut
+				   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+				   and   	a.OrgaoAutuante 	= o.Cod    
+				   and 		o.UF	       	        != 'PE'    
+	   			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante    
+				   and 		a.Serie		        = d.Serie    
+	   			   and   	d.Situacao	        IN ('D','A')   
+				   and 		d.Auto  		= (select  max(a1.Cod) from dbinfracao..Auto a1   
+				   					   where        a1.OrgaoAutuante 	= @CodigoOrgaoAut    
+				   					   and 		a1.AutoRENAINF   	= @NumAutoInfracao)  
+			)	   					   
+	   					   			   					   
+	and exists (select 1 from dbvcen..DesvinculacaoDebito dd(index DesvinculacaoDebito_OrgaoAutua), dbvcen..CadastroDesvinculacao cd 
+				 where 	dd.OrgaoAutuante	= d.OrgaoAutuante
+				 and 	dd.Serie 		= d.Serie
+				 and    dd.Auto			= d.Auto  
+				 and 	dd.CodigoDesvinculacao  	= cd.CodigoDesvinculacao 
+				 and 	cd.Situacao		= 'A' )
+			)			 
+			 
+	 begin
+			 
+			 select @Debito = d.Cod,@Setor = d.Setor
+			 from 		  
+			   	dbinfracao..Auto a,     
+	         	    	dbinfracao..OrgaoAutuante o ,   
+	         	     	dbarrecadacao..Debito d    
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+			   and   	a.OrgaoAutuante 	= o.Cod    
+			   and 		o.UF	       	        !='PE'    
+   			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante    
+			   and 		a.Serie		        = d.Serie    
+   			   and   	d.Situacao	        in ('A','D')   
+			   and 		d.Auto  		= (select  max(a1.Cod) from dbinfracao..Auto a1   
+			   					   where        a1.OrgaoAutuante 	= @CodigoOrgaoAut    
+			   					   and 		a1.AutoRENAINF   	= @NumAutoInfracao)  
+			   AND EXISTS (SELECT 1 
+							 from 		  
+							   	dbinfracao..Auto a,     
+					         	    	dbinfracao..OrgaoAutuante o ,   
+					         	     	dbarrecadacao..Debito d    
+					                   where 	a.OrgaoAutuante 	=     @CodigoOrgaoAut
+							   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+							   and   	a.OrgaoAutuante 	= o.Cod    
+							   and 		o.UF	       	        != 'PE'    
+				   			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante    
+							   and 		a.Serie		        = d.Serie    
+				   			   and   	d.Situacao	        ='V'
+							   and 		d.Auto  		= (select  max(a1.Cod) from dbinfracao..Auto a1   
+							   					   where        a1.OrgaoAutuante 	= @CodigoOrgaoAut    
+							   					   and 		a1.AutoRENAINF   	= @NumAutoInfracao)  
+							   					   
+							   and exists (select 1 from dbvcen..DesvinculacaoDebito dd(index DesvinculacaoDebito_OrgaoAutua), dbvcen..CadastroDesvinculacao cd 
+									 where 	dd.OrgaoAutuante	= d.OrgaoAutuante
+									 and 	dd.Serie 		= d.Serie
+									 and    dd.Auto			= d.Auto  
+									 and 	dd.CodigoDesvinculacao  	= cd.CodigoDesvinculacao 
+									 and 	cd.Situacao		= 'A' )		   					   
+						)	   					   
+				begin				   					   			   					   
+					update 	dbarrecadacao..Debito 
+					set 	Situacao= 'V' 
+					where 	Setor = @Setor 
+					and 	Cod = @Debito
+				end
+	end
+  
+---------------- fim resolver problema desvinculação
+  
+----debito gerado em duplicidade ao receber uma 412 de um auto que estava com efeito suspensivo Placa = 'PCY5770' and OrgaoAutuante = 100 and Auto = 1174077  
+if exists (select 1
+			 from 		  
+			   	dbinfracao..Auto a,     
+	         	    	dbinfracao..OrgaoAutuante o, 
+	         	    	dbarrecadacao..Debito db
+	         	     	   
+	                   where 	a.OrgaoAutuante 	=     @CodigoOrgaoAut
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+			   and   	a.OrgaoAutuante 	= o.Cod    
+			   and 		o.UF	       	        != 'PE'    
+   			   and   	a.Situacao	        = 'E'   
+   			   and 		db.Auto  		= a.Cod
+	   		   and 		db.OrgaoAutuante 	= a.OrgaoAutuante    
+  			   and 		db.Serie		= a.Serie
+  			   and 		db.Situacao		= 'E'
+			   and 		1 < 	(select count(*) from dbarrecadacao..Debito d   
+			   			where	d.Auto  		= a.Cod
+			   			and 	d.OrgaoAutuante 	= a.OrgaoAutuante    
+			  			and 	d.Serie		        = a.Serie )  )
+begin			  			
+
+	 set rowcount 1
+	 select @Setor = db.Setor, @Debito = db.Cod
+	 from 		  
+	   	dbinfracao..Auto a,     
+ 	    	dbinfracao..OrgaoAutuante o, 
+ 	    	dbarrecadacao..Debito db
+ 	     	   
+           where 	a.OrgaoAutuante 	=     @CodigoOrgaoAut
+	   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+	   and   	a.OrgaoAutuante 	= o.Cod    
+	   and 		o.UF	       	        != 'PE'    
+		   and   	a.Situacao	        = 'E'   
+		   and 		db.Auto  		= a.Cod
+		   and 		db.OrgaoAutuante 	= a.OrgaoAutuante    
+		   and 		db.Serie		= a.Serie
+		   and 		db.Situacao		= 'A'
+	   and 		1 < 	(select count(*) from dbarrecadacao..Debito d   
+	   			where	d.Auto  		= a.Cod
+	   			and 	d.OrgaoAutuante 	= a.OrgaoAutuante    
+	  			and 	d.Serie		        = a.Serie )  
+	  and 	 db.DataEmissao> (select d.DataEmissao from dbarrecadacao..Debito d   
+	   			where	d.Auto  		= a.Cod
+	   			and 	d.OrgaoAutuante 	= a.OrgaoAutuante    
+	  			and 	d.Serie		        = a.Serie
+	  			and 	d.Situacao		='E')			
+	begin tran			  						  			
+	update 	dbarrecadacao..Debito set 	Situacao= 'C' ---- debito gerado em duplicidade indevidamente ao receber a 412 do SERPRO
+	where 	Setor = @Setor 
+	and 	Cod = @Debito
+	
+	
+	if 	@@transtate=2 OR @@transtate=3     
+	begin     
+		if @@transtate=2     
+			rollback tran     
+			raiserror 55000     
+	  		return     
+	end  
+		   
+	update 	dbarrecadacao..MovimentoDebito set Usuario = 'renavam'  
+	where 	Setor = @Setor and Debito = @Debito and Usuario = suser_name()
+	AND 	convert(char(08),DataAtualizacao,112) = convert(char(08),getdate(),112)
+	if 	@@transtate=2 OR @@transtate=3     
+	begin     
+		if @@transtate=2     
+			rollback tran     
+			raiserror 55000     
+	  		return     
+	end    
+	commit tran  
+	set rowcount 0
+
+end 			  			
+
+-----------------cancela debito gerado em duplicidade ao receber o arquivo de RESTART do SERPRO --- GEROU OUTRO DEBITO COM O usuario Consolid
+if exists (select 1 
+			 from 		   
+			   	dbinfracao..Auto a,      
+	         	    	dbinfracao..OrgaoAutuante o,  
+	         	    	dbarrecadacao..Debito db 
+	         	     	    
+	                   where 	a.OrgaoAutuante 	=     @CodigoOrgaoAut 
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao     
+			   and   	a.OrgaoAutuante 	= o.Cod     
+			   and 		o.UF	       	        = 'PE'     
+--   			   and   	a.Situacao	        = 'E'    
+   			   and 		db.Auto  		= a.Cod 
+	   		   and 		db.OrgaoAutuante 	= a.OrgaoAutuante     
+  			   and 		db.Serie		= a.Serie 
+  			   and 		db.Situacao		not in ( 'T','V','C') 
+			   and 		1 < 	(select count(*) from dbarrecadacao..Debito d    
+			   			where	d.Auto  		= a.Cod 
+			   			and 	d.OrgaoAutuante 	= a.OrgaoAutuante     
+			  			and 	d.Serie		        = a.Serie )  
+			  			
+			   and 		exists 	(select 1 from dbarrecadacao..MovimentoBaixa mb    , dbarrecadacao..Debito dd
+				   			where	dd.Auto  		= a.Cod 
+			   				and 	dd.OrgaoAutuante 		= a.OrgaoAutuante     
+			  				and 	dd.Serie		        	= a.Serie	
+				   			and	dd.Setor 		= mb.Setor
+				   			and 	dd.Cod			= mb.Debito
+				  			and 	mb.Anulado 		= 0
+				  			and      mb.Usuario 		= 'consolid'
+				  			and      mb.TipoMovimento in (select Cod  from dbarrecadacao..TipoMovBaixa where Tipo ='B')
+			  			) 
+			 and 		exists 	(select 1 from dbarrecadacao..Debito d    
+			   			where	d.Auto  		= a.Cod 
+			   			and 	d.OrgaoAutuante 	= a.OrgaoAutuante     
+			  			and 	d.Serie		        = a.Serie 
+			  			and 	d.Situacao	= 'T') 
+			  			
+	) 
+begin			  			 
+ 
+	set rowcount 1 
+	select @Setor = db.Setor, @Debito = db.Cod 
+	from 		   
+			   	dbinfracao..Auto a,      
+	         	    	dbinfracao..OrgaoAutuante o,  
+	         	    	dbarrecadacao..Debito db 
+	         	     	    
+	                   where 	a.OrgaoAutuante 	=     @CodigoOrgaoAut 
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao     
+			   and   	a.OrgaoAutuante 	= o.Cod     
+			   and 		o.UF	       	        = 'PE'     
+--   			   and   	a.Situacao	        = 'E'    
+   			   and 		db.Auto  		= a.Cod 
+	   		   and 		db.OrgaoAutuante 	= a.OrgaoAutuante     
+  			   and 		db.Serie		= a.Serie 
+  			   and 		db.Situacao		not in ( 'T','V','C') 
+			   and 		1 < 	(select count(*) from dbarrecadacao..Debito d    
+			   			where	d.Auto  		= a.Cod 
+			   			and 	d.OrgaoAutuante 	= a.OrgaoAutuante     
+			  			and 	d.Serie		        = a.Serie )  
+			  			
+			   and 		exists 	(select 1 from dbarrecadacao..MovimentoBaixa mb    , dbarrecadacao..Debito dd
+				   			where	dd.Auto  		= a.Cod 
+			   				and 	dd.OrgaoAutuante 		= a.OrgaoAutuante     
+			  				and 	dd.Serie		        	= a.Serie	
+				   			and	dd.Setor 		= mb.Setor
+				   			and 	dd.Cod			= mb.Debito
+				  			and 	mb.Anulado 		= 0
+				  			and      mb.Usuario 		= 'consolid'
+				  			and      mb.TipoMovimento in (select Cod  from dbarrecadacao..TipoMovBaixa where Tipo ='B')
+			  			) 
+			 and 		exists 	(select 1 from dbarrecadacao..Debito d    
+			   			where	d.Auto  		= a.Cod 
+			   			and 	d.OrgaoAutuante 	= a.OrgaoAutuante     
+			  			and 	d.Serie		        = a.Serie 
+			  			and 	d.Situacao	= 'T') 		
+			  			
+--select 'vou cancelar esse:' , @Setor, @Debito			  				 
+	begin tran			  						  			 
+	update 	dbarrecadacao..Debito set 	Situacao= 'C' ---- debito gerado em duplicidade indevidamente ao receber a 412 do SERPRO 
+	where 	Setor = @Setor  
+	and 	Cod = @Debito 
+	 
+	 
+	if 	@@transtate=2 OR @@transtate=3      
+	begin      
+		if @@transtate=2      
+			rollback tran      
+			raiserror 55000      
+	  		return      
+	end   
+		    
+	update 	dbarrecadacao..MovimentoDebito set Usuario = 'renavam'   ,Observacao = ltrim(rtrim(Observacao))+ '(Cancelamento por Debito em duplicidade)'
+	where 	Setor = @Setor and Debito = @Debito and Usuario = suser_name() 
+	AND 	convert(char(08),DataAtualizacao,112) = convert(char(08),getdate(),112) 
+	if 	@@transtate=2 OR @@transtate=3      
+	begin      
+		if @@transtate=2      
+			rollback tran      
+			raiserror 55000      
+	  		return      
+	end     
+	commit tran   
+	set rowcount 0 
+ 
+end 
+
+-----------------------------------fim cancela debito em duplicidade
+
+
+  
+  
+	set forceplan on  
+	-------------- Obtem o desdobramento -------------------  
+	select  @Desdobramento = ia.Desdobramento  
+	from    dbinfracao..Auto a (index Auto_AutoRENAINF ),   
+	dbinfracao..InfracaoAuto ia  
+	where	a.OrgaoAutuante = @CodigoOrgaoAut  
+	and 	a.AutoRENAINF   = @NumAutoInfracao  
+	and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+	and 	ia.Serie = a.Serie  
+	and 	ia.Auto =a.Cod  
+	and      ia.Infracao	= @Infracao 
+----09/09/2015 --  atualizar o codigo renainf caso o mesmo esteja null	
+	UPDATE	dbinfracao..InfracaoAuto  
+	set	CodigoRENAINF			=	isnull(@CodigoRENAINF,CodigoRENAINF) 
+	from    dbinfracao..Auto a (index Auto_AutoRENAINF ),   
+		dbinfracao..InfracaoAuto ia  
+	where	a.OrgaoAutuante = @CodigoOrgaoAut  
+	and 	a.AutoRENAINF   = @NumAutoInfracao  
+	and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+	and 	ia.Serie = a.Serie  
+	and 	ia.Auto =a.Cod  
+	and      ia.Infracao	= @Infracao 
+
+	if	@@rowcount	=	0 --- Auto RENAINF TOTAL 13/02/2020
+	begin
+		UPDATE	dbinfracao..InfracaoAuto  
+		set	CodigoINFRAEST			=	isnull(@CodigoRENAINF,CodigoINFRAEST) 
+		from    dbinfracao..Auto a (index Auto_AutoINFRAEST ),   
+			dbinfracao..InfracaoAuto ia  
+		where	a.OrgaoAutuante = @CodigoOrgaoAut  
+		and 	a.AutoINFRAEST   = @NumAutoInfracao  
+		and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+		and 	ia.Serie = a.Serie  
+		and 	ia.Auto =a.Cod  
+		and      ia.Infracao	= @Infracao 
+	end
+	 
+	set forceplan off  
+	--// REALIZAR A ATUALIZA€+O DO SALDO DA PARCELA DEBITO --- PAGTO A MENOR COM DAE VENCIDO RENAINF ---- RETORNO 360----//  
+	  
+	if exists (	select 1  
+			 from 		  
+			   	dbinfracao..Auto a,     
+	         	   	dbinfracao..MovimentoAuto ma,    
+	         	    	dbinfracao..OrgaoAutuante o ,   
+	         	     	dbinfracao..InfracaoAuto ia ,  
+	         	     	dbarrecadacao..Debito d,    
+	         	        dbarrecadacao..ParcelaDebito pd   ,  
+	         	        dbarrecadacao..MovimentoBaixa mb   
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut    
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+			   and   	a.OrgaoAutuante 	= o.Cod    
+			   and 		o.UF	       	        != 'PE'    
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante    
+			   and 		a.Serie		        = ma.Serie    
+			   and 		a.Cod		        = ma.Auto    
+			   and 		a.OrgaoAutuante 	= ia.OrgaoAutuante    
+		           and 		a.Serie		        = ia.Serie    
+	                   and 		a.Cod		        = ia.Auto    
+	                   and 		ma.Infracao		= ia.Infracao	  
+	                   and          ma.Desdobramento	= ia.Desdobramento			      
+			   and 		ma.TipoMovimento	= 'I'    
+			   and   	ia.Situacao	        = 'P'   
+  
+   			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante    
+			   and 		a.Serie		        = d.Serie    
+   			   and   	d.Situacao	        = 'T'   
+			   and 		d.Auto  		= (select  max(a1.Cod) from dbinfracao..Auto a1   
+			   					   where        a1.OrgaoAutuante 	= @CodigoOrgaoAut    
+			   					   and 		a1.AutoRENAINF   	= @NumAutoInfracao)  
+   			   and 		ia.Desdobramento	= d.Desdobramento  
+   			   and 		ia.Infracao		= d.Infracao  
+			   and 		d.Setor			= pd.Setor  
+			   and 		d.Cod 			= pd.Debito   
+			   and 		pd.Situacao		= 'T'  
+--			   and 		(pd.DataVencimento	> a.DataLimiteDefesaPenalidade	or   
+--			   		 a.DataLimiteDefesaPenalidade  = null)  
+   			   and 		d.Setor			= mb.Setor  
+			   and 		d.Cod 			= mb.Debito   
+			   and  	pd.Parcela		= mb.Parcela  
+			   and 		mb.Anulado		= 0  
+			   and 		(mb.DataPagamento	> a.DataLimiteDefesaPenalidade or  
+			   		 a.DataLimiteDefesaPenalidade  = null)  
+			     
+			     
+	AND 	EXISTS (select 1 from dbinfracao..Auto a,     
+	         	   dbinfracao..MovimentoAuto ma,    
+	         	    dbinfracao..OrgaoAutuante o     
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut    
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+			   and   	a.OrgaoAutuante 	= o.Cod    
+			   and 		o.UF	       	        != 'PE'    
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante    
+			   and 		a.Serie		        = ma.Serie    
+			   and 		a.Cod		        = ma.Auto    
+			   and 		ma.TipoMovimento	= 'O'   
+			   and          ma.CodRetorno in (360,272)) )  
+			     
+			   begin --[ajs -- Atualizar o saldo para pagamento  
+			     
+			   select 	distinct d.Setor,  
+		       	       		d.Cod,   
+		       	       		a.Serie,  
+		       	       		a.OrgaoAutuante,  
+		       	       		a.Cod as Auto,   
+		       	       		ma.Infracao,  
+		       	       		mb.ValDesMoeda,           		     -- SALDO UFIR => 24.00 * 1.0641 = R$ 25.53  
+			                a.DataLimiteDefesaPenalidade ,  
+			                pd.Parcela  , 
+			                d.Moeda ,
+			                a.DataInfracao,
+			                ma.Desdobramento,
+			                ma.CodRetorno  --- 21/11/2016
+              				  
+       	       		  
+       	      		   into #tmpDebitoSaldo  
+			     
+  
+   
+			   from 		  
+			   	dbinfracao..Auto a,     
+	         	   	dbinfracao..MovimentoAuto ma,    
+	         	    	dbinfracao..OrgaoAutuante o ,   
+	         	     	dbinfracao..InfracaoAuto ia ,  
+	         	     	dbarrecadacao..Debito d,    
+	         	        dbarrecadacao..ParcelaDebito pd   ,  
+	         	        dbarrecadacao..MovimentoBaixa mb   
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut    
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+			   and   	a.OrgaoAutuante 	= o.Cod    
+			   and 		o.UF	       	        != 'PE'    
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante    
+			   and 		a.Serie		        = ma.Serie    
+			   and 		a.Cod		        = ma.Auto    
+			   and 		a.OrgaoAutuante 	= ia.OrgaoAutuante    
+		            and 		a.Serie		        = ia.Serie    
+	                     and 		a.Cod		        = ia.Auto    
+	                     and 		ma.Infracao		= ia.Infracao	  
+	                     and          ma.Desdobramento	= ia.Desdobramento			      
+			   and 		ma.TipoMovimento	= 'O'    ----- 21/11/2016 - antes era tipo I
+			   and   	ia.Situacao	        = 'P'   
+  
+   			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante    
+			   and 		a.Serie		        = d.Serie    
+   			   and   	d.Situacao	        = 'T'   
+			   and 		d.Auto  		= (select  max(a1.Cod) from dbinfracao..Auto a1   
+			   					   where        a1.OrgaoAutuante 	= @CodigoOrgaoAut    
+			   					   and 		a1.AutoRENAINF   	= @NumAutoInfracao)  
+   			   and 		ia.Desdobramento	= d.Desdobramento  
+   			   and 		ia.Infracao		= d.Infracao  
+			   and 		d.Setor			= pd.Setor  
+			   and 		d.Cod 			= pd.Debito   
+			   and 		pd.Situacao		= 'T'  
+--			   and 		(pd.DataVencimento	> a.DataLimiteDefesaPenalidade	or   
+--			   		 a.DataLimiteDefesaPenalidade  = null)  
+   			   and 		d.Setor			= mb.Setor  
+			   and 		d.Cod 			= mb.Debito   
+			   and  		pd.Parcela		= mb.Parcela  
+			   and 		mb.Anulado		= 0  
+			   and 		(mb.DataPagamento	> a.DataLimiteDefesaPenalidade or  
+			   		 a.DataLimiteDefesaPenalidade  = null)  
+			     
+			     
+			   AND 	EXISTS (select 1 from dbinfracao..Auto a,     
+			         	   dbinfracao..MovimentoAuto ma,    
+			         	    dbinfracao..OrgaoAutuante o     
+			                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut    
+					   and 		a.AutoRENAINF   	= @NumAutoInfracao    
+					   and   	a.OrgaoAutuante 	= o.Cod    
+					   and 		o.UF	       	        != 'PE'    
+					   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante    
+					   and 		a.Serie		        = ma.Serie    
+					   and 		a.Cod		        = ma.Auto    
+					   and 		ma.TipoMovimento	= 'O'   
+					   and          ma.CodRetorno in (360,272))   
+			   
+			   ----------[ajs] 06/09/2016 ----Resolver problema de divergência de valor pago com o valor da infração, gerar a diferênca para o usuário pagar
+				
+				begin tran			     
+				
+				select 	@ValorInfracao = ValorInfracao
+				from	dbinfracao..RNFRetorno rnf,   
+					dbinfracao..OrgaoAutuante o ,   
+			        	dbvcen..Municipio m,  
+			        	RENAVAM..RetRenavam ret (index RetRenavam_KEY)  
+				where 	PFIXA = @PFIXA  
+				and 	rnf.CodigoOrgaoAut = o.Cod   
+				and 	rnf.MunicipioInfr *= m.Cod  
+				and     ret.DataHora between dateadd(hh,-2,getdate()) and dateadd(hh,2,getdate()) 
+				and     ret.CodTransacao = 401  
+				and     substring(ret.Parametro1,1,37)=@PFIXA    
+				and     substring(ret.Parametro1,81,7)  = rnf.Placa  
+				
+--				if	EXISTS (select 1 from #tmpDebitoSaldo a,     ---antes 21/11/2016
+--				         	   dbinfracao..MovimentoAuto ma   
+--				                   where 	a.OrgaoAutuante 	= ma.OrgaoAutuante    
+--						   and 		a.Serie		        = ma.Serie    
+--						   and 		a.Auto		        = ma.Auto    
+--						   and 		ma.TipoMovimento	= 'O'   
+--						   and          ma.CodRetorno =272
+--						   and 	 	@ValorInfracao> (select sum(mb.ValPriReal+ValJurReal+ValMulReal-ValDesReal) 
+--						   			from 	dbarrecadacao..Debito d,
+--						   				dbarrecadacao..MovimentoBaixa mb
+--						   			where	d.Serie = a.Serie
+--						   			and 	d.OrgaoAutuante = a.OrgaoAutuante
+--						   			and 	d.Auto	=a.Auto
+--						   			and     d.Setor=mb.Setor
+--						   			and     d.Cod	=mb.Debito
+--						   			and     mb.Anulado =0
+--						   			and     mb.TipoMovimento in (select Cod  from dbarrecadacao..TipoMovBaixa where Tipo ='B')	)  			                     
+			
+--				)
+
+				if	EXISTS (select 1 from #tmpDebitoSaldo a where CodRetorno = 272) --- Valor pago diferente do valor da infração
+				begin
+				select 		   @ValorDiferenca = @ValorInfracao-sum(mb.ValPriReal+ValJurReal+ValMulReal-ValDesReal) from #tmpDebitoSaldo a,     
+				         	   dbinfracao..MovimentoAuto ma, 
+				         	   dbarrecadacao..Debito d,
+						   dbarrecadacao..MovimentoBaixa mb
+				                   where 	a.OrgaoAutuante 	= ma.OrgaoAutuante    
+						   and 		a.Serie		        = ma.Serie    
+						   and 		a.Auto		        = ma.Auto    
+						   and 		ma.TipoMovimento	= 'O'   
+						   and          ma.CodRetorno =272
+						   and  	d.Serie = a.Serie
+			   			   and 		d.OrgaoAutuante = a.OrgaoAutuante
+			   			   and 		d.Auto	=a.Auto
+			   			   and     	d.Setor=mb.Setor
+			   			   and     	d.Cod	=mb.Debito
+			   			   and     	mb.Anulado =0
+			   			   and     	mb.TipoMovimento in (select Cod  from dbarrecadacao..TipoMovBaixa where Tipo ='B')
+			   			   
+			   			   
+			   			   -----atualizar 
+--			   	convert(numeric(7,2),round(((isnull(i.Peso, 1) * vg.Valor) * mc.Valor),2))		   
+						   if   @ValorDiferenca > 1.00 and @ValorDiferenca is not null--- torna a parcela parcial para pagamento
+						   begin
+				   			   update  dbarrecadacao..ParcelaDebito  
+								     set  Situacao= 'P',               			     -- PAGO PARCIAL  
+							                	 SaldoMoeda= convert(numeric(7,2),round((@ValorDiferenca/mc.Valor),2)),           		     -- SALDO UFIR => 24.00 * 1.0641 = R$ 25.53  
+							                   DataVencimento = isnull(DataLimiteDefesaPenalidade, pd.DataVencimento)  ,     -- Deixar o d‚bito vencido para nÆo aplicar desconto  
+				              				 DataLimDesconto=isnull(DataLimiteDefesaPenalidade, pd.DataLimDesconto)         -- Deixar o d‚bito vencido para nÆo aplicar desconto  
+				              				  
+				              		  
+				              		     from   	#tmpDebitoSaldo t, 
+				              		     		dbarrecadacao..ParcelaDebito pd  ,    
+								     	dbinfracao..Infracao i,     
+								     	dbinfracao..ValorGrupo vg, 
+								     	dbarrecadacao..MoedaCotacao mc    
+							     where  t.Setor = pd.Setor  
+					       		     and    t.Cod = pd.Debito  
+					       		     and    t.Parcela = pd.Parcela 
+					       		      
+					       		     and    t.Infracao = i.Cod
+					       		     and    t.Desdobramento = i.Desdobramento
+							     and	   i.Grupo = vg.Grupo
+							     and	   vg.Vigencia = (select max(Vigencia)
+											from dbinfracao..ValorGrupo vg1
+											where vg1.Grupo = vg.Grupo
+											and Vigencia <= t.DataInfracao)
+							      and 	vg.Moeda	= mc.Moeda			
+							      and	mc.DataCad = (select max(DataCad)
+											from dbarrecadacao..MoedaCotacao mc1
+											where mc1.Moeda = mc.Moeda
+											and   mc1.DataCad <= t.DataInfracao)
+							      and  isnull(convert(numeric(7,2),round((@ValorDiferenca/mc.Valor),2)),0)>0.00			
+						
+					       		     if	@@rowcount>0   ---- só atualiza o debito se atualizar a parceladebito
+					       		     begin  
+						       		     update  dbarrecadacao..Debito  
+									      set  Situacao= 'P'           			     -- PAGO PARCIAL  
+					             		  
+					              		     from   #tmpDebitoSaldo t, dbarrecadacao..Debito d  
+								     where  t.Setor = d.Setor  
+						       		     and    t.Cod = d.Cod
+					       		     end
+				       		     end ----fim valor diferença > 1.00
+				       		     
+				       		     
+			   			   ---fim atualizar
+						   			
+				end	---- fim if exists ( select 1 from #tmpDebitoSaldo a where CodRetorno = 272)
+				else
+				if	EXISTS (select 1 from #tmpDebitoSaldo a where CodRetorno = 360) --- o usuário pagou com o dae vencido e com 20% de desconto
+					begin 
+							     
+							     update  dbarrecadacao..ParcelaDebito  
+								     set  Situacao= 'P',               			     -- PAGO PARCIAL  
+							                SaldoMoeda= ValDesMoeda,           		     -- SALDO UFIR => 24.00 * 1.0641 = R$ 25.53  
+							                  DataVencimento = isnull(DataLimiteDefesaPenalidade, pd.DataVencimento)  ,     -- Deixar o d‚bito vencido para nÆo aplicar desconto  
+				              				DataLimDesconto=isnull(DataLimiteDefesaPenalidade, pd.DataLimDesconto)         -- Deixar o d‚bito vencido para nÆo aplicar desconto  
+				              				  
+				              		  
+				              		     from   #tmpDebitoSaldo t, dbarrecadacao..ParcelaDebito pd  
+							     where  t.Setor = pd.Setor  
+					       		     and    t.Cod = pd.Debito  
+					       		     and    t.Parcela = pd.Parcela  
+					       		     and    ValDesMoeda>0.00 ---so atualiza se valor >0
+					       		     
+					       		     if	@@rowcount	>	0    ---- só atualiza o debito se atualizar a parceladebito
+					       		     begin
+						       		     update  dbarrecadacao..Debito  
+									      set  Situacao= 'P'           			     -- PAGO PARCIAL  
+					             		  
+					              		     from   #tmpDebitoSaldo t, dbarrecadacao..Debito d  
+								     where  t.Setor = d.Setor  
+						       		     and    t.Cod = d.Cod
+					       		     end		  
+					       		       
+					 end      		     		  
+			     commit tran
+			     
+			     drop   table #tmpDebitoSaldo  
+			       
+			   end --[ajs] fim atualizar saldo para pagamento  
+			     
+	---/// FIM ATUALIZA€+O DO SALDO RETORNO 360	  
+			     
+	-----------//---------//---------------------//----------  
+	---// REALIZAR O CANCELAMENTO DE AUTO EM DUPLICIDADE---//  
+	--- TRATA DUPLICIDADE DE AUTO PAGO 	          
+	          
+	if exists (select 1 from dbinfracao..Auto a,    
+	         	   dbinfracao..MovimentoAuto ma,   
+	         	    dbinfracao..OrgaoAutuante o ,  
+	         	     dbinfracao..InfracaoAuto ia  
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut   
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao   
+			   and   	a.OrgaoAutuante 	= o.Cod   
+			   and 		o.UF	       	        != 'PE'   
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante   
+			   and 		a.Serie		        = ma.Serie   
+			   and 		a.Cod		        = ma.Auto   
+			   and 		a.OrgaoAutuante 	= ia.OrgaoAutuante   
+		           and 		a.Serie		       	= ia.Serie   
+	                   and 		a.Cod		       	= ia.Auto   
+	                   and 		ma.Infracao		= ia.Infracao				     
+			   and 		ma.TipoMovimento	= 'I'   
+			   and 		(ia.Situacao	        IN ('A' ,'N','D')  
+ 		or a.Situacao    	        IN ('A','N','D'))  
+	and 			   1< (select count(*) from dbinfracao..Auto a2  
+			       where a2.OrgaoAutuante = a.OrgaoAutuante  
+			       and   a2.AutoRENAINF = a.AutoRENAINF)  
+			       			     
+	AND EXISTS (SELECT 1 from dbinfracao..Auto a,    
+	         	   dbarrecadacao..Debito d,   
+	         	   dbinfracao..OrgaoAutuante o   
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut   
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao   
+			   and   	a.OrgaoAutuante 	= o.Cod   
+			   and 		o.UF	       	        != 'PE'   
+			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante   
+			   and 		a.Serie		        = d.Serie   
+			   and 		a.Cod			= d.Auto
+   			   and   	d.Situacao	        = 'T'  )
+			     
+	AND 	EXISTS (select 1 from dbinfracao..Auto a,    
+	         	   dbinfracao..MovimentoAuto ma,   
+	         	    dbinfracao..OrgaoAutuante o   
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut   
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao   
+			   and   	a.OrgaoAutuante 	= o.Cod   
+			   and 		o.UF	       	        != 'PE'   
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante   
+			   and 		a.Serie		        = ma.Serie   
+			   and 		a.Cod		        = ma.Auto   
+			   and 		ma.TipoMovimento	= 'C' ))  
+		begin  
+		/* --- FAZ O UPDATE   */   
+
+       	       select 	d.Setor,  
+       	       		d.Cod,   
+       	       		a.Serie,  
+       	       		a.OrgaoAutuante,  
+       	       		a.Cod as Auto,   
+       	       		ma.Infracao  
+       	       		  
+       	       into #tmpDebito  
+       	         
+	       from dbinfracao..Auto a,    
+	       	    dbinfracao..MovimentoAuto ma,   
+	            dbinfracao..OrgaoAutuante o ,  
+	            dbarrecadacao..Debito d,  
+	             dbinfracao..InfracaoAuto ia  
+	              
+	       where 	   	a.OrgaoAutuante 		= @CodigoOrgaoAut   
+	       and 		a.AutoRENAINF   		= @NumAutoInfracao   
+	       and   		a.OrgaoAutuante 		= o.Cod   
+	       and 		o.UF	       	        	!= 'PE'   
+	       and 		a.OrgaoAutuante 		= ma.OrgaoAutuante   
+	       and 		a.Serie		        	= ma.Serie   
+	       and 		a.Cod		        	= ma.Auto   
+ 	       and 		a.OrgaoAutuante 		= ia.OrgaoAutuante   
+	       and 		a.Serie		        	= ia.Serie   
+	       and 		a.Cod		        	= ia.Auto   
+	       and 		ma.Infracao			= ia.Infracao	         
+	       and 		ma.TipoMovimento		= 'I'   
+	       and   		(ia.Situacao	        IN ('A' ,'N','D')  
+	   			or a.Situacao    	        IN ('A','N','D'))  
+	       and 		a.OrgaoAutuante 		*= d.OrgaoAutuante   
+	       and 		a.Serie		        	*= d.Serie   
+	       and 		a.Cod		        	*= d.Auto   
+	       and 		d.Infracao			=* ma.Infracao  
+	       and    1< (select count(*) from dbinfracao..Auto a2  
+			       where a2.OrgaoAutuante = a.OrgaoAutuante  
+			       and   a2.AutoRENAINF = a.AutoRENAINF)  
+			       			     
+	       AND EXISTS (SELECT 1 from dbinfracao..Auto a,    
+	         	   dbarrecadacao..Debito d(index Debito_Infra),   
+	         	   dbinfracao..OrgaoAutuante o   
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut   
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao   
+			   and   	a.OrgaoAutuante 	= o.Cod   
+			   and 		o.UF	       	        != 'PE'   
+			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante   
+			   and 		a.Serie		        = d.Serie   
+			   and 		a.Cod			= d.Auto
+   			   and   	d.Situacao	        = 'T')  
+	      AND 	EXISTS (select 1 from dbinfracao..Auto a,    
+	         	   dbinfracao..MovimentoAuto ma,   
+	         	    dbinfracao..OrgaoAutuante o   
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut   
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao   
+			   and   	a.OrgaoAutuante 	= o.Cod   
+			   and 		o.UF	       	        != 'PE'   
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante   
+			   and 		a.Serie		        = ma.Serie   
+			   and 		a.Cod		        = ma.Auto   
+			   and 		ma.TipoMovimento	= 'C' ) 
+		  
+	       ---// cancela o debito //----	  
+               
+	       begin tran
+	                      
+	       update dbarrecadacao..Debito  set Situacao  = 'C'  
+	       from   #tmpDebito t, dbarrecadacao..Debito d  
+	       where t.Setor != null and t.Cod !=null 
+	       and t.Setor = d.Setor  
+	       and    t.Cod = d.Cod  
+	       and    d.Situacao !='T'
+	         
+	       ---// cancela o auto //----  
+         
+	       update dbinfracao..Auto set Situacao  = 'C', Observacao = 'AUTO CANCELADO PELA CONSULTA NO RENAINF - AUTO EM DUPLICIDADE'  
+	       from   #tmpDebito t, dbinfracao..Auto a  
+	       where  t.Serie 		= a.Serie  
+	       and    t.Auto  		= a.Cod   
+	       and    t.OrgaoAutuante 	= a.OrgaoAutuante   
+	         
+	       ---// cancela a infracao //----	         
+               update dbinfracao..InfracaoAuto  set Situacao  = 'C'  
+      	       from   #tmpDebito t, dbinfracao..InfracaoAuto ia  
+	       where  t.Serie 		= ia.Serie  
+	       and    t.Auto  		= ia.Auto   
+	       and    t.OrgaoAutuante 	= ia.OrgaoAutuante   
+	       and    t.Infracao	= ia.Infracao  
+	         
+	       end	   -- fim do if de duplicidade  
+	  
+	       commit tran
+		  
+	if	@CodRetorno	=	180 and (  
+	         exists    (select 1 from dbinfracao..Auto a,   
+	         	   dbinfracao..MovimentoAuto ma,  
+	         	    dbinfracao..OrgaoAutuante o  
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	        != 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		        = ma.Serie  
+			   and 		a.Cod		        = ma.Auto  
+			   and 		ma.TipoMovimento	= 'I'  
+			   and   	a.Situacao	        = 'A')  
+		or exists    (select 1 from dbinfracao..Auto a,   
+	         	   dbarrecadacao..Debito d,  
+	         	   dbinfracao..OrgaoAutuante o  
+	                   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	        != 'PE'  
+			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante  
+			   and 		a.Serie		        = d.Serie  
+			   and 		a.Cod		        = d.Auto  
+			   and   	d.Situacao	        in ( 'A','D')))	   	           	         		       
+		begin	     
+	        exec 	dbinfracao..RNFAutoU     
+	    	@CodTransacao 		= @CodTransacao,     
+    		@NumAutoInfracao	= @NumAutoInfracao,     
+	    	@CodigoOrgaoAut 	= @CodigoOrgaoAut,     
+    		@Infracao 		= @Infracao ,      
+	    	@TipoMovimento		= 'C'   ,  
+	    	@Desdobramento		=	@Desdobramento,  
+	    	@RegistroNaoEncontrado  = 'S'  
+-----------------16/04/2013 -- atualizar o usuário como renavam para não ficar no login do usuario que está logado---------------------------	    	
+	    	if 			@Infracao 	between 5000 and 6000
+			select 		@Infracao = convert(numeric(04),@Infracao/10)
+		
+		begin tran
+					
+	    	update   dbinfracao..MovimentoAuto 
+	    	set 	 Usuario = 'renavam'
+	    	from     dbinfracao..Auto a , 
+	    		 dbinfracao..MovimentoAuto ma
+	    	where    a.OrgaoAutuante 	= @CodigoOrgaoAut
+	    	and      a.AutoRENAINF 		= @NumAutoInfracao
+	    	and      a.Serie		= ma.Serie
+	    	and      a.OrgaoAutuante 	= ma.OrgaoAutuante
+	    	and      a.Cod 			= ma.Auto
+	    	and      ma.TipoMovimento    	= 'C'
+	    	and      ma.Infracao		= @Infracao
+	    	and      ma.Desdobramento      	= @Desdobramento
+	    	and      ma.Usuario 		= suser_name()
+	    	
+	    	commit tran
+	    	
+-----fim------------16/04/2013 -- atualizar o usuário como renavam para não ficar no login do usuario que está logado---------------------------	    		    	  
+	end  
+	ELSE  
+-- REGISTRA O AUTO -- 18/05/2007  
+	BEGIN  
+	if @UFOrgaoAutuante != 'PE' and @UFPlaca = 'PE'   
+	  
+		and   not exists   
+			(select 1 from dbinfracao..Auto a,   
+				dbvcen..Veiculo v  
+			where v.Placa = @PlacaVeiculo  
+			and   v.Situacao = 'N'  
+			and   v.Placa = a.Placa  
+			and   a.OrgaoAutuante = @CodigoOrgaoAut  
+			and   a.AutoRENAINF = @NumAutoInfracao)  
+		  
+		and   not exists   
+			(select 1 from dbvcen..FilaTransacao f   
+			where f.Placa = @PlacaVeiculo  
+			and   f.Transacao in (204,206,227))  
+ 		and exists 	(select 1 from dbvcen..Veiculo v   
+		  			where v.Placa =  @PlacaVeiculo  
+		  			and   v.Situacao = 'N')	  
+			  
+		begin  
+		  
+		exec	RNFAutoTransitoI @ParteFixa =   @PFIXA, @ChamadaPelaConsulta = 'S'  
+		  
+		end  
+	else
+	begin
+	if @UFOrgaoAutuante = 'PE' and @UFPlaca = 'PE'   
+	  
+		and   not exists   
+			(select 1 from dbinfracao..Auto a,   
+				dbvcen..Veiculo v  
+			where v.Placa = @PlacaVeiculo  
+			and   v.Situacao = 'N'  
+			and   v.Placa = a.Placa  
+			and   a.OrgaoAutuante = @CodigoOrgaoAut  
+			and   a.AutoRENAINF = @NumAutoInfracao)  -------------RENAINF
+		and   not exists   
+			(select 1 from dbinfracao..Auto a,   
+				dbvcen..Veiculo v  
+			where v.Placa = @PlacaVeiculo  
+			and   v.Placa = a.Placa  
+			and   a.OrgaoAutuante = @CodigoOrgaoAut  
+			and   a.AutoINFRAEST = @NumAutoInfracao) ------------INFRAEST			
+		  
+		and   not exists   
+			(select 1 from dbvcen..FilaTransacao f   
+			where f.Placa = @PlacaVeiculo  
+			and   f.Transacao in (204,206,227))  
+			
+ 		and exists 	(select 1 from dbvcen..Veiculo v   
+		  			where v.Placa =  @PlacaVeiculo  
+		  			and   v.Situacao = 'N')	 
+		AND @CodigoOrgaoAut	= 225210  AND convert(char(08),@DataInfracao) > = '20171001'		----------Prefeitura de Petrolina aderiu ao RADAR		  			
+		  			 
+			  
+		begin  
+		  
+		exec	RNFAutoTransitoI @ParteFixa =   @PFIXA, @ChamadaPelaConsulta = 'S'  
+		  
+		end  
+	end
+	
+		
+		
+	select @dDatas = null		
+	exec   dbinfracao..RetornaNumeroS @StringEntrada	=@DataEmissNotAut,
+					@NumeroSaida     	= @dDatas output
+
+--		select @DataEmissNotAut =ltrim(rtrim(@DataEmissNotAut))		
+--	if	@DataEmissNotAut like '%0000%'
+--		set @DataEmissNotAut = '000000'
+				  
+	if	@dDatas not in (0, null)  
+		if	   not exists (select 1 from 	dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o   
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+			   and 		ma.TipoMovimento	= 'D'  
+			   and   	a.Situacao	= 'A')  
+			   and exists 	(select 1 from dbvcen..Veiculo v   
+		  			where v.Placa =  @PlacaVeiculo  
+		  			and   v.Situacao = 'N')	  			     
+		begin  
+			   begin tran  
+			     
+			   INSERT dbinfracao..MovimentoAuto  
+			   (Serie,Auto,DataAtualizacao,TipoMovimento,ProcessoRecurso,MotivoCancelamento,Restituicao,ValorRestituido,NomeFavorecido,NumAutorizacao,TipoMovDebito,NumeroBancario,DataPagamento,ValorPago,Banco,Agencia,NumeroDoc,Usuario,  
+			    Infracao,OrgaoAutuante,OrgaoCompetencia,iEnviadoRENAINF,DataTransmissaoRENAINF,CodRetorno,MotivoCancRENAINF,ProcessoRENAINF,Desdobramento)    
+			            
+			   SELECT ma.Serie,ma.Auto,ma.DataAtualizacao,'D',ma.ProcessoRecurso,  
+			   	 ma.MotivoCancelamento,ma.Restituicao,ma.ValorRestituido,  
+			   	 ma.NomeFavorecido,ma.NumAutorizacao,ma.TipoMovDebito,  
+			   	 ma.NumeroBancario,ma.DataPagamento,ma.ValorPago,ma.Banco,  
+			   	 ma.Agencia,ma.NumeroDoc,ma.Usuario,  
+			          ma.Infracao,ma.OrgaoAutuante,ma.OrgaoCompetencia,  
+			          ma.iEnviadoRENAINF,ma.DataTransmissaoRENAINF,  
+			          ma.CodRetorno,ma.MotivoCancRENAINF,ma.ProcessoRENAINF  ,  
+			          ma.Desdobramento  
+			            
+			    from 	dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o ,   
+					dbinfracao..InfracaoAuto ia  
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+   			   and 		a.Placa			= @PlacaVeiculo		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+--			   and   	a.Situacao	= 'A'  
+   			  -- and   	ia.Situacao	= 'A'  
+			   and 		a.OrgaoAutuante 	= ia.OrgaoAutuante  
+			   and 		a.Serie		= ia.Serie  
+			   and 		a.Cod		= ia.Auto  
+			   and 		ma.TipoMovimento  = 'I'  
+			   and          not exists 	(select 1 from dbinfracao..MovimentoAuto ma1
+			   				 where  ma.OrgaoAutuante 	= ma1.OrgaoAutuante  
+			   				 and 	ma.Serie		= ma1.Serie  
+			   				 and 	ma.Auto			= ma1.Auto
+			   				 and    ma1.TipoMovimento = 'D'  )
+  
+  
+			     
+			   UPDATE  	dbinfracao..Auto SET Situacao = 'D',   
+			   		DataLimiteDefesaAutuacao =   
+			   		convert(datetime,@DataLimDef),  
+			   		DataNotificacaoAutuacao = convert(datetime,@DataEmissNotAut),  
+			   		Observacao = ltrim(rtrim(Observacao))+ ' Atualizado pela consulta'  
+			   from 		dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o   
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+   			   and 		a.Placa			= @PlacaVeiculo		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+			   and   	a.Situacao	= 'A'  
+			   and 		ma.TipoMovimento  = 'I'  
+			     
+			     
+  
+			   UPDATE  	dbinfracao..InfracaoAuto SET Situacao = 'D'  
+			   from 		dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o ,   
+					dbinfracao..InfracaoAuto ia  
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+   			   and   	ia.Situacao	= 'A'  
+			   and 		a.OrgaoAutuante 	= ia.OrgaoAutuante  
+			   and 		a.Serie		= ia.Serie  
+			   and 		a.Cod		= ia.Auto  
+			   and 		ma.TipoMovimento  = 'I'  
+			   
+			   commit tran
+			     
+		end	    
+			   			     
+--- NOTIFICA_+O DE PENALIDADE  
+	select @dDatas = null		
+	exec   dbinfracao..RetornaNumeroS @StringEntrada	=@DataEmissaoNot,
+					@NumeroSaida     	= @dDatas output
+
+
+--	select @DataEmissaoNot =ltrim(rtrim(@DataEmissaoNot))		
+--	if	@DataEmissaoNot like '%0000%'
+--		set @DataEmissaoNot = '000000'
+--select 		@DataEmissaoNot
+	if	@dDatas not in (0, null)  AND ltrim(rtrim(@DataVencNot))!=null
+		if	   not exists (select 1 from 	dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o   
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+			   and 		ma.TipoMovimento	= 'N'  
+			   and   	a.Situacao	= 'N')  
+		  and exists 	(select 1 from dbvcen..Veiculo v   
+		  		where v.Placa =  @PlacaVeiculo  
+		  		and   v.Situacao = 'N')	     
+		begin  
+			     
+			   begin tran
+			      
+			   UPDATE   	dbarrecadacao..ParcelaDebito  SET Situacao = 'A',  
+			   		DataVencimento = convert(datetime,@DataVencNot),  
+			   		DataLimDesconto = convert(datetime,@DataVencNot)  
+			   from 		dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o ,  
+					dbarrecadacao..Debito d,  
+					dbarrecadacao..ParcelaDebito pd  
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+			   and   	((a.Situacao	= 'D'   and ma.Infracao !=500) or (a.Situacao	= 'A'   and ma.Infracao =500))
+			   and 		((ma.TipoMovimento  = 'D'   and ma.Infracao !=500) or (ma.TipoMovimento  = 'I'   and ma.Infracao =500))
+			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante  
+			   and 		a.Serie		= d.Serie  
+			   and 		a.Cod		= d.Auto  
+			   and 		d.Situacao	= 'D'  
+			   and  		d.Setor		= pd.Setor  
+			   and 		d.Cod		= pd.Debito  
+			   and 		pd.Situacao	= 'D'  
+			   and  		not exists (select 1	 
+					from 	 dbvcen..DesvinculacaoDebito    dd  
+				  	        	,dbvcen..CadastroDesvinculacao cd  
+					where  	cd.CodigoDesvinculacao	= 	dd.CodigoDesvinculacao  
+				        	and    	dd.Serie                   =       a.Serie    
+				        	and    	dd.Auto                    =       a.Cod  
+				        	and    	dd.OrgaoAutuante         	=       a.OrgaoAutuante  
+				        	and    	cd.Situacao		=	'A' )	
+
+			 commit tran
+---- atualiza a data de vencimento e limite de desconto independente da situação do débito----			   
+			     
+			   if	exists (select 1 from 	dbinfracao..Auto a ,  
+						dbinfracao..OrgaoAutuante o ,  
+						dbarrecadacao..Debito d,  
+						dbarrecadacao..ParcelaDebito pd  
+				   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+				   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+				   and 		a.Placa			= @PlacaVeiculo			   		  
+				   and   	a.OrgaoAutuante 	= o.Cod  
+				   and 		o.UF	       		!= 'PE'  
+				   and 		a.OrgaoAutuante 	= d.OrgaoAutuante  
+				   and 		a.Serie			= d.Serie  
+				   and 		a.Cod			= d.Auto  
+				   and  	d.Setor			= pd.Setor  
+				   and 		d.Cod			= pd.Debito  
+				   and 		(DataVencimento		is null or DataLimDesconto is null)  ----- visa atualizar as datas de vencimentos e lim desconto
+				   									     ----- independente da situação do débito----
+
+				   )  
+			   begin
+			   	   begin tran
+			   	   
+			    	   UPDATE   	dbarrecadacao..ParcelaDebito  SET 	DataVencimento = convert(datetime,@DataVencNot),  
+				   							DataLimDesconto = convert(datetime,@DataVencNot)  
+				   from 		dbinfracao..Auto a ,   
+						dbinfracao..MovimentoAuto ma,   
+						dbinfracao..OrgaoAutuante o ,  
+						dbarrecadacao..Debito d,  
+						dbarrecadacao..ParcelaDebito pd  
+				   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+				   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+				   and 		a.Placa			= @PlacaVeiculo			   		  
+				   and   	a.OrgaoAutuante 	= o.Cod  
+				   and 		o.UF	       	!= 'PE'  
+				   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+				   and 		a.Serie		= ma.Serie  
+				   and 		a.Cod		= ma.Auto  
+				   and 		a.OrgaoAutuante 	= d.OrgaoAutuante  
+				   and 		a.Serie		= d.Serie  
+				   and 		a.Cod		= d.Auto  
+				   and  		d.Setor		= pd.Setor  
+				   and 		d.Cod		= pd.Debito  
+				   and          	ma.TipoMovimento = 'I'
+			   	   and  		not exists (select 1	 
+						from 	 dbvcen..DesvinculacaoDebito    dd  
+					  	        	,dbvcen..CadastroDesvinculacao cd  
+						where  	cd.CodigoDesvinculacao	= 	dd.CodigoDesvinculacao  
+					        	and    	dd.Serie                   =       a.Serie    
+					        	and    	dd.Auto                    =       a.Cod  
+					        	and    	dd.OrgaoAutuante         	=       a.OrgaoAutuante  
+					        	and    	cd.Situacao		=	'A' )	
+				  commit tran	        	
+				   
+			   end   
+			     
+			     			     
+			   begin tran   
+			     
+			   UPDATE   	dbarrecadacao..Debito  SET Situacao = 'A'  
+			   from 		dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o ,  
+					dbarrecadacao..Debito d  
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+			   and   	((a.Situacao	= 'D'   and ma.Infracao !=500) or (a.Situacao	= 'A'   and ma.Infracao =500))
+			   and 		((ma.TipoMovimento  = 'D'   and ma.Infracao !=500) or (ma.TipoMovimento  = 'I'   and ma.Infracao =500))
+			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante  
+			   and 		a.Serie		= d.Serie  
+			   and 		a.Cod		= d.Auto  
+			   and 		d.Situacao	= 'D'  
+			   and  		not exists (select 1	 
+					from 	 dbvcen..DesvinculacaoDebito    dd  
+				  	        	,dbvcen..CadastroDesvinculacao cd  
+					where  	cd.CodigoDesvinculacao	= 	dd.CodigoDesvinculacao  
+				        	and    	dd.Serie                   =       a.Serie    
+				        	and    	dd.Auto                    =       a.Cod  
+				        	and    	dd.OrgaoAutuante         	=       a.OrgaoAutuante  
+				        	and    	cd.Situacao		=	'A' )	
+			     
+  
+  
+  
+  
+			   INSERT dbinfracao..MovimentoAuto  
+			   (Serie,Auto,DataAtualizacao,TipoMovimento,ProcessoRecurso,MotivoCancelamento,Restituicao,ValorRestituido,NomeFavorecido,NumAutorizacao,TipoMovDebito,NumeroBancario,DataPagamento,ValorPago,Banco,Agencia,NumeroDoc,Usuario,  
+			    Infracao,OrgaoAutuante,OrgaoCompetencia,iEnviadoRENAINF,DataTransmissaoRENAINF,CodRetorno,MotivoCancRENAINF,ProcessoRENAINF,Desdobramento)    
+			            
+			   SELECT ma.Serie,ma.Auto,ma.DataAtualizacao,'N',ma.ProcessoRecurso,  
+			   	 ma.MotivoCancelamento,ma.Restituicao,ma.ValorRestituido,  
+			   	 ma.NomeFavorecido,ma.NumAutorizacao,ma.TipoMovDebito,  
+			   	 ma.NumeroBancario,ma.DataPagamento,ma.ValorPago,ma.Banco,  
+			   	 ma.Agencia,ma.NumeroDoc,ma.Usuario,  
+			          ma.Infracao,ma.OrgaoAutuante,ma.OrgaoCompetencia,  
+			          ma.iEnviadoRENAINF,ma.DataTransmissaoRENAINF,  
+			          ma.CodRetorno,ma.MotivoCancRENAINF,ma.ProcessoRENAINF  ,  
+			          ma.Desdobramento  
+			            
+			    from 	dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o ,   
+					dbinfracao..InfracaoAuto ia  
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+--			   and   	a.Situacao	= 'D'  
+--   			   and   	ia.Situacao	= 'D'  
+			   and 		a.OrgaoAutuante 	= ia.OrgaoAutuante  
+			   and 		a.Serie		= ia.Serie  
+			   and 		a.Cod		= ia.Auto  
+			   and 		((ma.TipoMovimento  = 'D'   and ma.Infracao !=500) or (ma.TipoMovimento  = 'I'   and ma.Infracao =500))
+			   and          not exists 	(select 1 from dbinfracao..MovimentoAuto ma1
+			   				 where  ma.OrgaoAutuante 	= ma1.OrgaoAutuante  
+			   				 and 	ma.Serie		= ma1.Serie  
+			   				 and 	ma.Auto			= ma1.Auto
+			   				 and    ma1.TipoMovimento 	= 'N'  ) 
+			     
+			     
+			     
+			   UPDATE  	dbinfracao..Auto SET Situacao = 'N',   
+			   		DataLimiteDefesaPenalidade = convert(datetime,@DataVencNot),  
+			   		NumNotificacao = @NumNotificacao,  
+			   		Observacao = ltrim(rtrim(Observacao))+ ' Atualizado pela consulta'  
+			   		  
+			   from 		dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o   
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+			   and   	((a.Situacao	= 'D'   and ma.Infracao !=500) or (a.Situacao	= 'A'   and ma.Infracao =500))
+			   and 		((ma.TipoMovimento  = 'D'   and ma.Infracao !=500) or (ma.TipoMovimento  = 'I'   and ma.Infracao =500)) 
+			   and  		not exists (select 1	 
+					from 	 dbvcen..DesvinculacaoDebito    dd  
+				  	        	,dbvcen..CadastroDesvinculacao cd  
+					where  	cd.CodigoDesvinculacao	= 	dd.CodigoDesvinculacao  
+				        	and    	dd.Serie                   =       a.Serie    
+				        	and    	dd.Auto                    =       a.Cod  
+				        	and    	dd.OrgaoAutuante         	=       a.OrgaoAutuante  
+				        	and    	cd.Situacao		=	'A' )	
+			     
+			     
+  
+			   UPDATE  	dbinfracao..InfracaoAuto SET Situacao = 'N'  
+			   from 		dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o ,   
+					dbinfracao..InfracaoAuto ia  
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+   			   and   	((ia.Situacao	= 'D'   and ma.Infracao !=500) or (ia.Situacao	= 'A'   and ma.Infracao =500))
+			   and 		a.OrgaoAutuante 	= ia.OrgaoAutuante  
+			   and 		a.Serie		= ia.Serie  
+			   and 		a.Cod		= ia.Auto  
+			   and 		((ma.TipoMovimento  = 'D'   and ma.Infracao !=500) or (ma.TipoMovimento  = 'I'   and ma.Infracao =500)) 
+			   and  		not exists (select 1	 
+					from 	 dbvcen..DesvinculacaoDebito    dd  
+				  	        	,dbvcen..CadastroDesvinculacao cd  
+					where  	cd.CodigoDesvinculacao	= 	dd.CodigoDesvinculacao  
+				        	and    	dd.Serie                   =       a.Serie    
+				        	and    	dd.Auto                    =       a.Cod  
+				        	and    	dd.OrgaoAutuante         	=       a.OrgaoAutuante  
+				        	and    	cd.Situacao		=	'A' )	
+			     
+  
+			     
+  			commit tran
+		end  
+		else	    
+		begin	   			     
+		--- NOTIFICA_+O DE PENALIDADE -- atualiza s¢ a situacao do debito
+		select @dDatas = null		
+		exec   dbinfracao..RetornaNumeroS @StringEntrada	=@DataEmissaoNot,
+						@NumeroSaida     	= @dDatas output
+					
+--		select @DataEmissaoNot =ltrim(rtrim(@DataEmissaoNot))
+--		
+--		if	@DataEmissaoNot like '%0000%'
+--			set @DataEmissaoNot = '000000'  
+			
+		if	@dDatas not in (0, null)  
+			if	    exists (select 1 from 	dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o ,  
+					dbarrecadacao..Debito d   
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+			   and 		ma.TipoMovimento	= 'N'  
+			   and   	a.Situacao	= 'N'  
+   			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante  
+			   and 		a.Serie		= d.Serie  
+			   and 		a.Cod		= d.Auto  
+			   and            d.Situacao	= 'D'
+			   and  		not exists (select 1	 
+					from 	 dbvcen..DesvinculacaoDebito    dd  
+				  	        	,dbvcen..CadastroDesvinculacao cd  
+					where  	cd.CodigoDesvinculacao	= 	dd.CodigoDesvinculacao  
+				        	and    	dd.Serie                   =       a.Serie    
+				        	and    	dd.Auto                    =       a.Cod  
+				        	and    	dd.OrgaoAutuante         	=       a.OrgaoAutuante  
+				        	and    	cd.Situacao		=	'A' )	
+			   )  
+		  	   and exists 	(select 1 from dbvcen..Veiculo v   
+		  			where v.Placa =  @PlacaVeiculo  
+		  			and   v.Situacao = 'N')	  
+		  		   
+		  
+		begin  
+			     
+			   begin tran
+			      
+			   UPDATE   	dbarrecadacao..Debito  SET Situacao = 'A'  
+			   from 		dbinfracao..Auto a ,   
+					dbinfracao..MovimentoAuto ma,   
+					dbinfracao..OrgaoAutuante o ,  
+					dbarrecadacao..Debito d  
+			   where 	a.OrgaoAutuante 	= @CodigoOrgaoAut  
+			   and 		a.AutoRENAINF   	= @NumAutoInfracao  
+			   and 		a.Placa			= @PlacaVeiculo			   		  
+			   and   	a.OrgaoAutuante 	= o.Cod  
+			   and 		o.UF	       	!= 'PE'  
+			   and 		a.OrgaoAutuante 	= ma.OrgaoAutuante  
+			   and 		a.Serie		= ma.Serie  
+			   and 		a.Cod		= ma.Auto  
+			   and   	a.Situacao	= 'N'  
+			   and 		ma.TipoMovimento  = 'N'  
+			   and 		a.OrgaoAutuante 	= d.OrgaoAutuante  
+			   and 		a.Serie		= d.Serie  
+			   and 		a.Cod		= d.Auto  
+			   and 		d.Situacao	= 'D' 
+			   and  		not exists (select 1	 
+					from 	 dbvcen..DesvinculacaoDebito    dd  
+				  	        	,dbvcen..CadastroDesvinculacao cd  
+					where  	cd.CodigoDesvinculacao	= 	dd.CodigoDesvinculacao  
+				        	and    	dd.Serie                   =       a.Serie    
+				        	and    	dd.Auto                    =       a.Cod  
+				        	and    	dd.OrgaoAutuante         	=       a.OrgaoAutuante  
+				        	and    	cd.Situacao		=	'A' )	
+			   
+			   commit tran
+			   
+			end  
+		end	   	   			     
+        END   
+  
+
+
+---O RENAINF Enviou a pontuação, porém , o auto não estava implantado,com isso o sistema registra a pontuação 
+---considerando que apenas o condutor é de PE, quando o auto chega e é cancelado o primeiro auto continua com a pontuação registrada.
+
+
+if	exists	(SELECT 1 FROM 	PontuacaoCNH p
+  		 		,dbinfracao..Auto a
+  		 		,dbinfracao..OrgaoAutuante o
+		 where 		a.Placa 	= @PlacaVeiculo 
+		 and 		p.Placa 	= a.Placa 
+		 and 		a.AutoRENAINF 	= @NumAutoInfracao
+		 and 		a.AutoRENAINF = p.AutoRENAINF AND a.OrgaoAutuante = p.OrgaoAutuante
+		 AND 		a.OrgaoAutuante = @CodigoOrgaoAut 
+		-- and 		a.Situacao = 'C'
+		 and 		a.OrgaoAutuante = o.Cod
+		 and    	p.Auto != a.Cod
+		 and    	p.Tipo='Q'
+		 AND 		NOT EXISTS(select 1 from dbinfracao..PontuacaoCNH pp 
+		 		where  pp.Tipo='C' 
+		 		AND p.Auto = pp.Auto and p.Serie = pp.Serie and p.OrgaoAutuante = pp.OrgaoAutuante) 
+		) 			 		
+begin 		
+	 set rowcount 1
+	 SELECT p.* into #tmpPontuacao FROM 	PontuacaoCNH p
+  		 		,dbinfracao..Auto a
+  		 		,dbinfracao..OrgaoAutuante o
+		 where 		a.Placa 	= @PlacaVeiculo 
+		 and 		p.Placa 	= a.Placa 
+		 and 		a.AutoRENAINF 	= @NumAutoInfracao
+		 and 		a.AutoRENAINF = p.AutoRENAINF AND a.OrgaoAutuante = p.OrgaoAutuante
+		 AND 		a.OrgaoAutuante = @CodigoOrgaoAut 
+		-- and 		a.Situacao = 'C'
+		 and 		a.OrgaoAutuante = o.Cod
+		 and    	p.Auto != a.Cod
+		 and    	p.Tipo='Q'
+		 AND 		NOT EXISTS(select 1 from dbinfracao..PontuacaoCNH pp 
+		 		where  pp.Tipo='C' 
+		 		AND p.Auto = pp.Auto and p.Serie = pp.Serie and p.OrgaoAutuante = pp.OrgaoAutuante)
+	
+	 	SELECT @Auto = p.Auto , @Desdobramento = p.Desdobramento FROM 	PontuacaoCNH p
+  		 		,dbinfracao..Auto a
+  		 		,dbinfracao..OrgaoAutuante o
+		 where 		a.Placa 	= @PlacaVeiculo 
+		 and 		p.Placa 	= a.Placa 
+		 and 		a.AutoRENAINF 	= @NumAutoInfracao
+		 and 		a.AutoRENAINF = p.AutoRENAINF AND a.OrgaoAutuante = p.OrgaoAutuante
+		 AND 		a.OrgaoAutuante = @CodigoOrgaoAut 
+		-- and 		a.Situacao = 'C'
+		 and 		a.OrgaoAutuante = o.Cod
+		 and    	p.Auto = a.Cod
+		 and    	p.Tipo='I'
+		 AND 		NOT EXISTS(select 1 from dbinfracao..PontuacaoCNH pp 
+		 		where  pp.Tipo='C' 
+		 		AND p.Auto = pp.Auto and p.Serie = pp.Serie and p.OrgaoAutuante = pp.OrgaoAutuante)
+
+	
+	insert 	 #tmpPontuacao		----repete a inserção do mesmo registro de pontuação
+	select * from #tmpPontuacao
+	
+	set rowcount 1		
+	update  #tmpPontuacao set Status = 0, Tipo='C',DataRegistro=getdate() -- cancela um dos registros
+
+	set rowcount 1		
+	update  #tmpPontuacao set Status = 0,  Auto = @Auto, Desdobramento =@Desdobramento  where  Tipo = 'Q' -- mantem o outro , porém corrigindo o auto DETRAN
+	
+	set rowcount 0
+			
+	insert  	dbinfracao..PontuacaoCNH 
+	select 	* 	from #tmpPontuacao
+	
+		 		
+	
+end   
+  
+select	distinct rnf.CodigoOrgaoAut,   
+		o.Descricao,   
+		0 as Lote,   
+		'' as Serie ,  
+	        0 as Auto,  
+		m.Descricao,   
+		'' as Situacao,  
+		rnf.Infracao,   
+		  
+--		(select convert(int,rnf.Infracao/100)) as  CODINFRA,  
+		  
+		(select i.Descricao  
+		from dbinfracao..Infracao i  
+		where i.Cod  = 	isnull((select convert(int,rnf.Infracao/10)   
+				where rnf.Infracao between 5000 and 6000),rnf.Infracao) and i.Desdobramento = 0),		  
+--		i.Descricao as DescInfr,  
+		0  as AgenteEquip,   
+		rnf.CodigoOrgaoAut,  
+		rnf.NumAutoInfracao,  
+	  
+	  
+	  
+	case  
+		when rnf.DataCadInfr like '%0000%' 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataCadInfr)  
+	end,	  
+  
+	UFOrgaoAutuante,  
+	Placa,  
+	UFPlaca,  
+	IndAssAuto,  
+	ModCNHCondutor,  
+	NumRegistCNHCond ,  
+	UFCNH,  
+	LocalInfracao,  
+	  
+	case  
+		when rnf.DataInfracao like '%0000%' 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataInfracao)  
+	end,	  
+	HoraInfracao,  
+	(select m.Descricao from dbvcen..Municipio m where m.Cod = rnf.MunicipioInfr) as Municipio,  
+	TipoAuto,  
+	MedicaoReal,  
+	LimitePerm,  
+	MedicaoCons,  
+	UnidadeMed,  
+	ValorInfracao,  
+	UFJurisdVeiculo,  
+	(select me.Descricao from dbvcen..Municipio me where me.Cod = rnf.CodMunicipioEmpl) as CodMunicipioEmpl,  
+	(select mv.Descricao from dbvcen..MarcaVeiculo mv where mv.Cod = rnf.MarcaModelo) as 		MarcaModelo,  
+	CodRenavam,  
+	(select e.Descricao from dbvcen..TipoVeiculo e where e.Cod = rnf.TipoVeiculo) as 	TipoVeiculo,	  
+	(select e.Descricao from dbvcen..EspecieVeiculo e where e.Cod = rnf.CodEspecVeic) as 	CodEspecVeic,  
+	(select ca.Descricao from dbvcen..Carroceria ca where ca.Cod = rnf.CodCarrVeic) as 	CodCarrVeic	,  
+	(select ca.Descricao from dbvcen..CategoriaVeiculo ca where ca.Cod = rnf.CodCategVeic) as 		CodCategVeic,    
+	(select ca.Descricao from dbvcen..CorVeiculo ca where ca.Cod = rnf.CorVeiculo) as 		CorVeiculo,  	  
+	TipoDocProp,  
+	NumDocProp,  
+	NomeProprietario,  
+  
+	case  
+		when (rnf.DataEmissaoNotAut like '%0000%' or  ltrim(rtrim(rnf.DataEmissaoNotAut)) = null)   
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataEmissaoNotAut)  
+	end,	  
+	  
+		case  
+		when (rnf.DataLimDef like '%0000%' or  ltrim(rtrim(rnf.DataLimDef)) = null)   
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataLimDef)  
+	end,	  
+	  
+	case  
+		when (rnf.DataAceiteUFJurAut like '%0000%' or  ltrim(rtrim(rnf.DataAceiteUFJurAut)) = null)   
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataAceiteUFJurAut)  
+	end,	  
+	  
+	NumNotificacao,  
+	  
+	case  
+		when (rnf.DataEmissaoNot like '%0000%' or  ltrim(rtrim(rnf.DataEmissaoNot)) = null)
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataEmissaoNot)  
+	end,	  
+  
+	case  
+		when (rnf.DataVencNot like '%0000%' or  ltrim(rtrim(rnf.DataVencNot)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataVencNot)  
+	end,	  
+  
+			  
+	CodBcoCredArr,  
+	CodAgenCredArr,  
+	NumCtaCorrCred,  
+  
+	case  
+		when (rnf.DataAceiteUFJur like '%0000%' or  ltrim(rtrim(rnf.DataAceiteUFJur)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataAceiteUFJur)  
+	end,	  
+	UFPagto,  
+	NumDocArrec,  
+  
+	case  
+		when (rnf.DataPagtoInfr like '%0000%' or  ltrim(rtrim(rnf.DataPagtoInfr)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataPagtoInfr)  
+	end,	  
+	  
+			  
+	ValorPago,  
+	CodBcoPagto,  
+	CodAgencPagto,  
+	NumTermFinanc,  
+	NumeroAutenticacao ,  
+	case  
+		when (rnf.DataCredito like '%0000%' or  ltrim(rtrim(rnf.DataCredito)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataCredito)  
+	end,  
+	case  
+		when (rnf.DataRegPag like '%0000%' or  ltrim(rtrim(rnf.DataRegPag)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataRegPag)  
+	end,  
+	case  
+		when (rnf.DataAceitPagUFRel like '%0000%' or  ltrim(rtrim(rnf.DataAceitPagUFRel)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataAceitPagUFRel)  
+	end,  
+			  
+	QuantPagtos,  
+	TipoOcorrencia,  
+	OrigemOcorrencia,  
+	NumeroProcesso,  
+  
+	case  
+		when (rnf.DataOcorrencia like '%0000%' or  ltrim(rtrim(rnf.DataOcorrencia)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataOcorrencia)  
+	end,  
+	  
+	case  
+		when (rnf.DataRegOcor like '%0000%' or  ltrim(rtrim(rnf.DataRegOcor)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataRegOcor)  
+	end,		  
+	  
+	case  
+		when (rnf.DataAceiteUFJurSusCa like '%0000%' or  ltrim(rtrim(rnf.DataAceiteUFJurSusCa)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataAceiteUFJurSusCa)  
+	end,  
+  
+  
+	NomeRealInfrator,  
+	ModCNHRealInf,  
+	NumRegCNHRealInfr , ---ajs--antesNumRegisCNHRealInfr,  
+	UFExpCNHRealInfr,  
+  
+	case  
+		when (rnf.DataApresentacao like '%0000%' or  ltrim(rtrim(rnf.DataApresentacao)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataApresentacao)  
+	end,  
+	  
+		  
+  
+	CodAceiteUFHab,  
+	case  
+		when (rnf.DataAceitUFHab like '%0000%' or  ltrim(rtrim(rnf.DataAceitUFHab)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataAceitUFHab)  
+	end,  
+	IndTabContas,  
+	case  
+		when (rnf.DataAceitPenUFJur like '%0000%' or  ltrim(rtrim(rnf.DataAceitPenUFJur)) = null) 
+	     	then	 null  
+	     	else	convert(datetime,rnf.DataAceitPenUFJur)  
+	end  
+	  
+	from	dbinfracao..RNFRetorno rnf,   
+		dbinfracao..OrgaoAutuante o ,   
+	        	dbvcen..Municipio m,  
+	        	RENAVAM..RetRenavam ret (index RetRenavam_KEY)  
+	where 	PFIXA = @PFIXA  
+	and 	rnf.CodigoOrgaoAut = o.Cod   
+	and 	rnf.MunicipioInfr *= m.Cod  
+--13112015	and     convert(char(08),ret.DataHora ,112) = convert(char(08),getdate() ,112)  
+	and     ret.DataHora between dateadd(hh,-2,getdate()) and dateadd(hh,2,getdate()) 
+	and     ret.CodTransacao = 401  
+	and     substring(ret.Parametro1,1,37)=@PFIXA    
+	and     substring(ret.Parametro1,81,7)  = rnf.Placa  
+	order	by rnf.CodigoOrgaoAut			  
+--	from	dbinfracao..RNFRetorno rnf, dbinfracao..OrgaoAutuante o ,   
+--	        dbvcen..Municipio m --, dbinfracao..Infracao i  
+--	where PFIXA = @PFIXA  
+--	and rnf.CodigoOrgaoAut = o.Cod   
+--	and rnf.MunicipioInfr = m.Cod  
+--	and rnf.Infracao  = isnull(i.Cod*10+i.Digito,i.Cod)    
+
+  
+end	  
+else  
+if @CodTransacao = 402  
+begin  
+	if	@VerifTransacao	=	'S'
+	begin
+		declare	@Transaces char(30)  
+		if	@DataLeilao	=	null
+			select 		@DataLeilao 	=	getdate()
+
+		if	not exists(	select	1 	
+					from 	dbinfracao..RNFRetAutosPlaca r, 
+						dbinfracao..Auto a (index Auto_Placa),
+						dbinfracao..MovimentoAuto ma, 
+						dbinfracao..OrgaoAutuante o
+					where	r.ParteFixa 		= @PFIXA  	
+					and 	r.Placa			= a.Placa
+					and 	r.NumAutoInfracao	in (a.AutoRENAINF, a.AutoINFRAEST)
+					and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+					and 	a.Serie			= ma.Serie
+					and 	a.Cod			= ma.Auto
+					and 	ma.TipoMovimento	= 'I'
+					and 	ma.OrgaoCompetencia	= o.Cod
+					and 	o.UF			='PE'
+				  )
+		begin
+			select @Transaces = '411'		
+		end
+		if	not exists(	select	1 	
+					from 	dbinfracao..RNFRetAutosPlaca r, 
+						dbinfracao..Auto a (index Auto_Placa),
+						dbinfracao..MovimentoAuto ma, 
+						dbinfracao..OrgaoAutuante o
+					where	r.ParteFixa 		= @PFIXA  	
+					and 	r.Placa			= a.Placa
+					and 	r.NumAutoInfracao	in (a.AutoRENAINF, a.AutoINFRAEST)
+					and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+					and 	a.Serie			= ma.Serie
+					and 	a.Cod			= ma.Auto
+					and 	ma.TipoMovimento	= 'D'
+					and 	ma.OrgaoCompetencia	= o.Cod
+					and 	o.UF			='PE'
+				  )
+		begin
+			select @Transaces  = ltrim(rtrim(@Transaces ))+'412'		
+		end
+		if	not exists(	select	1 	
+					from 	dbinfracao..RNFRetAutosPlaca r, 
+						dbinfracao..Auto a (index Auto_Placa),
+						dbinfracao..MovimentoAuto ma, 
+						dbinfracao..OrgaoAutuante o
+					where	r.ParteFixa 		= @PFIXA  	
+					and 	r.Placa			= a.Placa
+					and 	r.NumAutoInfracao	in (a.AutoRENAINF, a.AutoINFRAEST)
+					and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+					and 	a.Serie			= ma.Serie
+					and 	a.Cod			= ma.Auto
+					and 	ma.TipoMovimento	= 'N'
+					and 	ma.OrgaoCompetencia	= o.Cod
+					and 	o.UF			='PE'
+				  )
+		begin
+			select @Transaces  = ltrim(rtrim(@Transaces ))+'413'
+		end
+		if	not exists(	select	1 	
+					from 	dbinfracao..RNFRetAutosPlaca r, 
+						dbinfracao..Auto a (index Auto_Placa),
+						dbinfracao..MovimentoAuto ma
+					where	r.ParteFixa 		= @PFIXA  	
+					and 	r.Placa			= a.Placa
+					and 	r.NumAutoInfracao	in (a.AutoRENAINF, a.AutoINFRAEST)
+					and 	a.OrgaoAutuante		= ma.OrgaoAutuante
+					and 	a.Serie			= ma.Serie
+					and 	a.Cod			= ma.Auto
+					and 	ma.TipoMovimento	= 'O'
+				  )
+		begin
+			select @Transaces  = ltrim(rtrim(@Transaces ))+'414'
+		end
+		select	 distinct   
+		       	 RNFRetAutosPlaca.CodigoOrgaoAut,   
+			 o.Descricao,   
+		          Infracao ,  
+			 (select Descricao from dbinfracao..Infracao  
+			 where Cod = RNFRetAutosPlaca.Infracao and Desdobramento = 0) as DescInfr, 
+			 RNFRetAutosPlaca.Placa,   
+		  	 RNFRetAutosPlaca.UFPlaca,  
+			 NumAutoInfracao,   
+	 
+			(case  
+			when RNFRetAutosPlaca.DataInfracao like '%0000%' 
+		     	then	 null  
+		     	else	convert(datetime,RNFRetAutosPlaca.DataInfracao)   
+			end) as DataInfracao,	  
+			IndicadorExig ,
+			@Transaces as Transacoes,
+			(case 
+				when	o.UF = 'PE'	then
+					'S'
+				else
+					'N'
+			end)	as UfPE
+		  
+		from dbinfracao..RNFRetAutosPlaca ,   
+		dbinfracao..OrgaoAutuante o   ,
+		dbinfracao..Auto a
+		where ParteFixa = @PFIXA  
+		and   CodigoOrgaoAut = o.Cod   
+		and   @Transaces !=null
+		and   RNFRetAutosPlaca.Placa			= a.Placa
+		and   RNFRetAutosPlaca.NumAutoInfracao	in (a.AutoRENAINF, a.AutoINFRAEST)
+		and   a.DataInfracao 	<=	@DataLeilao
+		and   a.OrgaoAutuante != a.AgenteEquip
+		order by CodigoOrgaoAut  
+		
+	end
+	else
+	begin ---- 
+		select	 distinct   
+		       	 RNFRetAutosPlaca.CodigoOrgaoAut,   
+			 o.Descricao,   
+		          Infracao ,  
+			 (select Descricao from dbinfracao..Infracao  
+			 where Cod = RNFRetAutosPlaca.Infracao and Desdobramento = 0) as DescInfr, 
+			 RNFRetAutosPlaca.Placa,   
+		  	 RNFRetAutosPlaca.UFPlaca,  
+			 NumAutoInfracao,   
+	 
+			(case  
+			when RNFRetAutosPlaca.DataInfracao like '%0000%' 
+		     	then	 null  
+		     	else	convert(datetime,RNFRetAutosPlaca.DataInfracao)   
+			end) as DataInfracao,	  
+			IndicadorExig,
+			(case 
+				when	o.UF = 'PE'	then
+					'S'
+				else
+					'N'
+			end)	as UfPE  
+		  
+		from dbinfracao..RNFRetAutosPlaca,   
+		dbinfracao..OrgaoAutuante o,
+		 dbinfracao..Auto a  
+		where ParteFixa = @PFIXA  
+		and   CodigoOrgaoAut = o.Cod   
+		and   a.OrgaoAutuante != a.AgenteEquip
+		order by CodigoOrgaoAut  
+	end	  
+	delete	from dbinfracao..RNFRetAutosPlaca   
+	where ParteFixa = @PFIXA  
+  
+
+
+
+end	  
+else  
+if @CodTransacao = 404  
+begin  
+    
+  
+	  
+	select 	@TamTran	=	(Tamanho - 37)   
+	from	dbinfracao..RNFTipoRegistrosTransacao   
+	where	Transacao 	=	@CodTransacao   
+	and 	Cod		=	'EV01'   
+		  
+	select @PFixaTrans = right("0000000"+rtrim(ltrim(str(@NumSeqTransacao))),6)+  /* num seq. de trans. */   
+	                     right("000"+rtrim(ltrim(str(@CodTransacao))),3)+  /* codigo trans. */   
+		            "4" + 					            /* modalidade de processamento */   
+			   "17010000000"+ 					    /*cod ident cliente */   
+			   'PEPEBR1' +				    /* Tipo condicionalidade de transacao */   
+	     		   right("0000"+rtrim(ltrim(str(@TamTran+37))),4)+ /* tamanho da tran */   
+			   "00" +  						   /* Cod Ret. Tran */   
+			   right("000"+rtrim(ltrim(datename(dy,getdate()))) ,3)   /*dia juliano */   
+	  
+	  
+		  
+	select 	@CodigoOrgaoAut	=	CodigoOrgaoAut,  
+		@NumAutoInfracao	=	NumAutoInfracao,  
+		@Infracao	=	Infracao  
+	from	dbinfracao..RNFRetorno  
+	where 	PFIXA 		=	@PFixaTrans    
+	  
+	if	@Infracao	between 5000 and  5999  
+		select 		@Infracao = convert(numeric(04),@Infracao/10)   
+  
+	-------------- Obtem o desdobramento -------------------  
+	set forceplan on  
+	SELECT 	@AutoEstadual	=	0
+	select  @Desdobramento = ia.Desdobramento  
+	from    dbinfracao..Auto a (index Auto_OrgaoCompAutoRENAINF)  
+	 , dbinfracao..InfracaoAuto ia  
+	where	a.OrgaoCompetencia = @CodigoOrgaoAut  
+	and 	a.AutoRENAINF   = @NumAutoInfracao  
+	and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+	and 	ia.Serie = a.Serie  
+	and 	ia.Auto =a.Cod  
+	and      ia.Infracao	= @Infracao  
+	if	@@rowcount	=	0
+	begin
+		SELECT 	@AutoEstadual	=	1
+		select  @Desdobramento = ia.Desdobramento  
+		from    dbinfracao..Auto a  
+		 , dbinfracao..InfracaoAuto ia  
+		where	a.OrgaoCompetencia = @CodigoOrgaoAut  
+		and 	a.AutoINFRAEST   = @NumAutoInfracao  
+		and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+		and 	ia.Serie = a.Serie  
+		and 	ia.Auto =a.Cod  
+		and      ia.Infracao	= @Infracao  
+	
+	end
+	set forceplan off	  
+	-----------//---------//---------------------//----------  
+		  
+	select 	@UFPagto 	= RNFRetPagamentos.UFPagamento,   
+		@NumDocArrec 	= RNFRetPagamentos.NumeroDocArre,   
+		@DataPagtoInfr 	= RNFRetPagamentos.DataPagamento,   
+		@ValorPago 	= RNFRetPagamentos.ValorPago,   
+		@CodBcoPagto 	= RNFRetPagamentos.Banco,   
+		@DataCredito 	= RNFRetPagamentos.DataCredito ,  
+		@IndRegCanc	= RNFRetPagamentos.IndRegCanc,   
+		@DataCancReg	= RNFRetPagamentos.DataCancReg  
+		from RNFRetPagamentos	  
+		where	ParteFixa	=	@PFIXA  
+		AND RNFRetPagamentos.IndRegCanc = 0  
+
+
+
+
+--------------11/02/2021 ajs--Resolve problema de pagto com desconto de auto em tramite , com estorno do pagamento, após a geração da NP sem valor, e chegando a confirmação
+--------------através do arquivo de retorno
+if	exists	(select 1 from	dbinfracao..Auto a, 
+			dbinfracao..MovimentoAuto ma,
+			dbarrecadacao..HisRetornoOnLine his,       
+			dbarrecadacao..Debito deb,
+			dbarrecadacao..ParcelaDebito pd      			     
+		where	a.OrgaoAutuante 	=     @CodigoOrgaoAut 
+	        and 	a.AutoINFRAEST   	= @NumAutoInfracao 
+		and 	a.Serie =ma.Serie 
+		and 	a.Cod = ma.Auto
+		and 	a.OrgaoAutuante = ma.OrgaoAutuante
+		and 	ma.TipoMovimento = 'O'
+		and     ma.TipoMovDebito = 4 --- confirmação via arquivo de retorno
+
+		and 	deb.Placa= a.Placa
+		and 	deb.Serie =a.Serie 
+		and 	deb.Auto = a.Cod
+		and 	deb.OrgaoAutuante = a.OrgaoAutuante
+		and	pd.Setor= deb.Setor       
+		and	pd.Debito= deb.Cod
+		and 	pd.Parcela = 99
+		and   	pd.Situacao = 'P'
+		and 	his.NumBancario = ma.NumeroBancario --'620025002029245716'--his.Arquivo= @Arquivo        
+		and 	his.Situacao= 1        
+		and	his.Setor= deb.Setor       
+		and	his.Debito= deb.Cod
+		and      pd.DataLimDesconto > (	select mb.DataPagamento 
+						from dbarrecadacao..MovimentoBaixa mb 
+						where mb.Debito = deb.Cod
+						and   mb.Setor = deb.Setor
+						and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+						and   mb.Anulado = 0)
+		and      pd.DataLimDesconto > (	select mb.DataPagamento -------baixa estornada---estorno
+				from dbarrecadacao..MovimentoBaixa mb 
+				where mb.Debito = deb.Cod
+				and   mb.Setor = deb.Setor
+				and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+				and   mb.Anulado = 1)
+		and      exists  (select 1
+				from dbarrecadacao..MovimentoBaixa mb 
+				where mb.Debito = deb.Cod
+				and   mb.Setor = deb.Setor
+				and   mb.TipoMovimento =107 ----movimento de estorno por falta de confirmação
+				and   mb.Anulado = 0)
+		and        his.ValPago= (select mb.ValPriReal -------baixa online que foi estornada---estorno
+				from dbarrecadacao..MovimentoBaixa mb 
+				where mb.Debito = deb.Cod
+				and   mb.Setor = deb.Setor
+				and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+				and   mb.Anulado = 1)   
+				
+)
+begin
+
+
+
+	select 	@Setor = deb.Setor, @Debito = deb.Cod 
+	from	dbinfracao..Auto a, 
+			dbinfracao..MovimentoAuto ma,
+			dbarrecadacao..HisRetornoOnLine his,       
+			dbarrecadacao..Debito deb,
+			dbarrecadacao..ParcelaDebito pd      			     
+		where	a.OrgaoAutuante 	=     @CodigoOrgaoAut 
+	        and 	a.AutoINFRAEST   	= @NumAutoInfracao 
+		and 	a.Serie =ma.Serie 
+		and 	a.Cod = ma.Auto
+		and 	a.OrgaoAutuante = ma.OrgaoAutuante
+		and 	ma.TipoMovimento = 'O'
+		and     ma.TipoMovDebito = 4 --- confirmação via arquivo de retorno
+
+		and 	deb.Placa= a.Placa
+		and 	deb.Serie =a.Serie 
+		and 	deb.Auto = a.Cod
+		and 	deb.OrgaoAutuante = a.OrgaoAutuante
+		and	pd.Setor= deb.Setor       
+		and	pd.Debito= deb.Cod
+		and 	pd.Parcela = 99
+		and   	pd.Situacao = 'P'
+		and 	his.NumBancario = ma.NumeroBancario --'620025002029245716'--his.Arquivo= @Arquivo        
+		and 	his.Situacao= 1        
+		and	his.Setor= deb.Setor       
+		and	his.Debito= deb.Cod
+		and      pd.DataLimDesconto > (	select mb.DataPagamento 
+						from dbarrecadacao..MovimentoBaixa mb 
+						where mb.Debito = deb.Cod
+						and   mb.Setor = deb.Setor
+						and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+						and   mb.Anulado = 0)
+		and      pd.DataLimDesconto > (	select mb.DataPagamento -------baixa estornada---estorno
+				from dbarrecadacao..MovimentoBaixa mb 
+				where mb.Debito = deb.Cod
+				and   mb.Setor = deb.Setor
+				and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+				and   mb.Anulado = 1)
+		and      exists  (select 1
+				from dbarrecadacao..MovimentoBaixa mb 
+				where mb.Debito = deb.Cod
+				and   mb.Setor = deb.Setor
+				and   mb.TipoMovimento =107 ----movimento de estorno por falta de confirmação
+				and   mb.Anulado = 0)
+		and        his.ValPago= (select mb.ValPriReal -------baixa online que foi estornada---estorno
+				from dbarrecadacao..MovimentoBaixa mb 
+				where mb.Debito = deb.Cod
+				and   mb.Setor = deb.Setor
+				and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+				and   mb.Anulado = 1)   
+				
+
+
+		
+		 	
+		 					
+		set rowcount 1
+		begin tran
+	  	update 	dbarrecadacao..Debito set Situacao = 'T' 
+                where 	Setor 	= 	@Setor 
+                and	Cod	=	@Debito
+                and   	Situacao	= 'P' 
+		if 	@@transtate=2 OR @@transtate=3     
+		begin     
+			if @@transtate=2     
+				rollback tran     
+				raiserror 55000     
+		  		return     
+		end    	                 
+	        update 	dbarrecadacao..ParcelaDebito set Situacao = 'T', SaldoMoeda = 0.00 
+	        where 	Setor 	= 	@Setor 
+                and	Debito	=	@Debito
+                and   	Situacao	= 'P' 
+		if 	@@transtate=2 OR @@transtate=3     
+		begin     
+			if @@transtate=2     
+				rollback tran     
+				raiserror 55000     
+		  		return     
+		end    	                 
+                update 	dbarrecadacao..MovimentoDebito set Usuario = 'renavam'  
+		where 	Setor = @Setor and Debito = @Debito and Usuario = suser_name()
+		AND 	convert(char(08),DataAtualizacao,112) = convert(char(08),getdate(),112)
+		if 	@@transtate=2 OR @@transtate=3     
+		begin     
+			if @@transtate=2     
+				rollback tran     
+				raiserror 55000     
+		  		return     
+		end    
+                commit tran
+		set rowcount 0
+				
+
+end
+-------fim rotina acima----------------
+
+
+--- Baixar o 20%   
+if	@AutoEstadual	=	0
+begin  
+	if 	@UFPagto<>'PE' and @IndRegCanc = 0 and @DataCancReg = null  
+	and 	exists	(select 1 from 	dbinfracao..Auto a ,   
+					dbarrecadacao..Debito d,   
+					dbinfracao..OrgaoAutuante o,   
+					dbarrecadacao..ParcelaDebito pd  
+			where 	a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+		 	and 	a.AutoRENAINF	=	@NumAutoInfracao  
+		 	and 	a.Situacao	=	'P'  
+		 	and     a.OrgaoAutuante = 	o.Cod  
+		 	and     o.UF		!=	'PE'  
+		 	AND     a.Cod = (select max(a1.Cod)   
+		 		  	  from dbinfracao..Auto a1  
+		  			  where a1.Serie		=	a.Serie  
+			  		  and 	a1.OrgaoAutuante	=	a.OrgaoAutuante  
+			  		  and 	a1.AutoRENAINF 		= 	a.AutoRENAINF)  
+		 	and     a.Serie		= 	d.Serie  
+		 	and 	a.OrgaoAutuante	=	d.OrgaoAutuante  
+		 	and 	a.Cod		=	d.Auto  
+		 	and     d.Setor		=	pd.Setor  
+		 	and 	d.Cod		=	pd.Debito  
+		 	and 	pd.Situacao	=	'P'  )
+--		 	and    ( pd.SaldoMoeda	=	pd.ValorMoeda*0.20 or  
+--		 		( (pd.SaldoMoeda  - pd.ValorMoeda*0.20) > -0.50   
+--		 		and    
+--		 		 (pd.SaldoMoeda  - pd.ValorMoeda*0.20) < 0.50) ))  
+		 	begin  
+		 	update 	dbarrecadacao..Debito set Situacao = 'T'  
+		 	from   	dbinfracao..Auto a ,   
+			       	dbarrecadacao..Debito d,   
+			       	dbinfracao..OrgaoAutuante o,   
+			       	dbarrecadacao..ParcelaDebito pd  
+			where 	a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+		 	and 	a.AutoRENAINF	=	@NumAutoInfracao  
+		 	and 	a.Situacao	=	'P'  
+		 	and     a.OrgaoAutuante = 	o.Cod  
+		 	and     o.UF		!=	'PE'  
+		 	AND     a.Cod = (select max(a1.Cod)   
+		 		  	  from dbinfracao..Auto a1  
+		  			  where a1.Serie		=	a.Serie  
+			  		  and 	a1.OrgaoAutuante	=	a.OrgaoAutuante  
+			  		  and 	a1.AutoRENAINF 		= 	a.AutoRENAINF)  
+		 	and     a.Serie		= 	d.Serie  
+		 	and 	a.OrgaoAutuante	=	d.OrgaoAutuante  
+		 	and 	a.Cod		=	d.Auto  
+		 	and     d.Setor		=	pd.Setor  
+		 	and 	d.Cod		=	pd.Debito  
+		 	and 	pd.Situacao	=	'P'  
+--		 	and    ( pd.SaldoMoeda	=	pd.ValorMoeda*0.20 or  
+--		 		( (pd.SaldoMoeda  - pd.ValorMoeda*0.20) > -0.50   
+--		 		and    
+--		 		 (pd.SaldoMoeda  - pd.ValorMoeda*0.20) < 0.50) )  
+------ Atualiza parcela debito -----  
+		 		 	   
+		 	update 	dbarrecadacao..ParcelaDebito set SaldoMoeda = 0,Situacao = "T" 						  		   	 		  
+		 	from   	dbinfracao..Auto a ,   
+			       	dbarrecadacao..Debito d,   
+			       	dbinfracao..OrgaoAutuante o,   
+			       	dbarrecadacao..ParcelaDebito pd  
+			where 	a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+		 	and 	a.AutoRENAINF	=	@NumAutoInfracao  
+		 	and 	a.Situacao	=	'P'  
+		 	and     a.OrgaoAutuante = 	o.Cod  
+		 	and     o.UF		!=	'PE'  
+		 	AND     a.Cod = (select max(a1.Cod)   
+		 		  	  from dbinfracao..Auto a1  
+		  			  where a1.Serie		=	a.Serie  
+			  		  and 	a1.OrgaoAutuante	=	a.OrgaoAutuante  
+			  		  and 	a1.AutoRENAINF 		= 	a.AutoRENAINF)  
+		 	and     a.Serie		= 	d.Serie  
+		 	and 	a.OrgaoAutuante	=	d.OrgaoAutuante  
+		 	and 	a.Cod		=	d.Auto  
+		 	and     d.Setor		=	pd.Setor  
+		 	and 	d.Cod		=	pd.Debito  
+		 	and 	pd.Situacao	=	'P'  
+--		 	and    ( pd.SaldoMoeda	=	pd.ValorMoeda*0.20 or  
+--		 		( (pd.SaldoMoeda  - pd.ValorMoeda*0.20) > -0.50   
+--		 		and    
+--		 		 (pd.SaldoMoeda  - pd.ValorMoeda*0.20) < 0.50) )  
+		 		 	   
+  
+			end  
+				  
+		if 	@UFPagto<>'PE' and @IndRegCanc = 0 and @DataCancReg = null  
+		and 	exists	(SELECT 1  FROM dbarrecadacao..RNFPagamento rf ,		-----resolver problema de solicitação de transação indevida
+ 					dbinfracao..MovimentoAuto ma, 
+ 					dbinfracao..Auto a   
+			 where 		rf.OrgaoAutuante = @CodigoOrgaoAut 
+			 and 		rf.AutoRENAINF = @NumAutoInfracao
+			 and 		a.OrgaoCompetencia	=	rf.OrgaoAutuante 
+			 and 		a.AutoINFRAEST	=	rf.AutoRENAINF 
+			 and 		a.Situacao	!=	'P'
+			 and 		a.Serie		=	ma.Serie  
+			 and 		a.OrgaoAutuante	=	ma.OrgaoAutuante  
+			 and 		a.Cod		=	ma.Auto  
+			 and 		ma.TipoMovimento	=	'I'  
+			 and   		ma.Infracao	=	rf.Infracao  
+			 and 		ma.Desdobramento  =	rf.Desdobramento)  
+			 
+			AND EXISTS (select 	1  
+			 from 		dbinfracao..MovimentoAuto ma, dbinfracao..Auto a   
+			 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+			 and 		a.AutoRENAINF	=	@NumAutoInfracao  
+			 and 		a.Situacao	=	'P'
+			 and 		a.Serie		=	ma.Serie  
+			 and 		a.OrgaoAutuante	=	ma.OrgaoAutuante  
+			 and 		a.Cod		=	ma.Auto  
+			 and 		ma.TipoMovimento	='O'  
+			 and   		ma.Infracao	=	@Infracao  
+			 and 		ma.Desdobramento  =	@Desdobramento  
+			 and  		a.Serie	  = 'PE'
+			 and 		a.OrgaoAutuante = a.AgenteEquip)
+			 and 		(select 	count(1)  
+					from RNFRetPagamentos	  
+					where	ParteFixa	=	@PFIXA  
+					AND RNFRetPagamentos.IndRegCanc = 0) = 1  
+			 and exists	(select 		1   
+					 from 		dbinfracao..Auto a   
+					 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+					 and 		a.AutoRENAINF	=	@NumAutoInfracao)  
+				 
+		 
+		 begin
+		 
+				 select 	ma.* into #tmpMov
+				 from 		dbinfracao..MovimentoAuto ma, dbinfracao..Auto a   
+				 where 		a.OrgaoCompetencia=	@CodigoOrgaoAut  
+				 and 		a.AutoRENAINF	=	@NumAutoInfracao  
+				 and 		a.Situacao	=	'P'
+				 and 		a.Serie		=	ma.Serie  
+				 and 		a.OrgaoAutuante	=	ma.OrgaoAutuante  
+				 and 		a.Cod		=	ma.Auto  
+				 and 		ma.TipoMovimento=	'O'  
+				 and   		ma.Infracao	=	@Infracao  
+				 and 		ma.Desdobramento=	@Desdobramento  
+				 and  		a.Serie	  	= 	'PE'
+				 and 		a.OrgaoAutuante = 	a.AgenteEquip
+				 
+				 SELECT 	@Serie = ma.Serie, @Auto  = ma.Auto
+			 		  FROM dbarrecadacao..RNFPagamento rf ,	
+	 					dbinfracao..MovimentoAuto ma, 
+	 					dbinfracao..Auto a   
+				 where 		rf.OrgaoAutuante = @CodigoOrgaoAut 
+				 and 		rf.AutoRENAINF = @NumAutoInfracao
+				 and 		a.OrgaoCompetencia	=	rf.OrgaoAutuante 
+				 and 		a.AutoINFRAEST	=	rf.AutoRENAINF 
+				 and 		a.Situacao	!=	'P'
+				 and 		a.Serie		=	ma.Serie  
+				 and 		a.OrgaoAutuante	=	ma.OrgaoAutuante  
+				 and 		a.Cod		=	ma.Auto  
+				 and 		ma.TipoMovimento	=	'I'  
+				 and   		ma.Infracao	=	rf.Infracao  
+				 and 		ma.Desdobramento  =	rf.Desdobramento  
+				 
+				AND EXISTS (select 	1  
+				 from 		dbinfracao..MovimentoAuto ma, dbinfracao..Auto a   
+				 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+				 and 		a.AutoRENAINF	=	@NumAutoInfracao  
+				 and 		a.Situacao	=	'P'
+				 and 		a.Serie		=	ma.Serie  
+				 and 		a.OrgaoAutuante	=	ma.OrgaoAutuante  
+				 and 		a.Cod		=	ma.Auto  
+				 and 		ma.TipoMovimento	='O'  
+				 and   		ma.Infracao	=	@Infracao  
+				 and 		ma.Desdobramento  =	@Desdobramento  
+				 and  		a.Serie	  = 'PE'
+				 and 		a.OrgaoAutuante = a.AgenteEquip)
+				 and 		(select 	count(1)  
+						from RNFRetPagamentos	  
+						where	ParteFixa	=	@PFIXA  
+						AND RNFRetPagamentos.IndRegCanc = 0) = 1  
+				 and exists	(select 		1   
+						 from 		dbinfracao..Auto a   
+						 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+						 and 		a.AutoRENAINF	=	@NumAutoInfracao)  
+						 
+						 
+		 		begin tran
+		 
+		 		update dbarrecadacao..Debito set Situacao = 'T' 
+			                from dbarrecadacao..Debito d, dbinfracao..Auto a  
+			                where a.OrgaoAutuante  	= @CodigoOrgaoAut 
+			                and   a.AutoINFRAEST 	= @NumAutoInfracao 
+			                and   a.OrgaoAutuante 	= d.OrgaoAutuante  
+			                and   a.Serie 		= d.Serie 
+			                and   a.Cod		= d.Auto 
+			                and   d.Situacao	= 'A' 
+			                 
+			        update dbarrecadacao..ParcelaDebito set Situacao = 'T', SaldoMoeda = 0.00 
+			                from dbarrecadacao..Debito d, dbinfracao..Auto a , dbarrecadacao..ParcelaDebito pd 
+			                where a.OrgaoAutuante  	= @CodigoOrgaoAut 
+			                and   a.AutoINFRAEST 	= @NumAutoInfracao 
+			                and   a.OrgaoAutuante 	= d.OrgaoAutuante  
+			                and   a.Serie 		= d.Serie 
+			                and   a.Cod		= d.Auto 
+			                and   d.Setor	 	= pd.Setor 
+			                and   d.Cod 		= pd.Debito 
+			                and   pd.Situacao		= 'A' 
+			                
+				 
+				
+				update 	dbinfracao..Auto set   
+						Observacao = ltrim(rtrim(Observacao))+   
+						' Baixado pela consulta no RENAINF'  ,
+						Situacao = 'P'
+				 from           dbinfracao..Auto a		  
+				 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+				 and 		a.AutoINFRAEST	=	@NumAutoInfracao  
+				 
+				 update 	dbinfracao..InfracaoAuto set Situacao = 'P'
+				 from           dbinfracao..Auto a, 
+				 		dbinfracao..InfracaoAuto ia		  
+				 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+				 and 		a.AutoINFRAEST	=	@NumAutoInfracao  
+				 and 		a.OrgaoCompetencia 	= ia.OrgaoCompetencia
+				 and 		a.Cod			=	ia.Auto
+				 and 		a.Serie			= 	ia.Serie
+				 and 		ia.Situacao		!=	'P'				 	 
+					 
+				update #tmpMov set Serie = @Serie, Auto = @Auto 
+				insert dbinfracao..MovimentoAuto
+				select * from #tmpMov
+
+			commit tran
+
+
+		 end ----------fim atualização 
+		 
+	
+	
+				  
+	if 	@UFPagto<>'PE' and @IndRegCanc = 0 and @DataCancReg = null  
+	and (   
+	    (not	exists	  
+	    (select 		1   
+		 from 		dbinfracao..MovimentoAuto ma, dbinfracao..Auto a   
+		 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+		 and 		a.AutoRENAINF	=	@NumAutoInfracao  
+		 and 		a.Situacao	IN	('P','C')  
+		 and 		a.Serie		=	ma.Serie  
+		 and 		a.OrgaoAutuante	=	ma.OrgaoAutuante  
+		 and 		a.Cod		=	ma.Auto  
+		 and 		ma.TipoMovimento	=	'O'  
+		 and   		ma.Infracao	=	@Infracao  
+		 and 		ma.Desdobramento  =	@Desdobramento  
+		 AND              a.Cod = (  
+		 			select max(a1.Cod)   
+		 			  from dbinfracao..Auto a1  
+		  			  where a1.Serie		=	a.Serie  
+			  		  and 	a1.OrgaoAutuante	=	a.OrgaoAutuante  
+			  		  and 	a1.AutoRENAINF 		= 	a.AutoRENAINF  
+			  	         )  
+	  )   
+	  )   
+	  OR exists	  
+	  (select 		1   
+		 from 		dbinfracao..MovimentoAuto ma, dbinfracao..Auto a   
+		 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+		 and 		a.AutoRENAINF	=	@NumAutoInfracao  
+		 and 		a.Situacao	= 	'N'  
+		 and 		a.Serie		=	ma.Serie  
+		 and 		a.OrgaoAutuante	=	ma.OrgaoAutuante  
+		 and 		a.Cod		=	ma.Auto  
+		 and 		ma.TipoMovimento	=	'O'  
+		 and   		ma.Infracao	=	@Infracao  
+		 and 		ma.Desdobramento  =	@Desdobramento  
+		 AND            a.Cod = (  
+		 		       select max(a1.Cod)   
+		 			  from dbinfracao..Auto a1  
+		  			  where a1.Serie		=	a.Serie  
+			  		  and 	a1.OrgaoAutuante	=	a.OrgaoAutuante  
+			  		  and 	a1.AutoRENAINF 		= 	a.AutoRENAINF  
+			  	       )  
+	  )   
+	  OR not exists	  
+	  (select 		1   
+		 from 		dbinfracao..MovimentoAuto ma,   
+		 		dbinfracao..Auto a ,   
+		 		dbarrecadacao..RNFPagamento pg -- Baixar o pagamento realizado em outra UF, com pagamento realizado em PE(DUPLICIDADE) --   
+		 						 -- Visa possibilitar a restitui‡Æo do pagamento realizado em PE  
+		 where 		a.OrgaoCompetencia	=@CodigoOrgaoAut  
+		 and 		a.AutoRENAINF	=	@NumAutoInfracao  
+		 and 		a.Situacao	= 	'P'  
+		 and 		a.Serie		=	ma.Serie  
+		 and 		a.OrgaoAutuante	=	ma.OrgaoAutuante  
+		 and 		a.Cod		=	ma.Auto  
+		 and 		ma.TipoMovimento	=	'O'  
+		 and   		ma.Infracao	=	@Infracao  
+		 and 		ma.Desdobramento  =	@Desdobramento  
+		 and 		a.OrgaoCompetencia = 	pg.OrgaoAutuante   
+		 and            a.AutoRENAINF    =      pg.AutoRENAINF   
+		 and            ma.Infracao      =      pg.Infracao   
+		 and 		pg.UFPagamento	 =	@UFPagto  
+		 AND            a.Cod = (  
+		 		       select max(a1.Cod)   
+		 			  from dbinfracao..Auto a1  
+		  			  where a1.Serie		=	a.Serie  
+			  		  and 	a1.OrgaoAutuante	=	a.OrgaoAutuante  
+			  		  and 	a1.AutoRENAINF 		= 	a.AutoRENAINF  
+			  	       )  
+	  )   
+	  )		  		    
+		   
+--	 and 	(select 	count(1)  
+--				from RNFRetPagamentos	  
+--				where	ParteFixa	=	@PFIXA  
+--				AND RNFRetPagamentos.IndRegCanc = 0) = 1  
+	and exists	(select 		1   
+		 from 		dbinfracao..Auto a   
+		 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+		 and 		a.AutoRENAINF	=	@NumAutoInfracao)  
+	begin   
+	
+			
+		  
+		-- GERA PAGAMENTO NA BASE LOCAL  
+		  
+		update 		dbinfracao..Auto set   
+				Observacao = ltrim(rtrim(Observacao))+   
+				' Baixado pela consulta no RENAINF'  
+		 from           dbinfracao..Auto a		  
+		 where 		a.OrgaoCompetencia	=	@CodigoOrgaoAut  
+		 and 		a.AutoRENAINF	=	@NumAutoInfracao  
+		 and a.Cod = (select max(a1.Cod)   
+		 			  from dbinfracao..Auto a1  
+		  			  where a1.Serie		=	a.Serie  
+			  		  and 	a1.OrgaoAutuante	=	a.OrgaoAutuante  
+			  		  and 	a1.AutoRENAINF 		= 	a.AutoRENAINF)  
+		   
+  
+		   
+		exec 	dbinfracao..RNFAutoU     
+		    	@CodTransacao 		= 414,     
+			@NumAutoInfracao		= @NumAutoInfracao,     
+			@CodigoOrgaoAut 		= @CodigoOrgaoAut,     
+			@Infracao 		= @Infracao ,      
+			@TipoMovimento		= 'B',     
+			@IndExibilidade 		= @IndExibilidade ,     
+			@DataPagtoInfr		= @DataPagtoInfr,     
+			@DataCredito		= @DataCredito,     
+			@ValorPago		= @ValorPago,     
+			@TipoLancamento		= 1,     
+			@UFPagto			= @UFPagto,     
+			@NumDocArrec		= @NumDocArrec,     
+			@CodBcoPagto		= @CodBcoPagto,  
+			@Desdobramento		= @Desdobramento	 	
+			
+-----------------16/04/2013 -- atualizar o usuário como renavam para não ficar no login do usuario que está logado---------------------------	    	
+	    	if 			@Infracao 	between 5000 and 6000
+			select 		@Infracao = convert(numeric(04),@Infracao/10)
+			
+	    	update   dbinfracao..MovimentoAuto 
+	    	set 	 Usuario = 'renavam'
+	    	from     dbinfracao..Auto a , 
+	    		 dbinfracao..MovimentoAuto ma
+	    	where    a.OrgaoAutuante 	= @CodigoOrgaoAut
+	    	and      a.AutoRENAINF 		= @NumAutoInfracao
+	    	and      a.Serie		= ma.Serie
+	    	and      a.OrgaoAutuante 	= ma.OrgaoAutuante
+	    	and      a.Cod 			= ma.Auto
+	    	and      ma.TipoMovimento    	= 'O'
+	    	and      ma.Infracao		= @Infracao
+	    	and      ma.Desdobramento      	= @Desdobramento
+	    	and      ma.Usuario 		= suser_name()
+	    	
+	    	update    dbarrecadacao..MovimentoBaixa
+	    	set 	 Usuario = 'renavam'
+	    	from     dbinfracao..Auto a ,
+	    		dbarrecadacao..Debito d , 
+	    	         dbarrecadacao..MovimentoBaixa mb
+	    	where    a.OrgaoAutuante 		= @CodigoOrgaoAut
+	    	and      a.AutoRENAINF 		= @NumAutoInfracao
+	    	and      a.Serie			= d.Serie
+	    	and      a.OrgaoAutuante 		= d.OrgaoAutuante
+	    	and      a.Cod 			= d.Auto
+	    	and      d.Infracao		= @Infracao
+	    	and      d.Desdobramento      	= @Desdobramento
+	    	and      d.Setor 			= mb.Setor
+	    	and 	d.Cod			= mb.Debito
+	    	and      mb.TipoMovimento in (select Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+	    	and      mb.Anulado 		=	0
+	    	and 	mb.Usuario 		= suser_name()
+	    	
+	    	
+-----fim------------16/04/2013 -- atualizar o usuário como renavam para não ficar no login do usuario que está logado---------------------------
+			
+			
+			
+			  
+	end	  
+end ----fim @AutoEstadual = 1
+			  
+	select 	RNFRetPagamentos.UFPagamento,   
+		RNFRetPagamentos.NumeroDocArre,   
+		RNFRetPagamentos.DataPagamento,   
+		RNFRetPagamentos.ValorPago,   
+		RNFRetPagamentos.Banco,   
+		RNFRetPagamentos.Agencia,   
+		RNFRetPagamentos.NumeroTerm,   
+		RNFRetPagamentos.NumeroAut,   
+		RNFRetPagamentos.DataCredito,   
+		RNFRetPagamentos.DataRegPgto,   
+		RNFRetPagamentos.DataAceite,   
+		RNFRetPagamentos.IndRegCanc,   
+		RNFRetPagamentos.DataCancReg,   
+		RNFRetPagamentos.DataAceiteUFRel ,  
+		RNFRetPagamentos.ValorRepasse  
+		from RNFRetPagamentos	  
+		where	ParteFixa	=	@PFIXA  
+		  
+		delete	from dbinfracao..RNFRetPagamentos   
+		where ParteFixa = @PFIXA	  
+end	  
+else   
+if @CodTransacao = 405  
+  
+BEGIN--*0  
+	  
+	declare  @InfracaoSemDigito numeric(04),  
+		@TipoLancamento	int,  
+		@TipoOcorrencia 	int ,  
+		@OrigemOcorrencia char(01) ,  
+		@DataOcorrencia   datetime,  
+		@NumeroProcesso   char(20),  
+		@InstanciaRecurso int,  
+		@Deferido	char(01),  
+		@sDataOcorrencia  char(08),  
+		@TipoMovimento	char(01),  
+		@UFOcorrencia	char(02),  
+		@IndRegisCanc	int,  
+		@DataCancRegist	datetime,  
+		@DataAceiteCanc	datetime  
+		  
+		  
+		  
+		   
+	declare cInfracao cursor for     
+	select    r.UFOcorrencia,   
+		 r.DataOcorrencia, 			  
+		 r.NumeroProcesso,  
+		 r.IndRegisCanc, --Convertido para string 		  
+		 r.DataCancRegist,   
+		 r.DataAceiteCanc,     
+		 a.AutoRENAINF,  
+		 ia.Infracao,  
+		 ia.Desdobramento,  
+		 r.TipoOcorrencia,  
+		 r.OrigemOcorrencia,  
+		 ia.OrgaoAutuante  
+		  
+	from 	RNFRetOcorrenciasAuto  r,  
+	     	dbinfracao..Auto a ,   
+	     	dbinfracao..InfracaoAuto ia  
+	       
+	where 	ParteFixa	=	@PFIXA  
+	and      r.Serie		=	a.Serie  
+	and 	r.CodigoOrgaoAut	=	a.OrgaoAutuante  
+	and 	r.nAuto		=	a.Cod  
+	and 	a.Serie		=	ia.Serie  
+	and 	a.OrgaoAutuante	=	ia.OrgaoAutuante  
+	and 	a.Cod		=	ia.Auto  
+	AND 	(r.UFOcorrencia != 'PE'  or (r.UFOcorrencia = 'PE' and a.OrgaoAutuante = a.AgenteEquip and a.Serie = 'PE'))  ----- PETROLINA NO RADAR AGENTE EQUIP=ORGAOAUTUANTE
+	and     ia.Situacao not in ('P','C','I','B','L')  
+	  
+	open 	cInfracao      
+	fetch 	cInfracao into   
+		@UFOcorrencia,   
+		@DataOcorrencia, 			  
+		@NumeroProcesso,  
+		@IndRegisCanc, --Convertido para string 		  
+		@DataCancRegist,   
+		@DataAceiteCanc,     
+		@NumAutoInfracao,  
+		@Infracao,  
+		@Desdobramento,  
+		@TipoOcorrencia,  
+		@OrigemOcorrencia,  
+		@CodigoOrgaoAut  
+		  
+		  
+	while 	@@sqlstatus != 1 and @@sqlstatus != 2      
+	begin  --*1  
+  
+	IF	@IndRegisCanc = 0  
+		select @TipoLancamento = 1  
+	else	  
+		select @TipoLancamento = 2  
+		  		  
+	select @InfracaoSemDigito = @Infracao	  
+		  
+	if 	@Infracao 	between 5000 and 6000     
+		select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)     
+	  
+  
+	     
+	if	(@TipoLancamento		=	1      
+		and @TipoOcorrencia 	= 	7     
+		and @OrigemOcorrencia 	in	('3','4'))     
+		OR     
+		(@TipoLancamento		=	1      
+		and @TipoOcorrencia 	= 	3     
+		and @OrigemOcorrencia 	=	'3')     
+	begin     
+		exec 	dbinfracao..RNFAutoU     
+	    		@CodTransacao 		= @CodTransacao,     
+		    	@NumAutoInfracao	= @NumAutoInfracao,     
+		    	@CodigoOrgaoAut 	= @CodigoOrgaoAut,     
+		    	@Infracao 		= @Infracao ,      
+		    	@TipoMovimento		= 'C',     
+			@DataCancelamento 	= @DataOcorrencia,     
+			@MotivoCanc  	 	= null,     
+			@NumeroProcesso		= @NumeroProcesso     
+	end     
+	     
+	----   Se @TipoOcorrencia = 01/09  registro de defesa da autuacao/recurso em transito -----      
+	----   Se @TipoOcorrencia = 02/03/04/10/11/12   e lancamento = 1---      
+	--   (defesa da autuacao/recurso em julgamento e decisoes em julgamento -----     
+	if @TipoOcorrencia in (06,07,08,01,09,02,03,04,10,11,12,13,14,15,16)   --- incluido 13 14 15 16 -------------   
+	begin     
+		select @TipoMovimento = null, @InstanciaRecurso = null --     
+	----    registro de defesa da autuacao em julgamento ---	     
+	---  registro de recurso de multa em julgamento ----      
+
+		-- defesa em julgamento
+		if @TipoOcorrencia = 2     
+		begin      
+			select @Deferido = null --     
+		        
+			select @InstanciaRecurso = 0     
+			     
+			if @TipoLancamento = 1     
+				select @TipoMovimento = 'R'     
+				     
+			if @TipoLancamento = 2     
+				select @TipoMovimento = 'E'		     
+		end 
+
+		-- recurso em julgamento
+		if @TipoOcorrencia = 10    
+		begin      
+			select @Deferido = null --     
+		        
+			if @OrigemOcorrencia = '1'     
+				select @InstanciaRecurso = 1     
+			     
+			if @OrigemOcorrencia = '2'     
+				select @InstanciaRecurso = 2     
+			     
+			if @TipoLancamento = 1     
+				select @TipoMovimento = 'R'     
+				     
+			if @TipoLancamento = 2     
+				select @TipoMovimento = 'E'		     
+		end 
+		
+		-- advertência em julgamento		
+		if @TipoOcorrencia = 14      
+		begin      
+			select @Deferido = null --     
+		        
+			select @InstanciaRecurso = 5     
+			
+			if @TipoLancamento = 1     
+				select @TipoMovimento = 'R'     
+				     
+			if @TipoLancamento = 2     
+				select @TipoMovimento = 'E'		     
+		end
+		
+		--- decisao de defesa em julgamento ---     
+		if @TipoOcorrencia in (03,04)     
+		begin      
+			select @InstanciaRecurso = 0     
+			     
+		     
+			if @TipoOcorrencia = 03     
+				select @Deferido = 'D'     
+		   	     
+			if @TipoOcorrencia = 04     
+				select @Deferido = 'I'     
+		   	     
+			if @TipoLancamento = 1     
+				select @TipoMovimento = 'D'     
+			     
+			if @TipoLancamento = 2     
+				select @TipoMovimento = 'F'     
+		end     		     		    
+		       
+	--- decisao de recurso em julgamento ---     
+		if @TipoOcorrencia in (11,12)     
+		begin      
+			if @OrigemOcorrencia = '1'     
+				select @InstanciaRecurso = 1     
+			     
+			if @OrigemOcorrencia = '2'     
+				select @InstanciaRecurso = 2     
+			     
+			if @TipoOcorrencia = 11     
+				select @Deferido = 'D'     
+		   	     
+			if @TipoOcorrencia = 12     
+				select @Deferido = 'I'     
+		   	     
+			if @TipoLancamento = 1     
+				select @TipoMovimento = 'D'     
+			     
+			if @TipoLancamento = 2     
+				select @TipoMovimento = 'F'     
+		end 
+		
+	--- decisao de advertência em julgamento ---     
+		if @TipoOcorrencia in (15,16)     
+		begin      
+			select @InstanciaRecurso = 5     
+			     
+			if @TipoOcorrencia = 15     
+				select @Deferido = 'D'     
+		   	     
+			if @TipoOcorrencia = 16     
+				select @Deferido = 'I'     
+		   	     
+			if @TipoLancamento = 1     
+				select @TipoMovimento = 'D'     
+			     
+			if @TipoLancamento = 2     
+				select @TipoMovimento = 'F'     
+		end     		    
+	       
+		select @sDataOcorrencia = convert(char(08),@DataOcorrencia,112)     
+	     
+		if (@TipoOcorrencia = 07  and @TipoLancamento = 2)  -- Desfaz o cancelamento     
+		begin     
+			select @InfracaoSemDigito = @Infracao     
+	     
+			if 	@Infracao 	between 5000 and 6000     
+				select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)     
+	     
+			exec 	dbinfracao..RNFReativaCancelamento 	     
+				@OrgaoAutuante = @CodigoOrgaoAut,         
+				@Infracao = @InfracaoSemDigito,         
+				@ProcessoRENAINF = @NumeroProcesso ,     
+				@AutoRENAINF	=@NumAutoInfracao     
+		end	  							         
+	     
+		if @TipoOcorrencia in (06,07,08,01,09,02,03,04,10,11,12,13,14,15,16)    --- incluido 13 14 15 16 -------------  
+			exec Prot..RNFOcorrRecursoI     
+			    @UFOcorr = @UFOcorrencia,     
+			    @DataOcorr = @sDataOcorrencia,     
+			    @NumAutoInfracao = @NumAutoInfracao,     
+			    @CodigoOrgaoAut = @CodigoOrgaoAut,     
+			    @Infracao = @Infracao,      
+			    @Processo  = @NumeroProcesso,     
+			    @TipoOcorrencia = @TipoOcorrencia,     
+			    @OrigemOcorrencia = @OrigemOcorrencia,     
+			    @TipoLancamento = @TipoLancamento,     
+			    @RecebTransm = 'R',     
+			    @RNFIndicadorExigibilidade = null,     
+			    @CodRetorno = 0     
+		       
+		if @TipoOcorrencia in (02,03,04,10,11,12,12,14,15,16)     --- incluido 14 15 16 -------------  
+			exec Prot..RNFMovimentoAutoRecursoI     
+			     @DataAtualizacao = @DataOcorrencia,     
+			     @OrgaoAutuante = @CodigoOrgaoAut,     
+			     @AutoRENAINF = @NumAutoInfracao,     
+			     @Infracao = @Infracao,   
+			     @Desdobramento=@Desdobramento,    
+			     @TipoMovimento = @TipoMovimento,     
+			     @InstanciaRecurso = @InstanciaRecurso,     
+			     @Prot = null,     
+			     @NumeroProcessoRNF = @NumeroProcesso,     
+			     @Deferido = @Deferido,     
+			     @TipoLancamento = @TipoLancamento,     
+			     @TipoOcorrencia = @TipoOcorrencia,     
+			     @OrigemOcorrencia = @OrigemOcorrencia,     
+			     @iRecebidoRENAINF = 'S'      
+	end     
+	----   Se @TipoOcorrencia = 02/03/04/10/11/12   e lancamento = 1---      
+	--   defesa da autuacao/recurso em julgamento e decisoes em julgamento -----     
+	     
+	if @TipoOcorrencia in (02,03,04,10,11,12,12,14,15,16) and @TipoLancamento = 2      --- incluido 14 15 16 -------------
+	begin     
+	        if @Infracao between 5001 and 6000      
+		        select @Infracao = convert(int, @Infracao/10)      
+	     
+		update Prot..RNFMovimentoAutoRecurso     
+		set RegistroCancelado='S',DataRegistroCancelado = getdate()     
+		where OrgaoAutuante = @CodigoOrgaoAut     
+		and AutoRENAINF = @NumAutoInfracao     
+		and Infracao = @Infracao     
+		and TipoOcorrencia = @TipoOcorrencia     
+		and OrigemOcorrencia = @OrigemOcorrencia     
+		and TipoLancamento = 1				          
+	end		     
+     	  
+     	fetch 	cInfracao into   
+		@UFOcorrencia,   
+		@DataOcorrencia, 			  
+		@NumeroProcesso,  
+		@IndRegisCanc, --Convertido para string 		  
+		@DataCancRegist,   
+		@DataAceiteCanc,     
+		@NumAutoInfracao,  
+		@Infracao,  
+		@Desdobramento  ,  
+		@TipoOcorrencia,  
+		@OrigemOcorrencia,  
+		@CodigoOrgaoAut  
+     	    
+     	end--*1     
+  
+  
+  
+  
+	begin  
+	  
+	select  RNFRetOcorrenciasAuto.ParteFixa, 	  
+		RNFRetOcorrenciasAuto.UFOcorrencia,   
+		RNFTipoOcorrencia.Descricao, 		  
+		RNFOrigemOcorrencia.Descricao,   
+		RNFRetOcorrenciasAuto.DataOcorrencia, 			  
+		RNFRetOcorrenciasAuto.NumeroProcesso,  
+		RNFRetOcorrenciasAuto.DataRegOcorr, 	  
+		RNFRetOcorrenciasAuto.DataAceiteUFRelac,   
+		convert(varchar(05),RNFRetOcorrenciasAuto.IndRegisCanc), --Convertido para string 		  
+		RNFRetOcorrenciasAuto.DataCancRegist,   
+		RNFRetOcorrenciasAuto.DataAceiteCanc,     
+		convert(varchar(05),RNFRetOcorrenciasAuto.IndRegReativ), --Convertido para string  
+		RNFRetOcorrenciasAuto.DataAceiteUFJu  
+	from RNFRetOcorrenciasAuto  
+	INNER join RNFTipoOcorrencia 	on (RNFTipoOcorrencia.Cod = RNFRetOcorrenciasAuto.TipoOcorrencia)  
+	INNER join RNFOrigemOcorrencia  on (RNFOrigemOcorrencia.Cod = RNFRetOcorrenciasAuto.OrigemOcorrencia)  
+	  
+	where	ParteFixa	=	@PFIXA  
+		  
+	delete	from dbinfracao..RNFRetOcorrenciasAuto   
+		where ParteFixa = @PFIXA   
+	end  
+	
+END--*0	  
+return  
+GO
+
+execute sp_procxmode 'dbo.RNFAutoSConsulta', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.RNFAutoSConsulta to desenvolvimento
+GO
+
+Grant Execute on dbo.RNFAutoSConsulta to veiculo
+GO
+
+

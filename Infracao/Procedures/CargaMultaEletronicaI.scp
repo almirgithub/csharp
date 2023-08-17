@@ -1,0 +1,767 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.0.2/EBF 15681 ESD#5/P/RS6000/AIX 5.2/ase1502/2528/64-bit/FBO/Tue Jun 17 11:37:12 2008) on rs6000
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.CargaMultaEletronicaI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.CargaMultaEletronicaI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.CargaMultaEletronicaI
+end
+
+GO
+
+create proc dbo.CargaMultaEletronicaI 
+/* Fun‡Æo:	Fazer a carga de multas eletr“nicas  
+   Auto  :	Adilson Santos TD 18/05/2005  
+   Alterado por Adilson em 27/12/2005 para Registrar multas eletronicas mesmo que o  
+   Veiculo tenha comunicacao de venda 
+   Alterado: Adilson 17/04/2007 - Para nÆo fazer cr¡ticas quando for notifica‡Æo de advertˆncia
+   Alterado: Adilson 19/04/2007 - NÆo atualizar o n£mero de lotes para notifica‡äes de advertˆncias
+   Alterado: Adilson 31/05/2007 - NÆo registrar infra‡äes anteriores ao licenciamento do veiculo
+   Alterado: Adilson 01/06/2007 - Desfazimento da altera‡Æo anterior - irei conversar com simiramis
+   Alterado: Adilson 10/08/2007 - Não registrar autos de balança do DNIT, enquanto eles não 
+                                  responderem os questionamentos quanto ao valor - Registrado
+                                  em emails
+   Alterado: Adilson 11/10/2007 - Alterado para processar multas eletronicas zona azul CTTU                               
+   Alterado: Adilson 11/12/2007 - Registrar multas de veiculos roubados dependendo da data do roubo
+   Alteardo: Adilson 09/06/2008 - Foi colocado null para os campos de velocidade do agente zona azul
+   Alterado: Adilson 01/07/2008 - Desdobramento 
+   Alterado: Adilson 18/07/2008 - Liberação para CTTU 
+   Alterado: Adilson 11/08/2008 - Correção na rotina de verificação do roubo
+   Alterado: Adilson 21/01/2009 - Colocar null no campo número do equip para fotosensor
+   Alterado: Adilson 23/01/2009 - Descricao do agente 
+   Alterado: Adilson 19/02/2009 - Critica 79 data da infração > data atual 
+   Alterado: Adilson 03/03/2009 - Codigo do equipamento invalido = 27
+   Alterado: Adilson 11/05/2009 - Evitar entrar infrações que não serão notificadas
+   Alterado: Adilson 20/12/2010 - Novos campos - nome da imagem, indicadores de assinatura e outros
+   Alterado: Adilson 01/03/2011 - Atender a implanta‡Æo de autos de talon rio eletr“nico para a prefeitura de caruaru
+   Alterado: Adilson 11/03/2011 - Melhoria - Atender a implanta‡Æo de autos de talon rio eletr“nico para a prefeitura de caruaru
+   Alterado: Adilson 14/03/2011 - Tipo lote a partir do agente equip
+   Alterado: Adilson 01/04/2011 - Coloquei uma cr¡tica para nÆo permitir que ¢rgÆos nÆo fa‡am cargas de autos de outros.
+   Alterado: Adilson 09/07/2012 - foi incluido na critica do cod do equipamento = 27     @TipoEquipamento not in ('I','F')
+   Alterado: Adilson 27/03/2013 - A CTTU estava implantando autos com a placa 9999999, coloquei uma crítica para não permitir.
+   Alterado: Adilson 25/06/2013 - Alterado o tamanho do numero do equipamento para 13 posições - variavel definida com 20
+   Alterado: Adilson 08/05/2014 - Alterado para atender a carga de multa de talonário eletrônico do DER.
+   Alterado: Adilson 22/01/2015 - Criticar o órgão autuante na tela 
+   Alterado: Adilson 20/07/2015 - Critica do tipo do equipamento
+   Alterado: Adilson 20/11/2015 - Verifiquei a serttel está enviando autos de avanço de sinal com valores de velocidades. limpei os campos quando a infração for 6050 e informei a cttu 
+   				  que entrasse em contato com a serttel para fazer a correção.
+   Alterado: Adilson 25/11/2015 - Voltei a para a situação anterior a alteração realizada no dia 20/11/2015, pois, a CTTU informou que seria para apenas para os autos RENAINF
+   			          uma vez que os mesmos estão sendo recusados na implantação na base nacional. 	   				  
+   Alterado: Adilson 18/01/2016 - O centura não estava conseguindo receber o retorno da procedure com isso não gravava o arquivo .ret 	, corrigido o select no final da procedure		          
+   01/06/2017 - Adilson - Alteração para obter o prazo para digitação de autos da tabela parametro geral - passou de 25 para 21
+   06/06/2018 - Adilson - Alteração: Permitir que a operação consiga fazer carga de talao eletronico do DER - Solicitação de sergio lins para atendermos ao DER que estava sem conseguir acessar nosso sistema.
+   03/10/2018 - Adilson - Aumentar o prazo para o DER conseguir implantar autos de 12/06/2018-problema no servidor 
+   04/10/2018 - Adilson - Desfeito  a alteração acima ---Aumentar o prazo para o DER conseguir implantar autos de 12/06/2018-problema no servidor 
+   24/09/2020 - Adilson - Placa mercosul
+   18/11/2020 - Adilson - Converter as infrações entre 5000 and 5999 caso o órgão não faça a conversão no arquivo
+   10/11/2021 - Adilson - Acatar UFPlaca sem informação - JETRO - AGTRAN - estava sendo rejeitado com o Erro = "veiculo de outra uf"
+   20/07/2022 - Adilson - Inserir tipo auto = 3 para autuações de equipamentos eletrônicos com imagem
+   21/07/2023 - Adilson - Inconsistencia lavratura com placa errada  mercosul e antiga
+*/  
+(@Registro	Varchar(255),  
+ @DescAgente	char(100),  
+ @Sequencial	int,  
+ @Arquivo	varchar(100),  
+ @Lote		int = null ,  
+ @Advertencia	int = null,
+ @Registro1	varchar(255) = null)  
+as   
+  
+declare	@Usuario                           char(8),    
+	@DataCriacao                       datetime,    
+	@UFPlaca                           char(2),  
+	@Municipio                         numeric(6,0),  
+	@FinalPlaca                        tinyint,  
+	@Placa                             varchar(7),  
+	@NomeMunicipio  	           varchar(30),  
+	@Renavam          		   numeric(12,0),  
+	@Categoria                         numeric(4,0),  
+	@Tipo                              numeric(4,0),  
+	@Marca     			   numeric(6,0),  
+	@NomeMarca                         varchar( 31),  
+	@Auto                              numeric(10,0),  
+	@Digito                            tinyint,  
+	@NumNotificacao                    numeric(10,0),  
+	@DataInfracao                      char( 8),  
+	@HoraInfracao			   char(6),  
+	@InfracaoAuto                      numeric(6,0),  
+	@Peso                              numeric(5,0),  
+	@Local      			   varchar(100),  
+	@Moeda                             tinyint,  
+	@ValorMulta           		   numeric(13,2),  
+	@Reincidencia                      varchar(32) ,  
+	@Indicador                         tinyint,  
+	@Situacao  			   tinyint,    
+	@Serie				   char(2),    
+	@CNH				   numeric(15,0),    
+	@UFCNH				   CHAR(02),    
+	@OrgaoAutuante			   numeric(6,0),    
+	@DataVencimento			   Datetime ,  
+	@AgenteEquip			   numeric(6,0),    
+	@StoradProcedure		   char(50),  
+	@CodEquip			   CHAR(10),  
+	@DataAfer			   DateTime,  
+	@MatrAgente			   Int,  
+	@VelocidadeCons			   int,  
+	@VelocPermitida			   int,  
+	@VelocAferida			   int,  
+	@TipoAuto 			   smallint,  
+	@ExcessoVerif   		   	   numeric(12,2),   
+	@AutoDPRF			   CHAR(10),  
+	@OrgaoAutuanteArq		   		numeric(06),  
+	@NumAuto			   char(10),  
+	@PrimPeso			   char(01),  
+	@SegPeso			   char(01),  
+	@nDigito			   int,  
+	@nFinalPlaca			   int,
+	@Desdobramento			   smallint,
+	@TipoEquipamento		   char(01),
+	@NumeroEquip				   CHAR(20),
+	
+	@ModeloEquip				   char(15),
+	@MarcaEquip			   char(15),
+	@nNumeroEquip			   numeric(10),
+	@PlacaMercosul			   char(07)
+
+      
+    
+    
+declare	@Erro		tinyint,    
+	@Data		datetime,    
+	@VRenavam	numeric(12,0),    
+	@VCategoria	numeric( 4),    
+	@VTipo		numeric( 4),    
+	@VMarca		numeric( 6),    
+	@DSituacao	char( 1),    
+	@APlaca		char( 7),    
+	@ASituacao	char(1),    
+	@CodVeic	int ,   
+	@Processo 	int ,  
+	@Vigencia	datetime,  
+	@Chassi		char(21),  
+	@Especie	smallint,  
+	@Veiculo	ty_Numero ,
+	@TipoEquip	char(10),
+	@sTipoEquip	char(20) ,
+	@sErro		char(100),
+	@TipoLote	char(01),
+	@NomeImagem	 char(20)        ,
+	@RecolhmentoCNH	 char(1),
+	@RecolhmentoVeic char(1) ,                                  
+	@RecolhmentoCLA	 char(1),
+	@RemocaoVeic	 char(1),
+	@RetencaoVeic	 char(1),
+	@RecolhmentoCRV	 char(1),
+	@AutoAssinado	 char(1),
+	@Abordagem	 char(1),
+	@prazo		 int
+
+select @prazo = PrazoDigAuto      
+	from dbvcen..ParametroGeral   
+	
+	
+if exists (select 1
+	 from 	dbvcen..Usuario uu ,  dbvcen..Setor s
+	 where   uu.Cod = suser_name()  
+	 and     uu.Setor = s.Cod	
+	 and     s.CodReduzido = 18002) 				--- CTTU
+	 
+or	 exists (select 1						--- DESTRA
+	 from 	dbvcen..Usuario uu ,  dbvcen..Setor s
+	 where   uu.Cod = suser_name()  
+	 and     uu.Setor = s.Cod	
+	 and     s.CodReduzido = 8708)
+	 
+	 select  @TipoLote = 'D'
+else		     
+         select  @TipoLote = 'E'
+
+
+
+
+-- Fim Zona Azul        
+        
+       
+	  
+  	select 	@TipoAuto		=	null
+	select 	@Usuario  		= 	suser_name()  
+	select 	@DataCriacao		=	getdate()  
+  
+  
+		  
+	select 	@Placa		  =		substring(@Registro,9,7),  
+		@UFPlaca	  	  =		substring(@Registro,16,2),  
+		@Auto		  =		convert(numeric(08),substring(@Registro,18,8)),  
+		@Serie		  =		substring(@Registro,26,2),  
+		@InfracaoAuto	  =		convert(numeric(04),substring(@Registro,28,4)),  
+		@Municipio	  =		convert(numeric(05),substring(@Registro,32,5)),  
+		@DataInfracao	  =		substring(@Registro,37,8),  
+		@HoraInfracao	  =		substring(@Registro,45,6),  
+		@Local		  =		substring(@Registro,51,100),  
+		@OrgaoAutuanteArq =		convert(numeric(06),substring(@Registro,151,06)),  
+		@VelocPermitida	  =		convert(numeric(03),substring(@Registro,157,03)),  
+		@VelocAferida	  =		convert(numeric(03),substring(@Registro,160,03)),  
+		@CodEquip	  =		substring(@Registro,163,10),		  
+		@CNH		  =		convert(numeric(12),substring(@Registro,173,12)),  
+		@UFCNH		  =		substring(@Registro,185,2),  
+		@Desdobramento	  =		convert(smallint,substring(@Registro,227,01)),  
+--		@Filler		  =		space(228,07)
+		@MatrAgente	  =		convert(numeric(10),substring(@Registro,235,10)),  
+		@DataAfer	  =		convert(datetime,substring(@Registro,245,8)),  
+		@VelocidadeCons	  =		convert(numeric(03),substring(@Registro,253,3))  ,
+		@NumeroEquip  	  =		substring(@Registro1,1,13),  
+		@ModeloEquip	  =		substring(@Registro1,14,15),  
+		@MarcaEquip	  =		substring(@Registro1,29,15),
+		@TipoEquip	  =		substring(@Registro1,44,10),
+		@NomeImagem	  =		substring(@Registro1,54,20),
+		@RecolhmentoCNH	  =		substring(@Registro1,74,1),
+		@RecolhmentoVeic	  =		substring(@Registro1,75,1),
+		@RecolhmentoCLA	  =		substring(@Registro1,76,1),				
+		@RemocaoVeic	  =		substring(@Registro1,77,1),
+		@RetencaoVeic	  =		substring(@Registro1,78,1),
+		@RecolhmentoCRV	  =		substring(@Registro1,79,1),						
+		@AutoAssinado	  =		substring(@Registro1,80,1),
+		@Abordagem	  =		substring(@Registro1,81,1)
+
+
+	-- Converte placa comum para mercosul - projeto placa mercosul
+	if @Placa is not null
+	begin
+	    exec dbvcen..ConvertePlacaMercosul @Placa = @Placa, @PlacaConvertida = @PlacaMercosul output
+	end 
+   
+		  
+  	if	@InfracaoAuto between 5000 and 5999
+  	begin
+  		select @InfracaoAuto = convert(int,@InfracaoAuto/10)
+  	end
+  	
+  	
+	select 	@Moeda	=	99	  
+	select	@Erro = 0    
+	
+  	if	@Desdobramento	=	null
+  		select @Desdobramento = 0
+  		
+
+if	ltrim(rtrim(@TipoEquip))	=	null
+begin
+	select @TipoEquip = 'NÃO ENCONTRADO'
+end		
+if exists   (select 1
+	 from 	dbvcen..Usuario uu ,  dbvcen..Setor s
+	 where   uu.Cod = suser_name()  
+	 and     uu.Setor = s.Cod	
+	 and     s.CodReduzido =98300)		--- DER --- CARGA DE AUTOS TALONÁRIO ELETRÔNICO
+	 begin
+	 	
+	        select @sTipoEquip ='%'+ltrim(rtrim(@TipoEquip))+'%'
+		select 		@DescAgente=Descricao,	@AgenteEquip	=	Cod,  @OrgaoAutuante = OrgaoAutuante  , @TipoEquipamento = TipoAgenteEquip
+		from 		dbinfracao..AgenteEquip  where     Descricao like 	@sTipoEquip
+		and 		TipoAgenteEquip = 'I'
+		and 		OrgaoAutuante = @OrgaoAutuanteArq
+	
+	        SELECT @OrgaoAutuante = 117200
+	 end
+else  
+  		
+if exists   (select 1
+	 from 	dbvcen..Usuario uu ,  dbvcen..Setor s
+	 where   uu.Cod = suser_name()  
+	 and     uu.Setor = s.Cod	
+	 and     s.CodReduzido in (19300,19200,19))		--- Setores da Operação
+	 begin
+	        select @sTipoEquip ='%'+ltrim(rtrim(@TipoEquip))+'%'
+		select 		@DescAgente=Descricao,	@AgenteEquip	=	Cod,  @OrgaoAutuante = OrgaoAutuante  , @TipoEquipamento = TipoAgenteEquip
+		from 		dbinfracao..AgenteEquip  where     Descricao like 	@sTipoEquip
+		and 		TipoAgenteEquip in ('L','F','R')  
+		and 		OrgaoAutuante = @OrgaoAutuanteArq
+		if		@@rowcount=	0 and @OrgaoAutuanteArq = 117200 ---- solicitação de sergio lins para atendermos ao DER que estava sem conseguir acessar nosso sistema
+		begin
+			select @sTipoEquip ='%'+ltrim(rtrim(@TipoEquip))+'%'
+			select 		@DescAgente=Descricao,	@AgenteEquip	=	Cod,  @OrgaoAutuante = OrgaoAutuante  , @TipoEquipamento = TipoAgenteEquip
+			from 		dbinfracao..AgenteEquip  where     Descricao like 	@sTipoEquip
+			and 		TipoAgenteEquip = 'I'
+			and 		OrgaoAutuante = @OrgaoAutuanteArq
+		end
+---		SELECT 	@OrgaoAutuante = 117200 --- Se o órgão autante do arq estiver diferente de 117200 irá cair na critíca abaixo.
+	
+	 end
+else  -- obter agente/equip apenas do setor do usuário - municipios
+begin
+
+	select  @sTipoEquip ='%'+ltrim(rtrim(@TipoEquip))+'%'
+
+	select 	@DescAgente=ag.Descricao,	@AgenteEquip	=	ag.Cod,  @OrgaoAutuante = ag.OrgaoAutuante  , @TipoEquipamento = ag.TipoAgenteEquip
+	from 	dbinfracao..OrgaoAutuante o, 
+		dbvcen..Setor s, 
+		dbinfracao..AgenteEquip ag,
+		dbvcen..Usuario u
+	where o.Municipio !=null and o.Municipio = s.Municipio AND (s.Tipo = 'I' or (s.Tipo = 'F' and Prefeitura  = 'S')) and ag.TipoAgenteEquip in ('I','L','F','R')
+	and o.Cod = ag.OrgaoAutuante
+	and u.Cod = suser_name()
+	and s.Cod = u.Setor
+	and ag.OrgaoAutuante    = @OrgaoAutuanteArq
+	and ag.Descricao like 	@sTipoEquip
+
+--	if      @OrgaoAutuante = null -- setor não autorizado a fazer carga do orgao autuante do arquivo
+--	        begin
+--		select @AgenteEquip = 99 , @OrgaoAutuante = 999999
+--	        end 
+
+end
+--if	@OrgaoAutuante	=	117200 or @OrgaoAutuanteArq = 117200
+--begin
+--	select @prazo = @prazo + 2 ---- SERGIO LINS 03/10/2018
+--end
+
+if      @OrgaoAutuante = null or @OrgaoAutuanteArq  !=  @OrgaoAutuante and @Erro = 0-- setor não autorizado a fazer carga do orgao autuante do arquivo 
+        begin 
+       	select @Erro=113   
+       	select @AgenteEquip = 99
+       	if	@OrgaoAutuante !=117200 -- DER
+       	BEGIN
+	       	select   @OrgaoAutuante = o.Cod
+		from 	dbinfracao..OrgaoAutuante o, 
+			dbvcen..Setor s, 
+			dbvcen..Usuario u
+		where o.Municipio !=null 
+		and o.Municipio = s.Municipio
+		and u.Cod = suser_name()
+		and s.Cod = u.Setor
+		and o.Municipio = s.Municipio
+	END
+	
+        end   	
+----	select @AgenteEquip = 99 , @OrgaoAutuante = 999999 
+-- 
+--  	raiserror 60000 'O órgão autuante do arquivo não está de acordo com o municipio do setor que está tentando implantar os autos'          
+--	return -900   
+--        end  
+else
+begin    	
+		if 	@TipoEquipamento in ('L','F') -- fotosensor e lombada
+			begin
+			select 	@TipoLote = 'E', -- eletronica
+				@TipoAuto = 3 	
+			end
+		if 	@TipoEquipamento =  'I'
+			begin
+			select @TipoLote = 'D' -- Digitação 	
+			end	
+		if 	@DescAgente like '%RADAR%' 
+		        	begin
+		        	select 	@TipoLote 	= 	'R', 
+				@TipoAuto = 3 
+		 		end       	
+		
+		
+		if 	@TipoEquipamento	=	'F'
+		begin
+			SELECT  @NumeroEquip = NULL -- Alterado pq o número do equip de fotosensor e o mesmo
+						    -- do codigo do equipamento
+			if	@InfracaoAuto	=	6050	
+				begin
+				select 	@Desdobramento	=	3
+--				select  @VelocidadeCons = null,@VelocPermitida= null,
+--					@VelocAferida = null --- 20/11/2015 - Verifiquei a serttel está enviando autos de avanço de sinal com valores de velocidades(CTTU)
+				end
+				
+			else
+			if	@InfracaoAuto	in 	(5673,567) 
+				select @Desdobramento 	=	2
+			else
+			if	@InfracaoAuto	in 	(574)  --11/05/2009
+				select @Desdobramento 	=	1	
+		end			
+		
+		--   FIM 
+		
+		---  ///         DNIT multas de balança - pendência     ///-----
+			IF	 @OrgaoAutuante		=	300
+				 and ltrim(rtrim(@Serie))		= 	'B'
+				 select 	@Erro	=	18
+		--- ///           
+			  
+			if	@OrgaoAutuante	 != 		@OrgaoAutuanteArq  
+				Select 		 @Erro		= 42	  
+		
+		
+		
+		
+		     
+		       
+		  
+				  
+		if	@Lote		=		0  and @Erro 	= 0
+		begin  
+			  
+			select	@Vigencia = max( Vigencia)         
+				from	dbinfracao..OrgaoAutuanteNumLote         
+			where	OrgaoAutuante = @OrgaoAutuante     
+			and 	AgenteEquip = @AgenteEquip        
+			and 	Vigencia <= getdate()         
+			and 	Ultimo < LoteFinal         
+		         
+			if @Vigencia is null --         
+			begin         
+				raiserror 60000 'Nao foi encontrado mais intervalos para numeracao do lote de autos do orgao autuante informado'         
+				return -900         
+			end         
+		         
+			select	@Lote = Ultimo + 1         
+			from	dbinfracao..OrgaoAutuanteNumLote         
+			where	OrgaoAutuante = @OrgaoAutuante and Vigencia = @Vigencia         
+				and AgenteEquip = @AgenteEquip        
+		         
+		end         
+		         
+		  
+		  
+		  
+			SELECT  @PrimPeso = convert(char(1),Peso)  FROM  
+			RNFPesoLetraDigAuto WHERE Cod = Substring(@Serie,1,1)  
+						  
+			SELECT  @SegPeso = convert(char(1),Peso) FROM  
+			RNFPesoLetraDigAuto WHERE Cod = Substring(@Serie,2,1)  
+		  
+			if @SegPeso = null  
+			   begin  
+			   select @SegPeso = @PrimPeso  
+			   select @PrimPeso= '0'				  
+			   end  
+						  
+			select @NumAuto = @PrimPeso+@SegPeso+substring(convert(char(09),@Auto+100000000.),2,8)	   
+						  
+			exec dbvcen..DigitoModulo11 @NumAuto, @nDigito output   
+			  
+			if @Advertencia = null and exists (select 1 from dbinfracao..Auto where OrgaoAutuante = @OrgaoAutuante        
+					and Serie = @Serie and Cod = @Auto)    
+				select @Erro = 14	  
+						   
+				   
+			select @FinalPlaca = convert(int,substring(@Placa,7,1)) 		  
+								  
+			if @InfracaoAuto between 5001 and 6000   
+			   select @InfracaoAuto = convert(int, @InfracaoAuto/10)   
+			      
+			select	@ValorMulta = isnull(i.Peso, 1) * vg.Valor   
+				from	dbinfracao..Infracao i,dbinfracao..ValorGrupo vg   
+			where	i.Grupo = vg.Grupo and i.Cod = @InfracaoAuto   
+			and 	i.Desdobramento = @Desdobramento
+				and	vg.Vigencia = (select Max(Vigencia)   
+						from dbinfracao..ValorGrupo vg1   
+						where vg1.Grupo = vg.Grupo   
+						and Vigencia <= getdate())   
+		  
+		  
+		  
+		if exists 	(select 1 from dbinfracao..AgenteEquip 
+				 where TipoAgenteEquip in ('L','F')
+				 and OrgaoAutuante = @OrgaoAutuante
+				 and Cod = @AgenteEquip )
+		begin
+				 set @TipoLote = 'E'
+			
+		end 
+		
+		   
+			    
+			select @ASituacao = space(01)    
+		   
+			select	@Data = convert(datetime, @DataInfracao + ' 00:00')  
+		---ajs --- 06/02/2012---antes 	
+		--IF      (@OrgaoAutuante = 225310 and @AgenteEquip in (7,8)) or (@OrgaoAutuante = 223810 and @AgenteEquip in (3,4)) -- talao eletronico
+		--begin 
+		--	select  @DataAfer = null,@VelocidadeCons = null,@VelocPermitida= null,
+		--		@VelocAferida = null, @CodEquip = null
+		--end
+		---ajs 06/02/2012 - fim antes
+		
+		--- ajs 06/02/2012 -- inicio depois---
+		if     @TipoEquipamento = 'I' --- talão eletronico
+		begin
+			select  @DataAfer = null,@VelocidadeCons = null,@VelocPermitida= null,
+				@VelocAferida = null, @CodEquip = null
+		end
+		--- ajs 06/02/2012 - fim depois
+		
+		--ajs 06/02/2012 - inicio antes		
+		
+		--IF     (@OrgaoAutuante != 225310 or @AgenteEquip not in (7,8)) and (@OrgaoAutuante != 223810 or @AgenteEquip not in (3,4))  -- talao eletronico
+		---ajs 06/02/2012 -- fim antes
+		
+		
+		if 	 @Placa = '9999999'
+			 begin
+			 select @Erro = 4	 
+			 end
+		if       @TipoEquipamento not in ('I','F') --- depois 06/02/2012
+		begin  
+		        if @Advertencia = null and @CodEquip = null and @Erro = 0	   
+		           select @Erro = 27   
+		        else      
+		        if @Advertencia = null and @DataAfer = null and @Erro = 0	   
+			   select @Erro = 28   
+		        else   
+		        if @Advertencia = null and @VelocidadeCons  = null and @Erro = 0	           
+		           select @Erro = 30   
+			else   
+		        if @Advertencia = null and @VelocPermitida  = null and @Erro = 0	           
+		           select @Erro = 31   
+		        else   
+		        if @Advertencia = null and @VelocAferida  = null and @Erro = 0	            
+		           select @Erro = 32   
+			else   
+		        if @Advertencia = null and @MatrAgente  in (0,null) and @Erro = 0	   
+		           select @Erro = 29   
+						  
+		end -- ZONA AZUL				  
+		
+			if not exists (select 1 from dbinfracao..TipoArqNot ta, --[ajs] evitar entrar infrações que não serão notificadas
+						  dbinfracao..TipoArqNotInfracao tai  
+				where ta.OrgaoCompetencia = @OrgaoAutuante
+				and   ta.Cod 			= tai.TipoArqNot   
+				and   @InfracaoAuto 		= tai.Infracao   
+				and   @Desdobramento 		= tai.Desdobramento 
+				and   (@TipoLote = ta.TipoLote  or (@TipoLote in ('D','A') 
+				      and ta.TipoLote is null))  ) --Desd)
+				select @Erro = 18    
+				
+				   
+			if @Advertencia = null and not exists (select 1 from dbarrecadacao..DebitoInfracao    
+						where OrgaoAutuante=@OrgaoAutuante    
+						and Infracao = @InfracaoAuto    
+						and Desdobramento = @Desdobramento
+						and AgenteEquip = @AgenteEquip)  and @Erro = 0	   
+				select @Erro = 18    
+			else		    
+			if @Advertencia = null and isnull( @ValorMulta, 0) <= 0  and @Erro = 0	   
+				select	@Erro = 15    
+			else if @Advertencia = null and not exists( select 1 from dbvcen..ParametroGeral where UF = @UFPlaca)  and @Erro = 0	 and ltrim(rtrim(@UFPlaca)) !=null --10/11/2021 
+				select	@Erro = 1    
+			else if @Advertencia = null and not exists( select 1 from dbvcen..Municipio where Cod = @Municipio)  and @Erro = 0	   
+				select	@Erro = 2    
+			else if @Advertencia = null and not exists( select 1 from dbinfracao..Infracao where Cod = @InfracaoAuto and Desdobramento = @Desdobramento)  and @Erro = 0	   
+				select	@Erro = 17    
+		  
+		    
+			if @Erro = 0    
+			   begin    
+				select	@APlaca = Placa    
+				from	dbinfracao..Auto    
+				where 	Serie = @Serie and Cod = @Auto and OrgaoAutuante = @OrgaoAutuante    
+		    
+				if @@rowcount > 0     
+				   begin    
+					if @Advertencia = null and @APlaca = @Placa    
+						select	@Erro = 14    
+					else    
+						select	@Erro = 16  where @Advertencia = null    
+			   end    
+				   end    
+		  
+		  
+			  
+			if @HoraInfracao != '240000'    
+				select	@Data = convert( datetime, @DataInfracao + ' '     
+					+ substring(@HoraInfracao, 1, 2) + ':' +   
+					substring(@HoraInfracao,3, 2) + ':' + ISNULL(substring(@HoraInfracao,5,2),'00') )    
+			else    
+				select	@Data = convert( datetime, @DataInfracao + ' 00:00')    
+		  
+		  
+		  
+			   
+		-- PRAZO DE 25 DIAS APOS A DATA DE COMETIMENTO		   
+		  
+			 if @Advertencia = null and convert(char(08),@Data,112) < convert(char(08),dateadd(dd,-@prazo ,getdate()) ,112)  and @Erro = 0  
+			    select @Erro=33   
+		  
+		  	 if @Advertencia = null and convert(char(08),@Data,112) > convert(char(08),getdate() ,112)  and @Erro = 0  
+			    select @Erro=79    
+		-- ROTINA PARA N_O IMPLANTAR MULTAS COM DATA INFERIOR AO ULTIMO LICENCIAMENTO DO VEICULO					   
+		-- ESSE IF ATENDE TAMBEM SE HOUVER TRANSFERENCIA DE PROPRIEDADE 
+		/* 
+			if @Erro = 0 and  exists  (select 1 from  dbvcen..DocVeiculo d ,   
+								dbvcen..Veiculo v   
+					 	where d.TipoDocumento in (2,12) 
+					 	and   d.Veiculo = v.Cod   
+					 	and   v.Placa	= @Placa   
+					 	and   (d.Exercicio > datepart(yy,@Data) 
+					 	or    (d.Exercicio = datepart(yy,@Data) and 
+				 		      d.DataEmissao > @Data))) 
+			    			select @Erro = 36		    	 	   
+		        
+		 
+		 
+		*/     
+		  ---  
+		  /* VERIFICAR A QUESTÇO DO NUMERO DE LOTE  
+		  */  
+			select  @Renavam = null   
+			select	@Renavam = isnull(Renavam,null), @Chassi = Chassi,  
+				@Categoria = Categoria, @Tipo = Tipo, @Marca = Marca,  
+				@ASituacao = Situacao, @CodVeic = Cod  ,  
+				@Especie  = Especie,  
+				@Veiculo = Cod  
+			from	dbvcen..Veiculo 	where	Placa in  (@Placa    , @PlacaMercosul)
+			if @@rowcount > 0     
+		   	   begin    
+		  	   if @Advertencia = null and @ASituacao = 'T' and @Erro = 0	   
+		      	      select @Erro = 22    
+		      	   if @Advertencia = null and @ASituacao = 'R' and @Erro = 0  
+		      	      BEGIN
+		      	      IF     exists (select 1 from dbvcen..Roubo r , 
+				     			   dbvcen..MovimentoRoubo mr
+				     	     WHERE r.Placa in (@Placa,@PlacaMercosul)
+				     	     and r.Cod = mr.Roubo
+				     	     and mr.TipoMovimento in (2, 3) -- ROUBO e FURTO
+				     	     and mr.DataBO < @Data
+				     	     and r.Situacao = 'R') 
+		      	      select @Erro = 5 	      
+		      	      end
+		--           if @Advertencia = null and exists (select  1 from dbvcen..RestricaoVeiculo rv    
+		--		    where  rv.Veiculo = @CodVeic    
+		--		    and rv.Restricao	= 400 
+		--		    and rv.DataFin is null)  and @Erro = 0	   
+		--	      select @Erro = 99	     	      	           
+			   end 	    
+			else  
+			   select 	@Erro 	=	4	    
+		  
+			select 	@NomeMarca = Descricao from dbvcen..MarcaVeiculo where Cod = @Marca   
+		  
+			  
+			select  @NomeMunicipio  = Descricao from dbvcen..Municipio where Cod=@Municipio  
+			  
+			select 	@CNH	=	null  
+			select	@UFCNH  =	NULL  
+			  
+			      
+		begin tran    
+		
+		
+		select @nNumeroEquip = null
+		exec @nNumeroEquip = EquipamentoI 
+			@Cod	= 0, 	  
+			@Descricao	  = @ModeloEquip,
+			@SentidoVia 	  = null,
+			@NumInmetro       = null,
+			@DataAfericao     = null,
+			@CodEquip	  = @NumeroEquip,
+			@OrgaoAutuante	  = @OrgaoAutuante,
+			@AgenteEquip      = @AgenteEquip
+			
+		if @Advertencia = null and (@nNumeroEquip = 0 or @nNumeroEquip = null or ltrim(rtrim(@NumeroEquip)) = null) and @Erro = 0 and @TipoEquipamento not in ('I','F')	   
+		           select @Erro = 27   	
+		
+end
+if	@Data<'20220720' and @TipoAuto = 3	  
+begin
+	select @TipoAuto	=	null
+end
+	
+----------------------------------------inconsistencia lavratura com placa errada    	
+if	@Erro 	=	0
+begin
+	exec 	ValidaPlacaAutoS @Placa = @Placa, @PlacaMercosul = @PlacaMercosul, @Erro  = @Erro output
+end
+----------------------------------------inconsistencia lavratura com placa errada
+	               
+
+insert	dbinfracao..HisMulta ( Usuario, DataCriacao, Sequencial, UFPlaca, Municipio, FinalPlaca,    
+	Placa, NomeMunicipio, Renavam, Categoria, Tipo, Marca, NomeMarca, Auto, Digito, NumNotificacao,    
+	DataInfracao, InfracaoAuto, Peso, Local, Moeda, ValorMulta, Reincidencia,    
+	Indicador, Erro, Situacao,Serie,CNH,UFCNH,OrgaoAutuante,DataVencimento,     
+	AgenteEquip, Arquivo,StoradProcedure , VelocidadeCons,DataAfericao,CodEquipamento,    
+	VelocidadeAfer,VelocidadePerm,MatrAgente, TipoAuto,ExcessoVerif,AutoDPRF,Desdobramento,
+	NumeroEquip,ModeloEquip,MarcaEquip,sAgenteEquip,ImagemAuto, RecolhimentoCNH,RecolhimentoVeic,RecolhimentoCLA,RemocaoVeic        , 
+	RetencaoVeic      , RecolhimentoCRV   , AutoAssinado      , Abordagem 
+)   
+values	(@Usuario, @DataCriacao, @Sequencial, @UFPlaca, @Municipio, @FinalPlaca, @Placa,    
+	@NomeMunicipio, @Renavam, @Categoria, @Tipo, @Marca, @NomeMarca, @Auto, @nDigito, @NumNotificacao,    
+	@Data, @InfracaoAuto, @Peso, @Local, @Moeda, @ValorMulta, @Reincidencia,    
+	1, @Erro, 0,@Serie,@CNH,@UFCNH,@OrgaoAutuante,@DataVencimento,     
+	@AgenteEquip,@Arquivo,@StoradProcedure,@VelocidadeCons,@DataAfer,@CodEquip,@VelocAferida,    
+	@VelocPermitida,@MatrAgente,@TipoAuto,@ExcessoVerif,@AutoDPRF,@Desdobramento,
+	@nNumeroEquip,@ModeloEquip,@MarcaEquip,@TipoEquip,@NomeImagem,    
+	@RecolhmentoCNH	  ,@RecolhmentoVeic,@RecolhmentoCLA,@RemocaoVeic,@RetencaoVeic,@RecolhmentoCRV,@AutoAssinado,@Abordagem 
+	)    
+    
+if @@transtate=2 OR @@transtate=3    
+begin    
+	if @@transtate=2 rollback tran    
+	raiserror 55000    
+	return -900    
+end    
+  
+  
+if	@Erro	=	0 and @Advertencia = NULL  
+	Exec 	dbinfracao..ProcessaMultasEletronicasI @Orgao=@OrgaoAutuante,   
+		@AgenteEquip=@AgenteEquip , @DataCriacao=@DataCriacao , @Lote = @Lote, @DescAgenteEquip = @DescAgente ,  
+		@Chassi = @Chassi,@Especie = @Especie, @Veiculo = @Veiculo  
+  
+  
+  
+select substring(convert(char(150),h.Serie+' '+convert(char(09),Auto)+' '+convert(char(07),Placa)+   
+' '+ltrim(rtrim(p.Descricao))),1,150) as Erro, @Lote   
+ from dbinfracao..HisMulta h, dbinfracao..MensagensErroPRF p   
+ where DataCriacao = @DataCriacao   
+and OrgaoAutuante=@OrgaoAutuante and AgenteEquip=@AgenteEquip  
+and Erro<>0   
+and Erro=p.Cod   
+  
+  
+if 	@Advertencia = NULL  
+begin
+	update	dbinfracao..OrgaoAutuanteNumLote         
+	set	Ultimo = @Lote         
+	where	OrgaoAutuante = @OrgaoAutuante and Vigencia = @Vigencia         
+	and     AgenteEquip = @AgenteEquip        
+end  
+  
+    
+commit tran    
+    
+return 0    
+    
+   
+   
+  
+ 
+
+GO
+
+execute sp_procxmode 'dbo.CargaMultaEletronicaI', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.CargaMultaEletronicaI to desenvolvimento
+
+GO
+
+Grant Execute on dbo.CargaMultaEletronicaI to veiculo
+
+GO
+
+

@@ -1,0 +1,10 @@
+-- Inserindo um novos campos
+-- afs - 22-07-2022
+
+
+alter table  dbinfracao..ArqNotMultaNC
+  add     DataEnvioImagem datetime null
+
+
+alter table  dbinfracao..ArqNotMultaNC
+  add     UsuarioEnvioImg char(08) null

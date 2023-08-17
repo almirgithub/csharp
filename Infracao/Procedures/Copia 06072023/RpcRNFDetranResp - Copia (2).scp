@@ -1,0 +1,3408 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.RpcRNFDetranResp'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.RpcRNFDetranResp') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.RpcRNFDetranResp
+end
+
+GO
+
+create proc dbo.RpcRNFDetranResp 
+/*    
+Funcao   : Responde a as Transacoes Requeridas pelo RENAINF          	   
+Autor	 : Adilson  - Data: 29/10/2002           		   
+Obs.	 : Procedure semelhante a RNVDetranResp para o Renavam.   
+Alteracao: Elissany - 16/06/2005 - Incluir transacoes 430 e 431.	   
+	   Elissany - 29/06/2005 - Incluir @ValorRepassado.  
+	   Kalina   - 11/10/2005 - Tratamento da restri+’o de penhor - Parametrizacao.  
+	   Adilson  - 03/01/2006 - Tratar Comunica+’o de venda. 
+	   Elissany - 01/02/2006 - Alterar conta repasse para char(13).	 
+           Antonio Lins - 24/04/2007 - Concatena o numero ao logradouro 
+           Adilson Santos - 21/05/2007 - Aumentado a variavel do endere+o para 40 posi+"es 
+           Adilson Santos - 24/05/2007 - Alterado a rotina de Reativa+'o para passar  
+                                         a infra+'o sem o digito 
+           Maria Perez - 06/06/2007 - TR 416 -incluido tipo=07 no if/para tipo=07 gravar na RNFOcorrRecurso 
+                                      TR 416 - sele+’o da infra+’o pelo c½digo renainf/colocada set nocount on/off  
+	   Adilson Santos - 04/07/2007 - Tr 418 - Tratar o recebimento     
+	   Adilson Santos - 05/07/2007 - tr 418 - Foi colocado a UFPLACA e a Placa como parametro 
+	   Adilson Santos - 31/07/2007  tr 421 - Tratar o recebimento da transacao 421. 
+	   Adilson Santos - 01/08/2007  melhoria na altera+’o acima. 
+	   Adilson Santos - 10/09/2007 - Tratar a transa+’o 415 
+	   Maria Perez    - 31/10/2007 - Identificar tamanho da EV01 da transacao 415 
+	   Adilson Santos - 21/11/07 - S½ chamar a 419 se a UF do OrgaoAutuante for !='PE' 
+	   Adilson Santos - 22/11/07 - Transacao 415 EV02 de tamanho = 84
+	   Maria Perez - 16/04/2008 - Colocado desdobramento proced RNFMovimentoAutoRecursoI
+	   Maria Perez - 17/04/2008 - Desdobramento a partir da InfracaoAuto
+	   Adilson Santos - 14/07/2008 - Atualização do vencimento da parcela debito tran 421
+	   Adilson - 17/09/2008 - cancelamento por ordem judicial
+	   Adilson - 24/09/2008 - Transação 418
+	   Adilson - 16/01/2009 - Não tentar inserir auto no recebimento da 415 qdo orgao autuante
+	   for de PE
+	   Maria Perez - 10/03/2009 - TR 411 - Para veiculo com comunicacao de venda, ajustar dados da habilitacao
+	   Adilson Santos - 02/03/2010 - Desdobramento a partir da InfracaoAuto- transferencia do local onde havia sido colocado--
+	   Adilson Santos - 03/03/2010 - passagem do parametro @Desdobramento para a procedure RNFAutoU no pagamento
+	   Adilson Santos - 21/07/2010 - no recebimento de retirada de efeito suspensivo o codigo renainf estava vindo null, alterei a query para pegar a situa‡Æo por
+	   				 orgaoautuante e autorenainf
+	   Adilson Santos - 25/11/2010- Foi criado a data de repasse recebida pela transacao 432 e atualizada no recebimento da mesma	   				 
+	   Adilson Santos - 17/08/2011 - foi atribuido ao numero do documento do proprietario o numero do documento do arrendatário qdo for arrendamento
+			  	    @NumDoc = convert(char(14),@NumIdentArrendata)
+	   Adilson Santos - 08/09/2011 - Alterado o tipo de documento do proprietário para os casos de pessoa fisica arrendatário		  	    
+	   Flavio Lago [faml] - 09/09/2011 - RENAINF reclamou que todas as transações 411 do dia 09/09/2011 estavam abortando	   			                                   
+	   Adilson Santos - 14/09/2011 - Melhoria na rotina acima
+	   Adilson Santos - 17/10/2011 - Correção do tipo do documento do proprietario.
+	   Adilson Santos - 25/11/2011 - Atribui o endereço do proprietario nos campos de endereço do arrendatário para os casos em que o carro for arrendado.
+	   Adilson Santos - 17/01/2012 - A procedure n estava enviando o CEP e o Numero do endereco quando arrendatário
+	   Adilson Santos - 10/09/2012 - Foi inserido a chamada da procedure RNFSubstituiCaracterEspecial para retirar caracteres do campo de endereço
+	   Adilson Santos - 23/11/2012 - Foi colocado o GOTO Continua na transação 420
+	   --------------------------------------------------------------------------------------------------------------------------------------------
+	   [faml] Flavio Lago - 05/12/2012 - Recuperar e atualizar a data da vigencia do repasse RENAINF outras ufs
+	   --------------------------------------------------------------------------------------------------------------------------------------------
+	   Adilson Santos - 20/02/2013 - Autmento do campo RENAVAM
+   	   Adilson Santos - 05/04/2013 - Alteração do retorno da transação 411 para tamanho 408 + 37 da parte fixa
+   	   Adilson Santos - 10/06/2013 - Chamar a RNFAutoTransitoI no recebimento da transação 412
+   	   				 e chamar tambem na transação 415 mesmo que o orgão autuante seja DETRAN-PE, pois, a mesma torna o auto local.
+   	   Maria Perez    - 17/12/2013 - Ajuste transação 421 - edital			
+   	   Adilson Santos - 08/07/2014 - passagem do desdobramento para as procedures dbinfracao..MovimentoAutoI_efeito   e dbinfracao..MovimentoAutoI_efeitoCanc
+   	   Adilson Santos - 06/08/2015 - Cancelamento da 432 limpar os campos datarepasse 432 e data vigencia repasse
+	   [faml] Flavio Lago -	07/01/2016 - Só atualizar a data da vigência do repasse para os pagamentos que ainda não possuem vigência de repasse.
+					    Obs.: Essa verificação já existe desde 14/08/2015, mas só foi colocada na rotina dbarrecadacao..RNFAtualizaRetornoPgBBRenainf; 
+					          faltou inplementar também aqui. Com isso, LUCIANA/DT reclamou de valores divergentes nos rels de vários municípios e do 
+					          DER-PE, e eu não conseguia entender o porque da data da vigência ter mudado.
+					          No rel. de infrações pagas emitido em 16-11-2015 com a vigêndia 'novembro-2015' para o municícpio do CABO, a UF 'AM' pagou 
+					          uma infração de competência municipal no valor de $45.06 que foi autuada pelo DER-PE. 
+					          Esse mesmo rel. emitido em 16-12-2015, para o mesmo município e vigência 'novembro-2015', a infração não mais foi emitida, 
+					          pois a vigência do repasse está 'dez-2015' (???) Isso ocorre com outras infrações pagas, na mesma vigência e município, pela
+					          UF 'TO', p.exe., que em 16-11-2015 tinha 14 infrações e no rel. do dia 16-12-2015 só tem 4 infrações.
+						  Emiti esses rels hoje, 07/01/2015, e os valores e infrações coincidem com os do rel do dia 16-12-2015; ou seja, a vigência 
+						  não mudou de dezembro pra cá (!?)
+	  Adilson Santos - 26/10/2016 - Receber a transação 423 - solicita codigo barras SNE	
+	  Adilson Santos - 27/07/2017 - Alterado para na 413 responder O RT03 com 70 posições.	
+	  Adilson Santos - 28/07/2017 - Recebimento do argumento = 3 na transação 421 para alteração do valor da infração.				  
+	  [faml] Flávio Lago - 22/01/2018 - #15519 Colocar a referência das tabelas 'tmpDebDocEmitir' e 'tmpDebEmitir' para o banco 'dbtmp01'
+	  22/03/2018 - Adilson Santos - Comunicação de venda para propriettário de outra UF.
+	  27/04/2018 - Adilson Santos - tratar o cancelamento da transação 413
+	  25/07/2018 - Adilson Santos - Aumento da transação 432 e 423
+	  26/07/2018 - Adilson Santos - Montagem da string de retorno da 432
+	  15/04/2019 - Adilson Santos - Registrar divida ativa na tabela prot..RNFOcorrRecurso 15/04/2019
+	  24/10/2019 - Adilson Santos - Auto em duplicidade cancela um que tenha chegado o movimento de cancelamento do RENAINF
+	  27/11/2019 - Adilson Santos - recebimento do parametro3
+	  13/02/2020 - Adilson Santos - Não cancelar auto pela transação 415 EV02 84 quando o auto é nosso ou seja RENAINF TOTAL e o veículo foi transferido para outra UF.
+	  24/09/2020 - Adilson Santos - Tratar o recebimento da 432 com o tipo de lancamento 3 que indica com problema no boleto. Cancela o boleto para gerar no proximo repasse	
+	  03/08/2021 - Adilson Santos - isnull(pd.DataLimDesconto,pd.DataVencimento) no recebimento da 423
+	  09/08/2021 - Adilson Santos - Utilizar a data de limite de desconto apenas para identificar se o usuário tem ou não o direito
+	  				a desconto
+	  14/12/2021 - Adilson Santos - Ajuste na query para obter o debito/setor debito do auto pelo orgão autuante na transação 423 placa exemplo: PGS7858 DD09276655				
+	  28/06/2022 - Adilson Santos - Tratar o recebimento da ocorrencia 20
+	  11/07/2022 - Adilson Santos - Obter o tipo de movimento para a ocorrência 20
+	  12/07/2022 - Fernando Marques - Tratar o recebimento da ocorrencia 15 da Transação 416
+	  31/10/2022 - Fernando Marques - Passar o valor DataInfracao ao executar a aprocedure RNFAutoU
+	  09/11/2022 - Fernando Marques - Tratar o tipo de penalidade 2 - Conversão em Advertência na transação 413
+	  10/11/2022 - Adilson Santos - Na 423 valida‡Æo do vencimento com convert(char(08),getdate(),112)
+	  29/12/2022 - Adilslon Santos - Na condi‡Æo da 423 se existe solicita‡Æo ocm desconto 40% a menos de 3 tres dias
+				      verificar tambem pelo auto INFRAEST
+	  23/01/2023 - Adilson Santos - Melhoria na verifica‡Æo se o auto renainf ‚ dos ¢rgÆos de PE	
+	  25/01/2023 - idem	
+	  04/04/2023 - Adilson Santos - Verificar se o auto ainda está em tramite e a data de limite de defesa já venceu e ainda não gerou a penalidade
+	                                pois, a prefeitura do recife aguarda 20 dias para gerar a penalidade e com o isso temos que conceder o desconto		      
+	  12-06-2023 - afs - Foram colocados novos campos  de indicadores de adesão so SNE
+
+*/    
+    
+(   
+	@P1			char(255),     
+	@P2			char(255) = null,    
+	@P3			char(255) = null,    
+	@NumSeqTransacao	int = null,	-- Utilizado APENAS para a transacao 302 RT03 e RT04    
+	@CodTransacao		smallint = null --   
+)    
+as   
+
+ 
+set nocount on 
+   
+declare	@nCpf_IN		numeric(14),		   
+	@ParteFixa		char(37),    
+	@Retorno 		varchar(255),    
+	@Retorno2  		varchar(255),    
+	@Retorno3 		varchar(255),     
+	@Erro 			smallint,   
+	@LenTransacao 		int,    
+	@Condicionalidade 	char(01),   
+	@TipoMovimento 		char(1),   
+	@Deferido  		char(1),    
+	@InstanciaRecurso 	smallint,   
+	@CNH			Numeric(11,0),   
+	@CodAgencPagto		Numeric(05,0),   
+	@CodAgenCredArr		Numeric(05,0),   
+	@CodBcoCredArr		Numeric(03,0),   
+	@CodBcoPagto		Numeric(03,0),   
+	@CodigoOrgaoAut		Numeric(06,0),   
+	@CodMunicipioEmpl	Numeric(04,0),   
+	@CodMunRealInfr		Numeric(04,0),   
+	@CodPais		Numeric(02,0),   
+	@CodRetorno		Numeric(03,0),   
+	@CodRetornoExecucao	Numeric(03,0),   
+	@CorVeiculo		Numeric(02,0),   
+	@HoraInfracao		Numeric(04,0),   
+	@IndAcaoCobranca	Numeric(01,0),   
+	@IndAssAuto		Numeric(01,0),   
+	@IndEnvolvInfracao	Numeric(01,0),   
+	@IndicadorArgumento	Numeric(01,0),   
+	@IndicadorPontuacao	Numeric(01,0),   
+	@IndicadorUFIntegrada	Numeric(01,0),   
+	@Infracao		Numeric(04,0),   
+	@LimitePerm		Numeric(07,2),   
+	@MarcaModelo		Numeric(06,0),   
+	@MedicaoReal		Numeric(07,2),   
+	@ModCNHCandInfr		Numeric(01,0),   
+	@ModCNHCondutor		Numeric(01,0),   
+	@ModCNHProp		Numeric(01,0),   
+	@ModCNHRealInf		Numeric(01,0),   
+	@ModeloCNHArrendat	Numeric(01,0),   
+	@MunicipioInfr		Numeric(04,0),   
+	@NumCtaCorrCred		Numeric(08,0),   
+	@NumDocArrec		Numeric(16,0),   
+	@NumeroAutenticacao	Numeric(06,0),   
+	@NumeroSedex		Numeric(09,0),   
+	@NumIdentArrendata	Numeric(14,0),   
+	@NumNotificacao		Numeric(10,0),   
+	@NumRegCNHArrend	Numeric(11,0),   
+	@NumRegCNHCandInfr	Numeric(11,0),   
+	@NumRegCNHProp		Numeric(11,0),   
+	@NumRegCNHRealInfr	Numeric(11,0),   
+	@NumRegisCNHRealInfr	Numeric(11,0),   
+	@NumRegistCNHCond	Numeric(11,0),   
+	@NumTermFinanc		Numeric(06,0),   
+	@QuantOcorr		Numeric(02,0),   
+	@SituacaoInfracao	Numeric(01,0),   
+	@SituacaoPontuacao	Numeric(01,0),   
+	@SituacaoRetorno	Numeric(02,0),   
+	@TipoAuto		Numeric(01,0),   
+	@TipoDocProp		Numeric(01,0),   
+	@TipoDoctArrend		Numeric(01,0),   
+	@TipoLancamento		Numeric(01,0),   
+	@TipoOcorrencia		Numeric(02,0),   
+	@TipoVeiculo		Numeric(02,0),   
+	@UnidadeMed		Numeric(02,0),   
+	@ValorInfracao		Numeric(09,4),   
+	@ValorPago		Numeric(07,2),   
+	@CodigoRENAINF		Numeric(11,0),   
+	@ValorRepasse		Numeric(07,2),   
+	@ArgumentoPesquisa	char(14),   
+	@CEPImovelArrend	char(08),   
+	@CEPImovelPropr		char(08),	   
+	@CEPImovelRealInfr	char(08),   
+	@ComplImovelArrend	char(20),   
+	@ComplImovelProp	char(20),   
+	@ComplImovelRealInfr	char(20),   
+	@DescMarcaMod		char(25),   
+	@LocalInfracao		char(30),   
+	@NomeArrendatario	char(40),   
+	@NomeLogradArrend	char(30),   
+	@NomeLogradProp		char(30),   
+	@NomeLogradRealInf	char(30),   
+	@NomeMunic		char(40),   
+	@NomeProprietario	char(40),   
+	@NomeRealInfrator	char(40),   
+	@NumAutoInfracao	char(10),   
+	@NumDocProp		char(14),   
+	@NumeroProcesso		char(20),   
+	@NumImovelArrend	char(05),   
+	@NumImovelProp		char(05),   
+	@NumImovRealInfr	char(05),   
+	@OrigemOcorrencia	char(01),   
+	@PFIXA			char(37),   
+	@Placa			char(10),   
+	@SerieSedex		char(02),   
+	@UFCNH			char(02),   
+	@UFCNHInformada		char(02),   
+	@UFExpCNHArrend		char(02),   
+	@UFExpCNHCandInfr	char(02),   
+	@UFExpCNHProp		char(02),   
+	@UFExpCNHRealInfr	char(02),   
+	@UFImovelArrend		char(02),   
+	@UFImovelProp		char(02),   
+	@UFJurisdVeiculo	char(02),   
+	@UFOcorrencia		char(02),   
+	@UFOrgaoAutuante	char(02),   
+	@UFPagto		char(02),   
+	@UFPlaca		char(02),   
+	@ParteFixaOriginal	char(37),   
+	@MotivoCanc		char(01),   
+	@IndAgenteFinanc	char(02),   
+	@Situacao		char(01),   
+	@DataAcaoCobranca	Datetime,   
+	@DataApresentacao	Datetime,   
+	@DataCadInfr		Datetime,   
+	@DataCredito		Datetime,   
+	@DataEmissaoNot		Datetime,   
+	@DataFimConsulta	Datetime,   
+	@DataInfracao		Datetime,   
+	@DataInicioConsulta	Datetime,   
+	@DataOcorrencia		Datetime,   
+	@DataPagtoInfr		Datetime,   
+	@DataPostagem		Datetime,   
+	@DataSitEntrega		Datetime,   
+	@DataSitInfracao	Datetime,   
+	@DataSitPont		Datetime,   
+	@DataVencNot		Datetime,   
+	@DataEmissaoNotAut	Datetime,   
+	@DataCancelamento	Datetime,   
+	@IndExibilidade		Numeric(01,0) ,   
+	@CodCarrVeic		Numeric(03,0) ,	   
+	@CodCategVeic		Numeric(02,0) ,   
+	@CodEspecVeic		Numeric(01,0) ,   
+	@QuantPagtos		Numeric(02,0) ,   
+	@MedicaoCons		numeric(07,2) ,   
+	@TipoLanc		Numeric(07,0) ,   
+	@CodRenavam		Numeric(11,0) ,   
+	@DataAceitAutUFJur	Datetime,   
+	@DataAceitPenUFJur	Datetime,   
+	@DataAceitPagUFRel	Datetime,   
+	@DataAceitSusUFJur	Datetime,   
+	@DataAceitUFHab		Datetime,   
+	@DataLimDef		Datetime,   
+	@DataRegCanc		Datetime,         
+	@DataRegOcor		Datetime,   
+	@DataRegPag		Datetime,   
+	@DataRegReat		Datetime,                     
+	@BairImovArrend		char(20),	   
+	@BairImovProp		char(20),   
+	@CodProp  		int,   
+	@CodEnd 		smallint,   
+	@CodEndCorresp 		smallint,   
+	@Municipio 		char(40),     
+	@CodMunicipio 		smallint,     
+	@Proprietario 		char(40),     
+	@CodMarcaModelo 	numeric(06),   
+	@Marca			CHAR(25),     
+	@Endereco 		char(60),    
+	@Complemento 		char(20),    
+	@CEP 			char(08),   
+	@Bairro 		char(25),     
+	@TipoPessoa 		char(01),     
+	@NumDoc 		char(14),   
+	@Veiculo		ty_Numero,   
+	@Cor			smallint,   
+	@Arrendatario		char(50),   
+	@Cidade			char(20),   
+	@posicao		smallint,	   
+	@NumEndereco		char(5),   
+	@Rua			char(30),   
+	@OrgaoAutuante		numeric(6),   
+	@Auto			char(10),   
+	@TamanhoTransacao 	int,   
+	@TipoRegistroTransacao	char(04),   
+	@sDataOcorrencia	char(08),   
+	@InfracaoSemDigito	Numeric(04,0),   
+	@DataTransacao 		datetime,     
+	@UFOrigem		char(02),   
+	@UFDestino		char(02),     
+	@SequencialTransacao	int,    
+	@DiaJuliano		smallint,   
+	@CodRetExec		smallint,   
+	@IdentRepasse		char(10),   
+	@DataRepasse		datetime,   
+	@TipoRepasse		char(1),   
+	@NumCtaCorRep		char(13),   
+	@CodIdentDep		char(20),   
+	@ValorTarRepasse	numeric(9,2),   
+	@ObsRepasse		char(120),   
+	@QuantInfRep		numeric(4),   
+	@IndTabContas		numeric(2),   
+	@ValorFunset		numeric(9,2),   
+	@ValorDetran		numeric(9,2),   
+	@ValorDenatran		numeric(9,2),   
+	@ValorRepassado		numeric(9,2),   
+	@CodAgenciaOrigem	char(5),   
+	@CodAgenciaDestino	char(5), 
+	@sNumIdentArrendata	char(14), 
+	@QtdeOcorrencias	smallint, 
+	@Indice			smallint,
+	@Desdobramento smallint,
+	@nNumDoc		numeric(20),
+	@CodMunProp		numeric(04),
+       	@CodMunArr              numeric(04)
+,      	@DataVigenciaRepasse	datetime	-- [faml] 05/12/2012
+,      	@DataPagamento		datetime	-- [faml] 05/12/2012
+,	@return			int		-- [faml] 05/12/2012
+,      	@IndNotifAutEdit   	Numeric(1)                  
+,      	@DataNotifAutEdit  	char(08)                    
+,	@Arquivo		char(50) 	 
+,	@IdentificacaoRepasse	char(10)
+,	@Moeda smallint
+,	@TipoPen   		Numeric(1  ) 
+,	@Serie			char(02)
+,	@nAuto			numeric(10),
+	-- novos campos afs 12-06-2023
+	@IndAdesaoPossuidorEpocaSNE numeric(1),  
+	@DataAdesaoPossuidorEpocaSNE datetime,  
+	@HoraAdesaoPossuidorEpocaSNE numeric(4),  
+	@IndicadorAdesaoPCSNE numeric(1),  
+	@DataAdesaoPCSNE datetime,  
+	@HoraAdesaoPCSNE numeric(4),  
+	@IndAdesaoInfAbordadoIndSNE numeric(1),  
+	@DataAdesaoInfAbordadoIndSNE datetime,  
+	@HoraAdesaoInfAbordadoIndSNE numeric(4)
+	---------------
+
+
+	--inicializando as veriáveis do SNE 
+	select	@IndAdesaoPossuidorEpocaSNE	=	null,
+		@DataAdesaoPossuidorEpocaSNE 	=	null,
+		@HoraAdesaoPossuidorEpocaSNE 	=	null,
+		@IndicadorAdesaoPCSNE 		=	null,
+		@DataAdesaoPCSNE  		=	null,
+		@HoraAdesaoPCSNE  		=	null,
+		@IndAdesaoInfAbordadoIndSNE  	=	null,
+		@DataAdesaoInfAbordadoIndSNE  	=	null,
+		@HoraAdesaoInfAbordadoIndSNE  	=	null
+	
+
+	   
+	select	@ParteFixa =  substring(@P1,1,37)   
+	select	@Condicionalidade = substring(@P1,28,1)   
+   
+	select 	@DataTransacao = getdate() ,   
+		@UFOrigem  = substring(@P1,22,2),   
+		@UFDestino = substring(@P1,26,2),   
+		@SequencialTransacao  = convert(numeric(6),substring(@P1,1,6)),   
+		@DiaJuliano  = convert(numeric(3),substring(@P1,35,3)),   
+		@CodRetExec  = convert(numeric(3),substring(@Retorno,38,3))   
+   
+	select	@CodTransacao = convert(smallint, substring(@P1, 7, 3) )   
+	select	@TamanhoTransacao = convert(smallint,substring(@P1,29,4))   
+	
+	--novo código
+	if	@CodTransacao	=	423	and	@TamanhoTransacao	in	(92, 132)
+	begin
+		select	@TipoRegistroTransacao	=	'EV01'
+	end
+	else
+	begin
+		select	@TipoRegistroTransacao=TipoRegistroTransacao   
+		from	dbinfracao..RNFTransacaoTipoRegistro t, 
+			dbinfracao..RNFTipoRegistrosTransacao tr   
+		where	t.Transacao = @CodTransacao   
+		and	t.Transacao = tr.Transacao   
+		and	tr.Tamanho=@TamanhoTransacao   
+		and	tr.Cod = t.TipoRegistroTransacao   
+	end 
+	 
+	if @CodTransacao = 415 
+	begin 
+	--if @TamanhoTransacao in (288,340,392,444,496,548) -- antes 12/06/2013
+	if @TamanhoTransacao = 510
+		select @TipoRegistroTransacao='EV01' 
+	if @TamanhoTransacao = 84  	 
+		select @TipoRegistroTransacao='EV02' 
+	end 
+	    
+	if @CodTransacao = 420  ---    
+		select @TipoRegistroTransacao='EV01'    
+
+
+if @CodTransacao = 432  ---
+begin
+	
+	select	@DataPagamento		= convert(datetime, substring(@P1,58,8))
+	,	@DataVigenciaRepasse 	= null
+	,	@return			= null
+
+	if	@TamanhoTransacao = 75   -----xunxum para resolver a zona das alterações feitas pelo RENAINF sem testes de definição da data que iria entrar em produção
+					 -----ficaram alguns estados mandando com tamanho 75 e outros com 76.
+	begin
+		if	Substring(@P1,75,1) in ('2','3') --- cancelamento da 432 --- Cancelar o boleto também , definido na reunião do dia 05/08/2015 - CGRENAINF 
+		begin
+	
+			
+			SELECT  @Arquivo = Arquivo from 	dbarrecadacao..RNFBloqueto
+			where 	IdentificacaoRepasse= substring(@P1,48,10)
+			AND   	UFDetranArrecadacao = substring(@P1,38,2)
+			
+		
+			SELECT 	@CodigoOrgaoAut = convert(numeric(06),substring(@P1,42,6)), 
+				@IdentificacaoRepasse= substring(@P1,48,10)
+			
+			exec   	dbarrecadacao..RNFCancelaBoletoRepasse 
+				@OrgaoAutuante			=	@CodigoOrgaoAut
+				,@IdentificacaoRepasse 		= 	@IdentificacaoRepasse
+				,@Arquivo			= 	@Arquivo
+				,@OrigemCancelamento		=	'R'				
+	
+			select @LenTransacao = 23   
+			exec dbinfracao..RNFMontaParteFixaResp @CodigoConsulta=@CodTransacao, @ParteFixaOriginal=@ParteFixa,     
+				    @LenTransacao=@LenTransacao, @ParteFixa=@ParteFixa output   
+			
+			
+
+			select @ParteFixa + '000' + substring(@P1,38,2)    + 'PE' + substring(@P1,42,6)+ substring(@P1,48,10)   			
+			RETURN
+		
+		end
+		
+	
+	end --- cancelamento da 432 --- Cancelar o boleto também , definido na reunião do dia 05/08/2015 - CGRENAINF 
+	else
+	if	Substring(@P1,76,1) in ('2','3')  --- cancelamento da 432 --- Cancelar o boleto também , definido na reunião do dia 05/08/2015 - CGRENAINF 
+	begin
+
+		
+		SELECT  @Arquivo = Arquivo from 	dbarrecadacao..RNFBloqueto
+		where 	IdentificacaoRepasse= substring(@P1,48,10)
+		AND   	UFDetranArrecadacao = substring(@P1,38,2)
+		
+	
+		SELECT 	@CodigoOrgaoAut = convert(numeric(06),substring(@P1,42,6)), 
+			@IdentificacaoRepasse= substring(@P1,48,10)
+
+		exec   	dbarrecadacao..RNFCancelaBoletoRepasse 
+			@OrgaoAutuante			=	@CodigoOrgaoAut
+			,@IdentificacaoRepasse 		= 	@IdentificacaoRepasse
+			,@Arquivo			= 	@Arquivo
+			,@OrigemCancelamento		=	'R'
+			
+		select @LenTransacao = 23   
+		exec dbinfracao..RNFMontaParteFixaResp @CodigoConsulta=@CodTransacao, @ParteFixaOriginal=@ParteFixa,     
+				    @LenTransacao=@LenTransacao, @ParteFixa=@ParteFixa output   
+			
+			
+
+		select @ParteFixa + '000' + substring(@P1,38,2)    + 'PE' + substring(@P1,42,6)+ substring(@P1,48,10)   			
+			
+
+		RETURN
+	
+	end
+	
+	
+	-- [faml] 05/12/2012 -- ini
+	
+	Exec	@return= dbarrecadacao..RNFBloquetoDataVigenciaRepasse @DataPagamento, @DataVigenciaRepasse output	
+
+	if	@return < 0
+	begin
+		return @return
+	end
+	-- [faml] 05/12/2012 -- fim
+	
+	
+	update 	dbarrecadacao..RNFBloqueto
+	  
+	set 	DataRepasse432	   = convert(datetime, substring(@P1,58,8))
+	,	DataVigenciaRepasse= isnull(DataVigenciaRepasse,@DataVigenciaRepasse) -- [faml] 07/01/2016 antes: @DataVigenciaRepasse 		-- [faml] 05/12/2012
+	   
+	where 	IdentificacaoRepasse= substring(@P1,48,10)
+	AND   	UFDetranArrecadacao = substring(@P1,38,2)
+
+
+	select @LenTransacao = 23   
+	exec dbinfracao..RNFMontaParteFixaResp @CodigoConsulta=@CodTransacao, @ParteFixaOriginal=@ParteFixa,     
+			    @LenTransacao=@LenTransacao, @ParteFixa=@ParteFixa output   
+		
+		
+	select @ParteFixa + '000' + substring(@P1,38,2)    + 'PE' + substring(@P1,42,6)+ substring(@P1,48,10)   			
+
+	RETURN
+end
+
+
+   
+if @TipoRegistroTransacao = null --   
+begin   
+	insert	dbinfracao..RNFParametrosReceb   
+	select	substring(@P1,1,37),@P1  as P1, @P2 AS P2, null AS P3   
+	        
+	raiserror 60000 'O retorno recebido nao condiz com os layouts do RENAINF'     
+	return -900   	   
+end   
+
+
+
+
+
+    
+exec dbinfracao..RNFDetranParteTrans @P1=@P1, @P2=@P2, @P3=@P3,@TipoRegistroTransacao=@TipoRegistroTransacao   
+    
+select   
+	@ArgumentoPesquisa	=     ArgumentoPesquisa,   
+	@CEPImovelArrend	=     CEPImovelArrend,   
+	@CEPImovelPropr		=     CEPImovelPropr,   
+	@CEPImovelRealInfr	=     CEPImovelRealInfr,   
+	@CNH			=     CNH,   
+	@CodAgencPagto		=     CodAgencPagto,   
+	@CodAgenCredArr         =     CodAgenCredArr,   
+	@CodBcoCredArr		=     CodBcoCredArr,   
+	@CodBcoPagto		=     CodBcoPagto,   
+	@CodigoOrgaoAut		=     CodigoOrgaoAut,   
+	@CodigoRENAINF		=     CodigoRENAINF,   
+	@CodMunicipioEmpl	=     CodMunicipioEmpl,   
+	@CodMunRealInfr		=     CodMunRealInfr,   
+	@CodPais		=     CodPais,   
+	@CodRetorno		=     CodRetorno,   
+	@CodRetornoExecucao	=     CodRetornoExecucao,   
+	@ComplImovelArrend	=     ComplImovelArrend,   
+	@ComplImovelProp	=     ComplImovelProp,   
+	@ComplImovelRealInfr	=     ComplImovelRealInfr,   
+	@CorVeiculo		=     CorVeiculo,   
+	@DataAcaoCobranca	=     DataAcaoCobranca,   
+	@DataApresentacao	=     DataApresentacao,   
+	@DataCadInfr		=     DataCadInfr,   
+	@DataCredito		=     DataCredito,   
+	@DataEmissaoNot		=     DataEmissaoNot,   
+	@DataFimConsulta	=     DataFimConsulta,   
+	@DataInfracao		=     DataInfracao,   
+	@DataInicioConsulta	=     DataInicioConsulta,   
+	@DataOcorrencia		=     DataOcorrencia,   
+	@DataPagtoInfr		=     DataPagtoInfr,   
+	@DataPostagem		=     DataPostagem,   
+	@DataSitEntrega		=     DataSitEntrega,   
+	@DataSitInfracao	=     DataSitInfracao,   
+	@DataSitPont		=     DataSitPont,   
+	@DataVencNot		=     DataVencNot,   
+	@DescMarcaMod		=     DescMarcaMod,   
+	@HoraInfracao		=     HoraInfracao,   
+	@IndAcaoCobranca	=     IndAcaoCobranca,   
+	@IndAssAuto		=     IndAssAuto,   
+	@IndEnvolvInfracao	=     IndEnvolvInfracao,   
+	@IndicadorArgumento	=     IndicadorArgumento,   
+	@IndicadorPontuacao	=     IndicadorPontuacao,   
+	@IndicadorUFIntegrada	=     IndicadorUFIntegrada,   
+	@Infracao		=     Infracao,   
+	@LimitePerm		=     LimitePerm,   
+	@LocalInfracao		=     LocalInfracao,   
+	@MarcaModelo		=     MarcaModelo,   
+	@MedicaoReal		=     MedicaoReal,   
+	@ModCNHCandInfr		=     ModCNHCandInfr,   
+	@ModCNHCondutor		=     ModCNHCondutor,   
+	@ModCNHProp		=     ModCNHProp,   
+	@ModCNHRealInf		=     ModCNHRealInf,   
+	@ModeloCNHArrendat	=     ModeloCNHArrendat,   
+	@MunicipioInfr          =     MunicipioInfr,   
+	@NomeArrendatario	=     NomeArrendatario,   
+	@NomeLogradArrend	=     NomeLogradArrend,   
+	@NomeLogradProp		=     NomeLogradProp,   
+	@NomeLogradRealInf	=     NomeLogradRealInf,   
+	@NomeMunic		=     NomeMunic,   
+	@NomeProprietario	=     NomeProprietario,   
+	@NomeRealInfrator	=     NomeRealInfrator,   
+	@NumAutoInfracao	=     NumAutoInfracao,   
+	@NumCtaCorrCred		=     NumCtaCorrCred,   
+	@NumDocArrec		=     NumDocArrec,   
+	@NumDocProp		=     NumDocProp,   
+	@NumeroAutenticacao	=     NumeroAutenticacao,   
+	@NumeroProcesso		=     NumeroProcesso,   
+	@NumeroSedex		=     NumeroSedex,   
+	@NumIdentArrendata	=     NumIdentArrendata,   
+	@NumImovelArrend	=     NumImovelArrend,   
+	@NumImovelProp		=     NumImovelProp,   
+	@NumImovRealInfr	=     NumImovRealInfr,   
+	@NumNotificacao		=     NumNotificacao,   
+	@NumRegCNHArrend	=     NumRegCNHArrend,   
+	@NumRegCNHCandInfr	=     NumRegCNHCandInfr,   
+	@NumRegCNHProp		=     NumRegCNHProp,   
+	@NumRegCNHRealInfr	=     NumRegCNHRealInfr,   
+	@NumRegisCNHRealInfr	=     NumRegisCNHRealInfr,   
+	@NumRegistCNHCond	=     NumRegistCNHCond,   
+	@NumTermFinanc		=     NumTermFinanc,   
+	@OrigemOcorrencia	=     OrigemOcorrencia,   
+	@PFIXA			=     PFIXA,   
+	@Placa			=     Placa,   
+	@QuantOcorr		=     QuantOcorr,   
+	@SerieSedex		=     SerieSedex,   
+	@SituacaoInfracao	=     SituacaoInfracao,   
+	@SituacaoPontuacao	=     SituacaoPontuacao,   
+	@SituacaoRetorno	=     SituacaoRetorno,   
+	@TipoAuto		=     TipoAuto,   
+	@TipoDocProp		=     TipoDocProp,   
+	@TipoDoctArrend		=     TipoDoctArrend,   
+	@TipoLancamento		=     TipoLancamento,   
+	@TipoOcorrencia		=     TipoOcorrencia,   
+	@TipoVeiculo		=     TipoVeiculo,   
+	@UFCNH			=     UFCNH,   
+	@UFCNHInformada		=     UFCNHInformada,   
+	@UFExpCNHArrend		=     UFExpCNHArrend,   
+	@UFExpCNHCandInfr	=     UFExpCNHCandInfr,   
+	@UFExpCNHProp		=     UFExpCNHProp,   
+	@UFExpCNHRealInfr	=     UFExpCNHRealInfr,   
+	@UFImovelArrend		=     UFImovelArrend,   
+	@UFImovelProp		=     UFImovelProp,   
+	@UFJurisdVeiculo	=     UFJurisdVeiculo,   
+	@UFOcorrencia		=     UFOcorrencia,   
+	@UFOrgaoAutuante	=     UFOrgaoAutuante,   
+	@UFPagto		=     UFPagto,   
+	@UFPlaca		=     UFPlaca,   
+	@UnidadeMed		=     UnidadeMed,   
+	@ValorInfracao		=     ValorInfracao,   
+	@ValorPago		=     ValorPago,   
+	@ValorRepasse		=     ValorRepasse,   
+	@IndExibilidade		=     IndExibilidade,	   
+        @CodCarrVeic		=     CodCarrVeic,		   
+        @CodCategVeic		=     CodCategVeic,	   
+        @CodEspecVeic		=     CodEspecVeic,	   
+        @QuantPagtos		=     QuantPagtos,	   
+        @MedicaoCons		=     MedicaoCons,	   
+        @TipoLanc		=     TipoLanc,	   
+        @CodRenavam		=     CodRenavam,   
+        @DataAceitAutUFJur	=     DataAceitAutUFJur,	   
+        @DataAceitPenUFJur	=     DataAceitPenUFJur,		   
+        @DataAceitPagUFRel	=     DataAceitPagUFRel,   
+        @DataAceitSusUFJur	=     DataAceitSusUFJur,   
+        @DataAceitUFHab		=     DataAceitUFHab,   
+        @DataLimDef		=     DataLimDef,   
+        @DataRegCanc		=     DataRegCanc,         
+        @DataRegOcor		=     DataRegOcor,   
+        @DataRegPag		=     DataRegPag,   
+        @DataRegReat		=     DataRegReat,                     
+        @BairImovArrend		=     BairImovArrend,	   
+        @BairImovProp		=     BairImovProp,   
+        @DataEmissaoNotAut		=     DataEmissaoNotAut,   
+        @MotivoCanc		=     MotivoCanc,   
+        @IndAgenteFinanc		=     IndAgenteFinanc,   
+	@IdentRepasse		=     IdentRepasse,   
+	@DataRepasse		=     DataRepasse,   
+	@TipoRepasse		=     TipoRepasse,   
+	@NumCtaCorRep		=     NumCtaCorRep,   
+	@CodIdentDep		=     CodIdentDep,   
+	@ValorTarRepasse		=     ValorTarRepasse,   
+	@ObsRepasse		=     ObsRepasse,   
+	@QuantInfRep		=     QuantInfRep,   
+	@IndTabContas		=     IndTabContas,   
+	@ValorFunset		=     ValorFunset,   
+	@ValorDetran		=     ValorDetran,   
+	@ValorDenatran 		=     ValorDenatran,   
+	@ValorRepassado		=     ValorRepassado,   
+	@CodAgenciaOrigem	=     CodAgenciaOrigem,   
+	@CodAgenciaDestino	=     CodAgenciaDestino,
+	@CodMunProp		=     CodMunProp,
+	@CodMunArr            	=     CodMunArr,	
+	@Desdobramento		=     CodDesdInfr,
+	@IndNotifAutEdit   		=     IndNotifAutEdit,                  
+	@DataNotifAutEdit          =     DataNotifAutEdit,
+	@TipoPen   			=	TipoPen
+from 	dbinfracao..RNFRetorno     
+where 	PFIXA = ltrim(rtrim(substring(@P1,1,37)))   
+   
+   
+select @ParteFixa = ltrim(rtrim(substring(@P1,1,37)))
+     
+select 	@Erro = null --   
+select	@CodProp = null, @CodEnd = null,    
+	@CodEndCorresp = null, @Municipio = null,     
+        @UFPlaca = null,      
+	@Proprietario = null, @TipoVeiculo = null,     
+	@Marca = null, @Endereco = null, @Complemento = null, @CEP = null,      
+	@Bairro = null   --   
+--[Adilson]--- transferi essa rotina lá de baixo pra cá   
+select @InfracaoSemDigito = @Infracao	
+if 	@Infracao 	between 5000 and 6000   
+	select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+
+
+if	@CodTransacao = 414 --- auto em duplicidade cancela um que tenha chegado o movimento de cancelamento do RENAINF
+begin
+	declare @Qtde 	int
+	SELECT 	@Qtde = COUNT(*)
+	from	dbinfracao..Auto a, 
+		dbinfracao..OrgaoAutuante o
+	where		a.OrgaoAutuante				=@CodigoOrgaoAut
+	and 		a.AutoRENAINF			=	@NumAutoInfracao
+	and 		o.UF					!=	'PE'
+	and 		a.OrgaoAutuante				=	o.Cod
+
+
+	if	@Qtde >	1
+	begin
+		begin tran
+		update  dbinfracao..InfracaoAuto set Situacao = 'C'		
+		from	dbinfracao..Auto a, 
+			dbinfracao..InfracaoAuto ia, 
+			dbinfracao..OrgaoAutuante o
+		where		a.OrgaoAutuante				=	@CodigoOrgaoAut
+		and 		a.AutoRENAINF				=	@NumAutoInfracao
+		and 		o.UF					!=	'PE'
+		and 		a.OrgaoAutuante				=	o.Cod
+		and 		a.Serie					=	ia.Serie
+		and 		a.OrgaoAutuante				=	ia.OrgaoAutuante
+		and 		a.Cod					=	ia.Auto
+		and 		ia.Situacao				in 	('A','N','D')
+				
+		and 	exists (select 1 from dbinfracao..MovimentoAuto ma 
+				where a.Serie					=	ma.Serie
+				and 		a.OrgaoAutuante				=	ma.OrgaoAutuante
+				and 		a.Cod					=	ma.Auto
+				and 		ma.TipoMovimento			='C'
+				)
+		and 	exists (select 1 from dbinfracao..Auto aa 
+				where a.Serie						=	aa.Serie
+				and 		a.OrgaoAutuante				=	aa.OrgaoAutuante
+				and 		a.Cod					=	aa.Cod
+				and 		aa.Situacao				in 	('A','N','D')
+				)
+				
+		update  dbinfracao..Auto set Situacao = 'C'		
+		from	dbinfracao..Auto a, 
+			dbinfracao..InfracaoAuto ia, 
+			dbinfracao..OrgaoAutuante o
+		where		a.OrgaoAutuante				=	@CodigoOrgaoAut
+		and 		a.AutoRENAINF				=	@NumAutoInfracao
+		and 		o.UF					!=	'PE'
+		and 		a.OrgaoAutuante				=	o.Cod
+		and 		a.Serie					=	ia.Serie
+		and 		a.OrgaoAutuante				=	ia.OrgaoAutuante
+		and 		a.Cod					=	ia.Auto
+		and 		ia.Situacao				in 	('A','N','D')
+				
+		and 	exists (select 1 from dbinfracao..MovimentoAuto ma 
+				where a.Serie					=	ma.Serie
+				and 		a.OrgaoAutuante				=	ma.OrgaoAutuante
+				and 		a.Cod					=	ma.Auto
+				and 		ma.TipoMovimento			='C'
+				)
+		and 	exists (select 1 from dbinfracao..Auto aa 
+				where a.Serie						=	aa.Serie
+				and 		a.OrgaoAutuante				=	aa.OrgaoAutuante
+				and 		a.Cod					=	aa.Cod
+				and 		aa.Situacao				in 	('A','N','D')
+				)
+		
+		
+		commit tran
+				
+	end
+end
+
+
+
+
+if	@CodTransacao = 414 and @UFPagto !='PE' and exists  (SELECT 	1
+		from	dbinfracao..Auto a, 
+			dbinfracao..OrgaoAutuante o,
+			dbvcen..Veiculo v ,
+			dbinfracao..InfracaoAuto ia
+		where		a.OrgaoAutuante				=	@CodigoOrgaoAut
+		and 		a.AutoINFRAEST				=	@NumAutoInfracao
+		and 		a.Serie					=	ia.Serie
+		and 		a.OrgaoAutuante				=	ia.OrgaoAutuante
+		and 		a.Cod					=	ia.Auto
+		and 		a.OrgaoAutuante				=	o.Cod
+		and 		o.UF					=	'PE'
+		and 		a.Placa					=	v.Placa
+		and 		((v.Situacao				=	'T') or ( v.Situacao = 'N' and exists (select 1 from dbvcen..FilaTransacao ft where ft.Placa = a.Placa and  Transacao=227))) 
+		)
+begin -------- veiculo transferido para outra UF e o pagamento foi realizado na nova UF, porém, aqui continuava como autoinfraest
+begin tran
+		update   dbinfracao..Auto  set AutoRENAINF = @NumAutoInfracao, AutoINFRAEST = NULL		
+		from	dbinfracao..Auto a, 
+			dbinfracao..OrgaoAutuante o,
+			dbvcen..Veiculo v ,
+			dbinfracao..InfracaoAuto ia
+		where		a.OrgaoAutuante				=	@CodigoOrgaoAut
+		and 		a.AutoINFRAEST				=	@NumAutoInfracao
+		and 		a.Serie					=	ia.Serie
+		and 		a.OrgaoAutuante				=	ia.OrgaoAutuante
+		and 		a.Cod					=	ia.Auto
+		and 		a.OrgaoAutuante				=	o.Cod
+		and 		o.UF					=	'PE'
+		and 		a.Placa					=	v.Placa
+		and 		((v.Situacao				=	'T') or ( v.Situacao = 'N' and exists (select 1 from dbvcen..FilaTransacao ft where ft.Placa = a.Placa and  Transacao=227))) 
+
+		if @@transtate=2 OR @@transtate=3   
+	 	   begin   
+		   if @@transtate=2   
+		      rollback tran   
+		      raiserror 55000 'Erro ao tentar atualizar o autorenainf com a transação 414'  
+		      return   
+		   end   
+		update   dbinfracao..InfracaoAuto  set CodigoRENAINF = CodigoINFRAEST, CodigoINFRAEST = NULL		
+		from	dbinfracao..Auto a, 
+			dbinfracao..OrgaoAutuante o,
+			dbvcen..Veiculo v ,
+			dbinfracao..InfracaoAuto ia
+		where		a.OrgaoAutuante				=	@CodigoOrgaoAut
+		and 		a.AutoINFRAEST				=	@NumAutoInfracao
+		and 		a.Serie					=	ia.Serie
+		and 		a.OrgaoAutuante				=	ia.OrgaoAutuante
+		and 		a.Cod					=	ia.Auto
+		and 		a.OrgaoAutuante				=	o.Cod
+		and 		o.UF					=	'PE'
+		and 		a.Placa					=	v.Placa
+		and 		((v.Situacao				=	'T') or ( v.Situacao = 'N' and exists (select 1 from dbvcen..FilaTransacao ft where ft.Placa = a.Placa and  Transacao=227))) 
+		if @@transtate=2 OR @@transtate=3   
+	 	   begin   
+		   if @@transtate=2   
+		      rollback tran   
+		      raiserror 55000 'Erro ao tentar atualizar o Codigorenainf com a transação 414'  
+		      return   
+		   end   
+commit tran		
+end		
+
+
+set forceplan on
+
+select @Desdobramento  = isnull(ia.Desdobramento   ,@Desdobramento), 
+	@nAuto = a.Cod, @Serie = a.Serie	
+from  dbinfracao..Auto a (index Auto_AutoRENAINF)   ,dbinfracao..InfracaoAuto ia
+where a.OrgaoAutuante  = @CodigoOrgaoAut
+and a.AutoRENAINF = @NumAutoInfracao
+and a.OrgaoAutuante = ia.OrgaoAutuante
+and a.Serie = ia.Serie
+and a.Cod = ia.Auto
+and ia.Infracao= @InfracaoSemDigito	
+if	@@rowcount	=	0
+begin
+		
+	select @Desdobramento  = isnull(ia.Desdobramento   ,@Desdobramento), 
+		@nAuto = a.Cod, @Serie = a.Serie	
+	from  dbinfracao..Auto a (index Auto_AutoINFRAEST)   ,dbinfracao..InfracaoAuto ia
+	where a.OrgaoCompetencia  = @CodigoOrgaoAut
+	and a.AutoINFRAEST = @NumAutoInfracao
+	and a.OrgaoAutuante = ia.OrgaoAutuante
+	and a.Serie = ia.Serie
+	and a.Cod = ia.Auto
+	and ia.Infracao= @InfracaoSemDigito	
+end
+
+set forceplan off
+
+if	@CodTransacao in (411,412,413)
+begin
+	
+		if 	substring(@NumAutoInfracao,3,10) not like '%[a-z]%'  
+			and substring(@NumAutoInfracao,3,10) not like '%[A-Z]%' 
+			and substring(@NumAutoInfracao,3,10) not like '%-%'   
+			and substring(@NumAutoInfracao,1,2)  like '%[A-Z]%'
+		begin	 
+			select @nAuto = convert(numeric(10),substring(@NumAutoInfracao,3,7))
+			select @Serie = substring(@NumAutoInfracao,1,2)
+			if	@CodigoOrgaoAut != null and @nAuto != null and @Serie != null
+			begin
+				if	exists(select 1 from dbinfracao..Auto(index Auto_OrgaoCompetencia ) 
+					where 	OrgaoCompetencia = @CodigoOrgaoAut 
+					and 	Cod 	=  @nAuto
+					and 	Serie 	= @Serie
+					and 	Situacao= 'C'
+					
+					)
+				begin
+					exec dbinfracao..RNFMontaParteFixaResp @CodigoConsulta=@CodTransacao, @ParteFixaOriginal=@ParteFixa,    
+								 @LenTransacao=3, @ParteFixa=@ParteFixa output    
+					select  @ParteFixa + '000'  	
+					RETURN
+				end
+			end	
+		end
+		
+		
+		if		exists(select 1 from dbinfracao..Auto 
+				where 	OrgaoAutuante = @CodigoOrgaoAut 
+				and 	AutoRENAINF = @NumAutoInfracao
+				and 	Situacao= 'C'
+				
+			)
+		or		exists(select 1 from dbinfracao..Auto 
+				where 	OrgaoCompetencia = @CodigoOrgaoAut 
+				and 	AutoRENAINF = @NumAutoInfracao
+				and 	Situacao= 'C'
+				
+			)
+		or		exists(select 1 from dbinfracao..Auto 
+				where 	OrgaoAutuante = @CodigoOrgaoAut 
+				and 	AutoINFRAEST = @NumAutoInfracao
+				and 	Situacao= 'C'
+				
+			)
+		or		exists(select 1 from dbinfracao..Auto 
+				where 	OrgaoCompetencia = @CodigoOrgaoAut 
+				and 	AutoINFRAEST = @NumAutoInfracao
+				and 	Situacao= 'C'
+			)
+				
+
+		begin
+				exec dbinfracao..RNFMontaParteFixaResp @CodigoConsulta=@CodTransacao, @ParteFixaOriginal=@ParteFixa,    
+							 @LenTransacao=3, @ParteFixa=@ParteFixa output    
+				select  @ParteFixa + '000'  	
+				RETURN
+					  
+		end			
+end
+---[Adilson]--- 
+
+   
+IF @CodTransacao = 411   
+	GOTO Transacao411   
+IF @CodTransacao = 412   
+	GOTO Transacao412   
+IF @CodTransacao = 413   
+	GOTO Transacao413   
+IF @CodTransacao = 414   
+	GOTO Transacao414   
+IF @CodTransacao = 415   
+	GOTO Transacao415   
+IF @CodTransacao = 419   
+	GOTO Transacao419   
+IF @CodTransacao = 420   
+	GOTO Transacao420   
+IF @CodTransacao = 421   
+	GOTO Transacao421   
+IF @CodTransacao = 422   
+	GOTO Transacao422	
+IF @CodTransacao = 416   
+	GOTO Transacao416   
+IF @CodTransacao = 418   
+	GOTO Transacao418   
+IF @CodTransacao = 430   
+	GOTO Transacao430   
+IF @CodTransacao = 431   
+	GOTO Transacao431   
+IF @CodTransacao = 423   
+	GOTO Transacao423            
+Transacao411:         
+select  @Erro = null   
+ 
+exec 	@Erro =   dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA,    
+	@TipoRegistroTransacao ='RT01',   
+	@Condicionalidade = @Condicionalidade   
+	   
+if @Erro not in (null,0,160) -- 160 e ja cadastrada   
+	return   
+
+      	             
+select          	@CodProp = vei.Proprietario,    
+		        @CodEnd = vei.Endereco,    
+		        @CodEndCorresp = vei.EnderecoCorresp,    
+		        @Municipio = convert(char(15), mun.Descricao),     
+		        @CodMunicipio = mun.Cod,     
+                	@Placa = convert( char(7), Placa),    
+                	@UFPlaca = 'PE',       
+                	@Proprietario = substring( convert( char( 45), pro.Nome) + space(45), 1, 45),     
+                	@TipoVeiculo = vei.Tipo,     
+                	@CodMarcaModelo = vei.Marca,   
+                	@Marca = convert(char(15), (select Descricao from dbvcen..MarcaVeiculo where Cod = vei.Marca)),     
+                	@Endereco = (CASE WHEN e.Numero is null THEN e.Logradouro ELSE substring(e.Logradouro,1,54)||' '||e.Numero END),    
+                	@Complemento = e.Complemento,    
+                	@CEP = substring(convert(varchar(8),isnull(e.CEP,mun.CEP)),1,8),   
+                	@BairImovProp = convert(char(20), (select Descricao from dbvcen..Bairro where Municipio = e.Municipio and Cod = e.Bairro)),     
+                	@TipoPessoa = pro.TipoPessoa,     
+                	@NumDoc = pro.NumDoc  ,   
+                	@Veiculo = vei.Cod,   
+ 		        @Cor = isnull(vei.Cor,0), --   
+                	@CodCarrVeic = isnull(vei.Carroceria,0),   
+                	@CodCategVeic = isnull(vei.Categoria,0),   
+                	@CodEspecVeic = isnull(vei.Especie,0),   
+                	@CodRenavam = isnull(vei.Renavam,0)   ,
+			@CodMunProp = e.Municipio,
+		        @CodMunArr  = e.Municipio
+from    		dbvcen..Veiculo vei, dbvcen..Endereco e, dbvcen..Proprietario pro,      
+        		dbvcen..Municipio mun     
+where   		vei.Placa = @Placa   
+and		vei.Proprietario =  e.Proprietario      
+and		vei.Endereco = e.Cod     
+and		vei.Proprietario = pro.Cod     
+and		e.Proprietario = pro.Cod     
+and		e.Municipio = mun.Cod     
+   
+   
+select 	@nCpf_IN = convert(numeric(14),@NumDoc)   
+   
+if @TipoPessoa = 'J'   
+begin   
+	select 	@UFExpCNHProp = '', @ModCNHProp = 0, @NumRegCNHProp = 0   
+end   
+else	   
+begin   
+	exec	HABILITACAO_DS.dbhcen..RenainfModeloCnhS @sUfDominio=@UFExpCNHProp output  ,@nRegistro_IN = @NumRegCNHProp output,   
+	@nCpf_IN = @nCpf_IN, @niModeloCnh=@ModCNHProp output   
+ 
+	   
+	if	@ModCNHProp	=	0   
+		select 		@ModCNHProp 	=	1 -- PGU   
+	else   
+	if	@ModCNHProp	=	1   
+		select 		@ModCNHProp	=	2 -- RENACH    
+end	    
+     
+-- CONSIDERAR ARRENDATARIO EM CASOS DE ARRENDAMENTO    
+select	@NumIdentArrendata = NULL , @Arrendatario = null --     
+                 
+select	@Arrendatario = Arrendatario     , @sNumIdentArrendata = CGCCPF_Arrendatario 
+from	dbvcen..RestricaoVeiculo      
+where	Veiculo = @Veiculo      
+and	Restricao in (select Cod from dbvcen..Restricao where iProprietarioFinanceira = 'S')     
+and	Situacao = 'A'     
+and	@TipoPessoa = 'J'     
+ 
+ 
+ 	 
+exec  	dbinfracao..RetornaNumeroS @StringEntrada = @sNumIdentArrendata , 
+  				@NumeroSaida =  @NumIdentArrendata output 
+ 
+ 
+ 
+IF	@NumIdentArrendata	>	99999999999 
+	SELECT @TipoDoctArrend    =	2 
+ELSE	 
+	SELECT @TipoDoctArrend    =	1 
+	 
+if @Arrendatario is not null --     
+	begin
+	
+	select @Proprietario = @Arrendatario    
+	 
+	if     @NumIdentArrendata > 0 
+	       begin
+	       select @NumDoc = convert(char(14),@NumIdentArrendata)
+	       end
+	
+	end
+         
+if @CodEnd is not null --     
+	select  @Municipio = convert(char(15), mun.Descricao)   
+	from    dbvcen..Endereco e, dbvcen..Proprietario pro, dbvcen..Municipio mun     
+	where   pro.Cod = @CodProp     
+	and 	e.Proprietario = pro.Cod      
+	and 	e.Cod = @CodEnd     
+	and 	e.Municipio = mun.Cod     
+     
+ 
+/* Trata Comunica+’o de venda 03/01/2006 */   
+	   
+  
+if	exists 	(select  1 from dbvcen..RestricaoVeiculo rv    
+		 where	rv.Veiculo=@Veiculo    
+		 and 	rv.Restricao		= 12   
+		 and 	rv.DataFin 		is null)   
+			 begin   
+			-- select 		@Proprietario	=	null -- Se permanecer nulo, n’o existe Comunica+’o de venda   
+			 select 	@Proprietario 	= 	isnull(substring( convert( char( 45), p.Nome) + space(45), 1, 45),@Proprietario),     
+					@Endereco 	=	(CASE WHEN e.Numero is null THEN e.Logradouro ELSE substring(e.Logradouro,1,54)||' '||e.Numero END),    
+					@CEP		=	convert(char(08),e.CEP),   
+					@BairImovProp 	=	convert(char(20),(select Descricao from dbvcen..Bairro    
+								where Cod=e.Bairro and Municipio = e.Municipio)),     
+					@NumDoc		=	p.NumDoc,
+					@TipoPessoa     =       p.TipoPessoa,   
+					@Municipio	=	mun.Descricao,   
+					@Complemento	=	e.Complemento	    
+		    
+		    
+		  	 from	 	dbvcen..Veiculo v,   
+		  	        		dbvcen..ComunicacaoVenda cv,   
+					dbvcen..Proprietario p,   
+					dbvcen..Endereco e,   
+					dbvcen..Municipio mun/*(index Municipio_KEY)*/   
+		   	   
+		   		   
+			  where		v.Cod			= @Veiculo   
+		 	  and 		v.Cod			= cv.Veiculo   
+		 	  and 		cv.Situacao		= 'A'			     
+			  and 		cv.Proprietario		= p.Cod   
+			  and 		cv.Proprietario	        = e.Proprietario   
+			  and 		cv.Endereco		= e.Cod		   
+			  and		e.CEP			IS NOT NULL   
+	        	  and 		e.Municipio		= mun.Cod 
+	        	  
+	        	  
+	        	  if	@@rowcount	=	0
+	        	  begin
+
+				select 	@Proprietario=	isnull(substring( convert( char( 45), p.Nome) + space(45), 1, 45),@Proprietario),      
+					@Endereco= 	(CASE WHEN e.Numero is null THEN e.Logradouro ELSE substring(e.Logradouro,1,54)||' '||convert(char(10),e.Numero) END),     
+					@CEP=		convert(char(08),e.CEP),    
+					@BairImovProp=	convert(char(20),e.Bairro)	,      
+					@NumDoc=	p.NumDoc, 
+					@TipoPessoa=	p.TipoPessoa,    
+					@Municipio=	mun.Descricao,    
+					@Complemento=	e.Complemento	     
+				 	
+			  	 from	 	dbvcen..Veiculo v,    
+			  	        	dbvcen..ComunicacaoVenda cv,    
+						dbvcen..ProprietarioOutraUf p,    
+						dbvcen..EnderecoOutraUf e,    
+						dbvcen..Municipio mun/*(index Municipio_KEY)*/    
+			   	    
+			   		    
+				  where		v.Cod				= @Veiculo    
+			 	  and 		v.Cod				= cv.Veiculo    
+			 	  and 		cv.Situacao			= 'A'			      
+				  and 		cv.ProprietarioOutraUf		= p.ProprietarioOutraUf   
+				  and 		cv.ProprietarioOutraUf	        = e.ProprietarioOutraUf 
+				  and 		cv.EnderecoOutraUf		= e.EnderecoOutraUf	    
+				  and		e.CEP				IS NOT NULL    
+		        	  and 		e.Municipio			= mun.Cod  
+	        	           
+	        	  end         
+	        	  -- ajustar dados de habilitacao --
+	        	  
+	        	  select @nCpf_IN = convert(numeric(14),@NumDoc)   
+	   
+		   	  if @TipoPessoa = 'J'   
+			  begin   
+				select 	@UFExpCNHProp = '', @ModCNHProp = 0, @NumRegCNHProp = 0   
+			  end   
+			  else	   
+			  begin   
+				exec	HABILITACAO_DS.dbhcen..RenainfModeloCnhS @sUfDominio=@UFExpCNHProp output  ,@nRegistro_IN = @NumRegCNHProp output,   
+				@nCpf_IN = @nCpf_IN, @niModeloCnh=@ModCNHProp output   
+			--	exec	dbhcen..RenainfModeloCnhS @sUfDominio=@UFExpCNHProp output  ,@nRegistro_IN = @NumRegCNHProp output,   
+			--	@nCpf_IN = @nCpf_IN, @niModeloCnh=@ModCNHProp output   
+				   
+				if	@ModCNHProp	=	0   
+					select 		@ModCNHProp 	=	1 -- PGU   
+				else   
+				if	@ModCNHProp	=	1   
+					select 		@ModCNHProp	=	2 -- RENACH    
+			  end
+		  ------------------------------------		  
+  
+end			 		    
+   
+ 
+ 
+select @posicao = char_length(ltrim(rtrim(@Endereco))), @NumEndereco=null, @Rua=null --     
+   
+while @posicao>0 and substring(@Endereco, @posicao, 1) like '[0-9]'     
+begin     
+      select @NumEndereco=substring(@Endereco, @posicao, 1)+@NumEndereco     
+      select @posicao=@posicao-1     
+end     
+     
+select @Rua = rtrim(substring(@Endereco, 1, @posicao))     
+   
+select @NumEndereco = substring(convert(char(06),(convert(numeric(06),@NumEndereco)+100000)),2,5)   
+     
+if ltrim( rtrim( @Municipio)) is null --     
+	select @Municipio = space( 15)     
+   
+if ltrim( rtrim( @Placa)) is null --     
+	select @Placa = space( 7)     
+      
+if ltrim( rtrim( @Proprietario)) is null --     
+	select @Proprietario = space( 45)     
+   
+select @Endereco = convert(char(40), substring(@Rua + space( 40), 1, 40))    
+   
+if ltrim( rtrim( @Complemento)) is null --     
+	select @Complemento = space( 25) -- ADILSON 05/06/02     
+   
+if ltrim( rtrim( @BairImovProp)) is null --     
+	select @BairImovProp = space( 20)     
+   
+if ltrim( rtrim( @CEP)) is null --     
+	select @CEP = space(8)/* Adilson */     
+   
+if ltrim( rtrim( @Municipio)) is null --     
+	select @Municipio = space( 15)     
+   
+select @Marca = substring( @Marca + space( 15), 1, 15)     
+   
+   
+if     @TipoPessoa = 'J'   
+       select @TipoDocProp  =  2   
+else if   @TipoPessoa = 'F'   
+       select @TipoDocProp = 1    
+else      
+       select @TipoDocProp = 3      
+
+
+exec  	dbinfracao..RetornaNumeroS @StringEntrada = @NumDoc , 
+  				@NumeroSaida =  @nNumDoc output 
+
+if 	@nNumDoc > 99999999999
+ 	begin
+ 	
+ 	SELECT @TipoDoctArrend    =	2 
+ 	select @TipoDocProp = 2   
+ 	
+ 	end
+else
+begin
+	SELECT @TipoDoctArrend    =	1 
+	select @TipoDocProp = 1    
+end 	
+
+
+
+	   
+GOTO Continua   
+   
+Transacao412:  
+
+--10/06/2013 - INSERI NO AUTO NA 412
+exec RNFAutoTransitoI @ParteFixa =  @PFIXA   
+
+ 
+exec @Erro =   dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT01'   
+if @Erro not in (null,0)    
+	return   
+
+
+	
+   
+exec 	dbinfracao..RNFAutoU   
+    	@CodTransacao 		= @CodTransacao,   
+    	@NumAutoInfracao		= @NumAutoInfracao,   
+    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+    	@Infracao 		= @Infracao ,    
+    	@TipoMovimento		= 'D',   
+	@DataEmissaoNot		= @DataEmissaoNot,   
+	@DataLimDef		= @DataLimDef,   
+	@IndExibilidade 	= @IndExibilidade ,   
+	@CodigoRENAINF		= @CodigoRENAINF   ,
+	@Desdobramento = @Desdobramento
+   
+GOTO Continua   
+   
+Transacao413:   
+exec 	@Erro =   dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT03'   
+if   	@Erro not in (null,0)    
+	return   
+
+
+if @TipoPen = 2         
+begin    
+	exec 	dbinfracao..RNFAutoU   
+	    	@CodTransacao 		= @CodTransacao,   
+	    	@NumAutoInfracao		= @NumAutoInfracao,   
+	    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+	    	@Infracao 		= @Infracao ,    
+	    	@TipoMovimento		= 'V',   
+		@DataEmissaoNotAut	= @DataEmissaoNotAut,   
+		@DataLimDef		= @DataLimDef,   
+		@IndExibilidade 		= @IndExibilidade ,   
+		@CodigoRENAINF		= @CodigoRENAINF,   
+		@DataEmissaoNot		= @DataEmissaoNot,   
+		@DataVencNot		= @DataVencNot,   
+		@NumNotificacao		= @NumNotificacao,   
+--		@IndAgenteFinanc	= @IndAgenteFinanc,
+		@TipoLancamento		= @TipoLancamento, 
+		@DataInfracao		= @DataInfracao  
+
+end
+else
+begin 
+	exec 	dbinfracao..RNFAutoU   
+	    	@CodTransacao 		= @CodTransacao,   
+	    	@NumAutoInfracao		= @NumAutoInfracao,   
+	    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+	    	@Infracao 		= @Infracao ,    
+	    	@TipoMovimento		= 'N',   
+		@DataEmissaoNotAut	= @DataEmissaoNotAut,   
+		@DataLimDef		= @DataLimDef,   
+		@IndExibilidade 		= @IndExibilidade ,   
+		@CodigoRENAINF		= @CodigoRENAINF,   
+		@DataEmissaoNot		= @DataEmissaoNot,   
+		@DataVencNot		= @DataVencNot,   
+		@NumNotificacao		= @NumNotificacao,   
+		@IndAgenteFinanc	= @IndAgenteFinanc,
+		@TipoLancamento		= @TipoLancamento ------------Para identificar se é inclusão ou exclusão da NP 			   
+end
+		   
+GOTO Continua   
+   
+   
+Transacao414:   
+exec @Erro = dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT03'   
+   
+if @Erro not in (null,0)    
+	return   
+	   
+exec 	dbinfracao..RNFAutoU   
+    	@CodTransacao 		= @CodTransacao,   
+    	@NumAutoInfracao		= @NumAutoInfracao,   
+    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+    	@Infracao 		= @Infracao ,    
+    	@TipoMovimento		= 'B',   
+	@DataEmissaoNotAut	= @DataEmissaoNotAut,   
+	@DataLimDef		= @DataLimDef,   
+	@IndExibilidade 		= @IndExibilidade ,   
+	@CodigoRENAINF		= @CodigoRENAINF,   
+	@DataEmissaoNot		= @DataEmissaoNot,   
+	@DataVencNot		= @DataVencNot,   
+	@NumNotificacao		= @NumNotificacao,   
+	@DataPagtoInfr		= @DataPagtoInfr,   
+	@DataCredito		= @DataCredito,   
+	@ValorPago		= @ValorPago,   
+	@TipoLancamento		= @TipoLancamento,   
+	@ValorRepasse		= @ValorRepasse,   
+	@UFPagto			= @UFPagto,   
+	@NumDocArrec		= @NumDocArrec,   
+	@CodBcoPagto		= @CodBcoPagto	   ,
+	@Desdobramento		= @Desdobramento
+	   
+GOTO Continua   
+  
+   
+Transacao415:  
+ 
+ 
+exec @Erro =   dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT01'   
+if @Erro not in (null,0)    
+	return   
+ 
+IF   @TamanhoTransacao	=	84 -- EV02 
+BEGIN
+	
+	------Inicio não realizar o cancelamento quando o auto for nosso - O renainf esta mandando 415 para um auto nosso de veículo nosso. ele apenas deveria enviar 419 para atualização de endereço.
+	if exists(SELECT 1
+		from    dbinfracao..Auto a (index Auto_AutoINFRAEST ),   
+				dbinfracao..InfracaoAuto ia  , dbinfracao..OrgaoAutuante o
+			where	a.OrgaoAutuante = @CodigoOrgaoAut  
+			and 	a.AutoINFRAEST   = @NumAutoInfracao  
+			and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+			and 	ia.Serie = a.Serie  
+			and 	ia.Auto =a.Cod  
+			and     ia.OrgaoAutuante = o.Cod
+			and     ((o.UF = 'PE' AND a.AgenteEquip = a.OrgaoAutuante) or (o.UF != 'PE') ))
+	or exists(SELECT 1
+		from    dbinfracao..Auto a (index Auto_AutoRENAINF ),   
+				dbinfracao..InfracaoAuto ia  , dbinfracao..OrgaoAutuante o
+			where	a.OrgaoAutuante = @CodigoOrgaoAut  
+			and 	a.AutoRENAINF   = @NumAutoInfracao  
+			and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+			and 	ia.Serie = a.Serie  
+			and 	ia.Auto =a.Cod  
+			and     ia.OrgaoAutuante = o.Cod
+			and     ((o.UF = 'PE' AND a.AgenteEquip = a.OrgaoAutuante) or (o.UF != 'PE') ))		
+	or exists(SELECT 1
+		from    dbinfracao..Auto a,   
+				dbinfracao..InfracaoAuto ia  , dbinfracao..OrgaoAutuante o
+			where	a.OrgaoCompetencia = @CodigoOrgaoAut  
+			and 	a.AutoINFRAEST   = @NumAutoInfracao  
+			and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+			and 	ia.Serie = a.Serie  
+			and 	ia.Auto =a.Cod  
+			and     ia.OrgaoAutuante = o.Cod
+			and     ((o.UF = 'PE' AND a.AgenteEquip = a.OrgaoAutuante) or (o.UF != 'PE') ))
+	or exists(SELECT 1
+		from    dbinfracao..Auto a ,   
+				dbinfracao..InfracaoAuto ia  , dbinfracao..OrgaoAutuante o
+			where	a.OrgaoCompetencia = @CodigoOrgaoAut  
+			and 	a.AutoRENAINF   = @NumAutoInfracao  
+			and 	ia.OrgaoAutuante = a.OrgaoAutuante   
+			and 	ia.Serie = a.Serie  
+			and 	ia.Auto =a.Cod  
+			and     ia.OrgaoAutuante = o.Cod
+			and     ((o.UF = 'PE' AND a.AgenteEquip = a.OrgaoAutuante) or (o.UF != 'PE') ))		
+	begin
+		exec 	dbinfracao..RNFAutoU   
+	    	@CodTransacao 		= @CodTransacao,   
+	    	@NumAutoInfracao		= @NumAutoInfracao,   
+	    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+	    	@Infracao 		= @Infracao ,    
+	    	@TipoMovimento		= 'C',   
+		@DataEmissaoNotAut	= @DataEmissaoNotAut,   
+		@DataLimDef		= @DataLimDef,   
+		@IndExibilidade 		= @IndExibilidade ,   
+		@CodigoRENAINF		= @CodigoRENAINF,   
+		@DataEmissaoNot		= @DataEmissaoNot,   
+		@DataVencNot		= @DataVencNot,   
+		@NumNotificacao		= @NumNotificacao,   
+		@DataCancelamento 	= @DataCancelamento,   
+		@MotivoCanc  	 	= @MotivoCanc   
+	end		
+
+END
+ELSE
+BEGIN  
+		exec RNFAutoTransitoI @ParteFixa =  @PFIXA  	  
+END 
+
+ 
+GOTO Continua 
+
+---------------------------------------------------------------------------------------------------esse trecho nunca será executado
+
+SELECT @QtdeOcorrencias = convert(numeric(02),substring(@P2,32,2)) 
+ 
+select @Indice   = 0 
+ 
+ 
+
+select @P1 = substring(@P2,34,255) -- pega apenas as ocorrencias 
+select @P2 = @P3 
+SELECT @Desdobramento = 0 -- pois o RENAINF N+O TRATA DESDOBRAMENTO.
+ 
+ 
+        
+while  @QtdeOcorrencias > 0 
+begin 
+------ OCORRENCIAS ------------------// ------------------------------//----------- 
+ 
+select 	@UFOcorrencia		=substring(@P1,3+(@Indice*52),02), 
+	@TipoOcorrencia 		=convert(numeric(01),substring(@P1,5+(@Indice*52),02)), 	   
+	@OrigemOcorrencia 	=substring(@P1,7+(@Indice*52),01), 	   
+	@DataOcorrencia		=substring(@P1,8+(@Indice*52),08), 	  			 
+	@NumeroProcesso		=substring(@P1,16+(@Indice*52),20), 	  			 
+	@TipoLancamento		=convert(numeric(01),substring(@P1,44+(@Indice*52),1))  
+	 
+if	@Indice			=	4 
+	if    	substring(@P1+ltrim(rtrim(@P3)),45+(@Indice*52),8) = '00000000' 
+		select @DataCancelamento		=null 
+	else 
+		select @DataCancelamento		=convert(datetime,(substring(@P1+ltrim(rtrim(@P3)),45+(@Indice*52),8))) 	  					 
+else		  				 
+	if    	substring(@P1,45+(@Indice*52),8) = '00000000' 
+		select @DataCancelamento		=null 
+	else 
+		select @DataCancelamento		=convert(datetime,(substring(@P1,45+(@Indice*52),8))) 	  					 
+	 
+	 
+		if	(@TipoLancamento		=	1    
+			and @TipoOcorrencia 	= 	7   
+			and @OrigemOcorrencia 	=	'3')   
+			OR   
+			(@TipoLancamento		=	1    
+			and @TipoOcorrencia 	= 	3   
+			and @OrigemOcorrencia 	=	'3')   
+		begin   
+			exec 	dbinfracao..RNFAutoU   
+		    		@CodTransacao 		= @CodTransacao,   
+			    	@NumAutoInfracao		= @NumAutoInfracao,   
+			    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+			    	@Infracao 		= @Infracao ,    
+			    	@TipoMovimento		= 'C',   
+				@DataEmissaoNotAut	= @DataEmissaoNotAut,   
+				@DataLimDef		= @DataLimDef,   
+				@IndExibilidade 		= @IndExibilidade ,   
+				@CodigoRENAINF		= @CodigoRENAINF,   
+				@DataEmissaoNot		= @DataEmissaoNot,   
+				@DataVencNot		= @DataVencNot,   
+				@NumNotificacao		= @NumNotificacao,   
+				@DataCancelamento 	= @DataCancelamento,   
+				@MotivoCanc  	 	= @MotivoCanc,   
+				@NumeroProcesso		= @NumeroProcesso   
+		end   
+		   
+		----   Se @TipoOcorrencia = 01/09  registro de defesa da autuacao/recurso em transito -----    
+		if 	@Infracao 	between 5000 and 6000   
+					select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+ 
+		if @TipoOcorrencia in (01,09) and @TipoLancamento = 1   
+			exec Prot..RNFProtEmTransitoI   
+				@OrgaoAutuador = @CodigoOrgaoAut,   
+				@AutoRENAINF = @NumAutoInfracao,   
+				@Infracao = @InfracaoSemDigito,   
+				@UFOcorrencia = @UFOcorrencia,   
+				@TipoOcorrencia = @TipoOcorrencia,   
+				@DataOcorrencia = @DataOcorrencia,   
+				@NumeroProcesso = @NumeroProcesso   
+		   
+		----   Se @TipoOcorrencia = 01/09  desfaz registro de defesa da autuacao/recurso em transito -----    
+		if @TipoOcorrencia in (01,09) and @TipoLancamento = 2   
+			exec Prot..RNFProtEmTransito_Cancelar   
+				@OrgaoAutuador = @CodigoOrgaoAut,   
+				@AutoRENAINF = @NumAutoInfracao,   
+				@Infracao = @InfracaoSemDigito,   
+				@UFOcorrencia = @UFOcorrencia,   
+				@TipoOcorrencia = @TipoOcorrencia,   
+				@DataOcorrencia = @DataOcorrencia,   
+				@NumeroProcesso = @NumeroProcesso   
+				   
+		----   Se @TipoOcorrencia = 02/03/04/10/11/12   e lancamento = 1---    
+		--   (defesa da autuacao/recurso em julgamento e decisoes em julgamento -----   
+		if @TipoOcorrencia in (06,07,08,01,09,02,03,04,10,11,12,14,15,16,17) --registrar 14,15,16 e 17 AJS 04/03/2022    
+		begin   
+			select @TipoMovimento = null, @InstanciaRecurso = null --   
+		----    registro de defesa da autuacao em julgamento ---	   
+			if @TipoOcorrencia =02   
+			begin     
+				select @InstanciaRecurso = 0, @Deferido = null   
+				if @TipoLancamento = 1   
+					select @TipoMovimento = 'R'   
+					   
+				if @TipoLancamento = 2   
+					select @TipoMovimento = 'E'		   
+			end --if @TipoOcorrencia =02	   
+		--- decisao de defesa da autuacao em julgamento ---   
+			if @TipoOcorrencia in (03,04)   
+			begin    
+				select @InstanciaRecurso = 0   
+			      
+				if @TipoOcorrencia = 03   
+					select @Deferido = 'D'   
+			   	   
+				if @TipoOcorrencia = 04   
+					select @Deferido = 'I'   
+			   	   
+				if @TipoLancamento = 1   
+					select @TipoMovimento = 'D'   
+					   
+				if @TipoLancamento = 2   
+					select @TipoMovimento = 'F'		   
+		   
+			end   --if @TipoOcorrencia in (03,04)
+		   
+		---  registro de recurso de multa em julgamento ----    
+			if @TipoOcorrencia = 10   
+			begin    
+				select @Deferido = null --   
+			      
+				if @OrigemOcorrencia = '1'   
+					select @InstanciaRecurso = 1   
+				   
+				if @OrigemOcorrencia = '2'   
+					select @InstanciaRecurso = 2   
+				   
+				if @TipoLancamento = 1   
+					select @TipoMovimento = 'R'   
+					   
+				if @TipoLancamento = 2   
+					select @TipoMovimento = 'E'		   
+			end   --if @TipoOcorrencia = 10 
+			     
+		--- decisao de recurso em julgamento ---   
+			if @TipoOcorrencia in (11,12)   
+			begin    
+				if @OrigemOcorrencia = '1'   
+					select @InstanciaRecurso = 1   
+				   
+				if @OrigemOcorrencia = '2'   
+					select @InstanciaRecurso = 2   
+				   
+				if @TipoOcorrencia = 11   
+					select @Deferido = 'D'   
+			   	   
+				if @TipoOcorrencia = 12   
+					select @Deferido = 'I'   
+			   	   
+				if @TipoLancamento = 1   
+					select @TipoMovimento = 'D'   
+				   
+				if @TipoLancamento = 2   
+					select @TipoMovimento = 'F'   
+			end  --if @TipoOcorrencia in (11,12)   
+		     
+			select @sDataOcorrencia = convert(char(08),@DataOcorrencia,112)   
+		   
+			if @TipoOcorrencia = 06  and @TipoLancamento = 1 -- EFEITO SUSPENSIVO   
+			begin   
+		--	VOU SETAR O PROCESSO PARA OS AUTOS DO RENAINF SEMPRE COM O NUMERO UM (1)		 	         
+		--	E O NUMERO DO PROCESSO RENAINF CHAR(20) VOU GRAVA NO CAMPO ProcessoRENAINF   
+		--	DA TABELA dbinfracao..EfeitoSuspensivo   
+				declare  @Ultimo numeric(12,0)          
+				         
+				select @InfracaoSemDigito = @Infracao   
+			   
+				if 	@Infracao 	between 5000 and 6000   
+					select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+				exec dbinfracao..EfeitoSuspensivoSequencialI @Ultimo=@Ultimo output     
+			   
+				exec	dbinfracao..MovimentoAutoI_efeito    
+					@OrgaoAutuante = @CodigoOrgaoAut,         
+					@Serie =  '',  -- DENTRO DA PROCEDURE SERA OBTIDO ESSES DADOS A PARTIR DO AUTORENAINF   
+					@Auto = 0,         
+					@Infracao =  @InfracaoSemDigito,    
+					@TipoMovimento = "E",          
+					@ProcessoRecurso = 1,           
+					@OrdemJudicial="N",         
+					@EfeitoSuspensivo = 1,         
+					@DataProcesso=@DataOcorrencia,   
+					@Sequencial = @Ultimo,   
+					@ProcessoRENAINF = @NumeroProcesso,   
+					@AutoRENAINF	= @NumAutoInfracao  ,   
+					@Renainf	=	'S'       
+			end--if @TipoOcorrencia = 06  and @TipoLancamento = 1       
+		   
+			if @TipoOcorrencia = 06  and @TipoLancamento = 2 --  ESTORNO DO EFEITO SUSPENSIVO   
+			begin   
+				select @InfracaoSemDigito = @Infracao   
+ 
+			   
+				if 	@Infracao 	between 5000 and 6000   
+					select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+				exec 	dbinfracao..MovimentoAutoI_efeitocanc 	   
+						@OrgaoAutuante = @CodigoOrgaoAut,       
+						@Serie = '',        
+						@Auto = 0,        
+						@Infracao = @InfracaoSemDigito,       
+						@TipoMovimento = 'T',	  							       
+						@EfeitoSuspensivo = 1,       
+						@ProcessoRecurso=1,   
+						@ProcessoRENAINF = @NumeroProcesso ,   
+						@Renainf	= 	'S'   ,   
+						@AutoRENAINF	=	@NumAutoInfracao   
+			end  --if @TipoOcorrencia = 06  and @TipoLancamento = 2 
+		   
+			if (@TipoOcorrencia = 07  and @TipoLancamento = 2)  -- Desfaz o cancelamento   
+			begin   
+				select @InfracaoSemDigito = @Infracao   
+		   
+				if 	@Infracao 	between 5000 and 6000   
+					select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+		   
+				exec 	dbinfracao..RNFReativaCancelamento 	   
+					@OrgaoAutuante = @CodigoOrgaoAut,       
+					@Infracao = @InfracaoSemDigito,       
+					@ProcessoRENAINF = @NumeroProcesso ,   
+					@AutoRENAINF	=@NumAutoInfracao   
+			end--if (@TipoOcorrencia = 07  and @TipoLancamento = 2) 	  							       
+		   
+			if (@TipoOcorrencia = 08  and @TipoLancamento = 1) -- RETIRADA DO EFEITO SUSPENSIVO OU DO CANCELAMENTO   
+			   or  (@TipoOcorrencia = 03  and @TipoLancamento = 2) -- RETIRADA DE DECISAO DE DEFERIMENTO   
+			begin   
+		--	VOU SETAR O PROCESSO PARA OS AUTOS DO RENAINF SEMPRE COM O NUMERO UM (1)		 	         
+		--	E O NUMERO DO PROCESSO RENAINF CHAR(20) VOU GRAVA NO CAMPO ProcessoRENAINF   
+		--	DA TABELA dbinfracao..EfeitoSuspensivo   
+		 
+				select @Situacao = ' '   
+		 
+				select @Situacao  = ia.Situacao   
+				from  dbinfracao..Auto a (index Auto_AutoRENAINF) , dbinfracao..InfracaoAuto ia 
+				where a.AutoRENAINF = @NumAutoInfracao
+				and   a.OrgaoAutuante = @CodigoOrgaoAut
+				
+--				ia.CodigoRENAINF = @CodigoRENAINF  -- retirado e acrescentado por autorenainf e orgao	   
+				
+				and ia.OrgaoAutuante = a.OrgaoAutuante   
+				and ia.Auto = a.Cod   
+				and ia.Infracao = @InfracaoSemDigito
+				and ia.Desdobramento = @Desdobramento
+				and ia.Situacao	IN ('E','C') 	     
+		   
+				select @InfracaoSemDigito = @Infracao   
+		   
+				if 	@Infracao 	between 5000 and 6000   
+					select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+		   
+		--- desenvolver a retirada do cancelamento	           		        
+				if	@Situacao	=	'E'   
+				begin   
+					exec 	dbinfracao..MovimentoAutoI_efeitocanc 	   
+						@OrgaoAutuante = @CodigoOrgaoAut,       
+						@Serie = '',        
+						@Auto = 0,        
+						@Infracao = @InfracaoSemDigito,       
+						@TipoMovimento = 'T',	  							       
+						@EfeitoSuspensivo = 1,       
+						@ProcessoRecurso=1,   
+						@ProcessoRENAINF = @NumeroProcesso ,   
+						@Renainf	= 	'S'   ,   
+						@AutoRENAINF	=	@NumAutoInfracao   
+				end   --if	@Situacao	=	'E'
+		   
+		--	Reativa Cancelamento			   
+				if	@Situacao	=	'C'   
+				begin   
+					exec 	dbinfracao..RNFReativaCancelamento 	   
+						@OrgaoAutuante = @CodigoOrgaoAut,       
+						@Infracao = @InfracaoSemDigito,       
+						@ProcessoRENAINF = @NumeroProcesso ,   
+						@AutoRENAINF	=	@NumAutoInfracao   
+				end --if	@Situacao	=	'C' 	 
+				 							       
+			end -- if (@TipoOcorrencia = 08  and @TipoLancamento = 1) -- RETIRADA DO EFEITO SUSPENSIVO OU DO CANCELAMENTO   
+			 --  or  (@TipoOcorrencia = 03  and @TipoLancamento = 2)      
+			   
+			if @TipoOcorrencia in (06,07,08,01,09,02,03,04,10,11,12,14,15,16,17)     ---- registrar divida ativa 15/04/2019
+												 -----registrar 14 15 e 16
+			begin
+				exec Prot..RNFOcorrRecursoI   
+				    @UFOcorr = @UFOcorrencia,   
+				    @DataOcorr = @sDataOcorrencia,   
+				    @NumAutoInfracao = @NumAutoInfracao,   
+				    @CodigoOrgaoAut = @CodigoOrgaoAut,   
+				    @Infracao = @InfracaoSemDigito,    
+				    @Processo  = @NumeroProcesso,   
+				    @TipoOcorrencia = @TipoOcorrencia,   
+				    @OrigemOcorrencia = @OrigemOcorrencia,   
+				    @TipoLancamento = @TipoLancamento,   
+				    @RecebTransm = 'R',   
+				    @RNFIndicadorExigibilidade = @IndExibilidade,   
+				    @CodRetorno = 0   
+			end  --if @TipoOcorrencia in (06,07,08,01,09,02,03,04,10,11,12,17)
+			   
+			if @TipoOcorrencia in (02,03,04,10,11,12)  
+			begin  
+				exec Prot..RNFMovimentoAutoRecursoI   
+				     @DataAtualizacao = @DataOcorrencia,   
+				     @OrgaoAutuante = @CodigoOrgaoAut,   
+				     @AutoRENAINF = @NumAutoInfracao,   
+				     @Infracao = @InfracaoSemDigito,
+				     @Desdobramento = @Desdobramento,   
+				     @TipoMovimento = @TipoMovimento,   
+				     @InstanciaRecurso = @InstanciaRecurso,   
+				     @Prot = null,   
+				     @NumeroProcessoRNF = @NumeroProcesso,   
+				     @Deferido = @Deferido,   
+				     @TipoLancamento = @TipoLancamento,   
+				     @TipoOcorrencia = @TipoOcorrencia,   
+				     @OrigemOcorrencia = @OrigemOcorrencia,   
+				     @iRecebidoRENAINF = 'S'   
+			end--if @TipoOcorrencia in (02,03,04,10,11,12)	      
+		end --if @TipoOcorrencia in (06,07,08,01,09,02,03,04,10,11,12) 
+		
+		  
+		----   Se @TipoOcorrencia = 02/03/04/10/11/12   e lancamento = 1---    
+		--   defesa da autuacao/recurso em julgamento e decisoes em julgamento -----   
+		   
+		if @TipoOcorrencia in (02,03,04,10,11,12) and @TipoLancamento = 2   
+		begin   
+		        if @Infracao between 5001 and 6000    
+			        select @Infracao = convert(int, @Infracao/10)    
+		   
+			update Prot..RNFMovimentoAutoRecurso   
+			set RegistroCancelado='S',DataRegistroCancelado = getdate()   
+			where OrgaoAutuante = @CodigoOrgaoAut   
+			and AutoRENAINF = @NumAutoInfracao   
+			and Infracao = @Infracao   
+			and TipoOcorrencia = @TipoOcorrencia   
+			and OrigemOcorrencia = @OrigemOcorrencia   
+			and TipoLancamento = 1				        
+		end --if @TipoOcorrencia in (02,03,04,10,11,12) and @TipoLancamento = 2 		   
+		     	             
+ 
+		SELECT @QtdeOcorrencias = @QtdeOcorrencias - 1 
+		select @Indice	      = @Indice  + 1		   
+-- END DO WHILE 
+end		   
+ 
+
+ 
+-----// FIM OCORRENCIAS // ------------------------------ 
+ 
+	 
+GOTO Continua   
+ 
+ 
+Transacao419:   
+IF 	(@UFJurisdVeiculo = null or @UFJurisdVeiculo !='PE')
+	BEGIN 
+	exec dbinfracao..RNFNotifOutraUFI @ParteFixa = @PFIXA,   
+   					@CodigoOrgaoAut = @CodigoOrgaoAut,  
+   				     	@NumAutoInfracao = @NumAutoInfracao  
+   	END 
+   				     	 
+GOTO Continua   
+Transacao430:   
+exec @Erro = dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT02'   
+   
+if @Erro not in (null,0)    
+	return   
+   
+exec	dbarrecadacao..RNFRepasseRecebido   
+	@UFOrigem	= @UFJurisdVeiculo,   
+	@iRepasse	= @IdentRepasse,   
+	@DataRepasse	= @DataRepasse,   
+	@TipoRepasse	= @TipoRepasse,   
+	@NumDocRepasse	= @NumeroProcesso,   
+	@BancoOrigem	= @CodBcoCredArr,   
+	@AgenciaOrigem	= @CodAgenciaOrigem,   
+	@BancoDestino	= @CodBcoPagto,   
+	@AgenciaDestino	= @CodAgenciaDestino,   
+	@ContaDestino	= @NumCtaCorRep,   
+	@iDeposito	= @CodIdentDep,   
+	@ValorRepasse	= @ValorRepassado,   
+	@ValorTarifa	= @ValorTarRepasse,   
+	@QuantInfRep	= @QuantInfRep,    
+	@Observacao	= @ObsRepasse   
+   
+   
+-- Incluir procedure para gravar dados 	   
+	   
+GOTO Continua   
+   
+Transacao431:   
+exec @Erro = dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT02'   
+   
+if @Erro not in (null,0)    
+	return   
+	   
+exec	dbarrecadacao..RNFRepasseRecebido   
+	@UFOrigem	= @UFJurisdVeiculo,   
+	@iRepasse	= @IdentRepasse,   
+	@DataRepasse	= @DataRepasse,   
+	@OrgaoAutuante	= @CodigoOrgaoAut,   
+	@iTabelaConta	= @IndTabContas,   
+	@CodigoRENAINF	= @CodigoRENAINF,   
+	@ValorFunset	= @ValorFunset,   
+	@ValorDetran	= @ValorDetran,   
+	@ValorDenatran	= @ValorDenatran,   
+	@ValorRepasse	= @ValorRepassado,   
+	@Observacao	= @ObsRepasse   
+   
+GOTO Continua   
+   
+   
+Transacao418:   
+ 
+exec 	dbinfracao..RNFAutoU   
+    	@CodTransacao 		= @CodTransacao,   
+    	@NumAutoInfracao		= @NumAutoInfracao,   
+    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+    	@Infracao 		= @Infracao ,    
+    	@TipoMovimento		= 'F',   
+	@NomeRealInfrator		= @NomeRealInfrator,   
+	@NumRegisCNHRealInfr	= @NumRegisCNHRealInfr,   
+	@UFExpCNHRealInfr		= @UFExpCNHRealInfr, 
+	@DataInfracao		= @DataInfracao	 , 
+	@UFOrgaoAutuante		= @UFOrgaoAutuante, 
+	@LocalInfracao		= @LocalInfracao, 
+	@Placa			= @Placa, 
+	@UFPlaca			= @UFJurisdVeiculo 
+   
+GOTO Continua   
+   
+   
+Transacao420:   
+   
+exec 	@Erro =   dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT02'   
+if   	@Erro not in (null,0)    
+	return   
+   
+exec 	dbinfracao..RNFAutoU   
+    	@CodTransacao 		= @CodTransacao,   
+    	@NumAutoInfracao		= @NumAutoInfracao,   
+    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+    	@Infracao 		= @Infracao ,    
+    	@TipoMovimento		= 'C',   
+	@DataEmissaoNotAut	= @DataEmissaoNotAut,   
+	@DataLimDef		= @DataLimDef,   
+	@IndExibilidade 		= @IndExibilidade ,   
+	@CodigoRENAINF		= @CodigoRENAINF,   
+	@DataEmissaoNot		= @DataEmissaoNot,   
+	@DataVencNot		= @DataVencNot,   
+	@NumNotificacao		= @NumNotificacao,   
+	@DataCancelamento 	= @DataCancelamento,   
+	@MotivoCanc  	 	= @MotivoCanc   
+GOTO Continua 
+	   
+Transacao421:   
+   
+exec 	@Erro =   dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT02'   
+
+if   	@Erro not in (null,0)    
+	return   
+
+select @InfracaoSemDigito = @Infracao   
+
+if 	@Infracao 	between 5000 and 6000   
+	select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10) 
+	
+if 	@IndicadorArgumento	=	3  
+begin 
+	declare	@ValorInfracaoValidar	numeric(12,2)
+	select  @ValorInfracaoValidar = convert(numeric(10,4),round((vg.Valor*mc.Valor),2)) 
+	from   	dbinfracao..ValorGrupo vg, dbarrecadacao..MoedaCotacao mc , dbinfracao..Infracao i
+	where	i.Cod		=	@Infracao 
+	and 	i.Desdobramento	=	@Desdobramento 
+	and	i.Grupo = vg.Grupo 
+	and	vg.Vigencia = (select max(Vigencia) 
+			from dbinfracao..ValorGrupo vg1 
+			where vg1.Grupo = vg.Grupo 
+			and Vigencia <= @DataInfracao) 
+	and 	vg.Moeda	= mc.Moeda			 
+	and	mc.DataCad = (select max(DataCad) 
+				from dbarrecadacao..MoedaCotacao mc1 
+				where mc1.Moeda = mc.Moeda 
+				and   mc1.DataCad <= @DataInfracao) 
+				
+	if	@ValorInfracao > (@ValorInfracaoValidar*.50) ----------só atualizar o valor se acima de 50% --- coloquei por conta própria para evitar erros vindos do serpro 28/07/2017
+	begin
+		declare	@perdesconto	int
+		
+		SELECT 	 @DataInfracao = a.DataInfracao, @Infracao = ia.Infracao, @Desdobramento = ia.Desdobramento
+		from  	dbinfracao..Auto a
+		        ,dbinfracao..InfracaoAuto ia
+		where   	a.AutoRENAINF 	= 	@NumAutoInfracao   
+		AND     	a.OrgaoAutuante   = 	@CodigoOrgaoAut  
+		and 	a.OrgaoAutuante	=	ia.OrgaoAutuante
+		and 	a.Serie		=	ia.Serie
+		and 	a.Cod		=	ia.Auto
+	    		
+	    		
+		select  @ValorInfracao = convert(numeric(10,4),round((@ValorInfracao/mc.Valor),2)) 
+		from   	dbinfracao..ValorGrupo vg, dbarrecadacao..MoedaCotacao mc , dbinfracao..Infracao i
+		where	i.Cod		=	@Infracao 
+		and 	i.Desdobramento	=	@Desdobramento 
+		and	i.Grupo = vg.Grupo 
+		and	vg.Vigencia = (select max(Vigencia) 
+				from dbinfracao..ValorGrupo vg1 
+				where vg1.Grupo = vg.Grupo 
+				and Vigencia <= @DataInfracao) 
+		and 	vg.Moeda	= mc.Moeda			 
+		and	mc.DataCad = (select max(DataCad) 
+					from dbarrecadacao..MoedaCotacao mc1 
+					where mc1.Moeda = mc.Moeda 
+					and   mc1.DataCad <= @DataInfracao) 
+					
+					
+	
+		begin tran 
+		---///-----	    
+		update 	dbarrecadacao..ParcelaDebito   set ValorMoeda = @ValorInfracao, SaldoMoeda  = @ValorInfracao
+		from    dbinfracao..Auto a, 
+			dbarrecadacao..Debito d, 
+			dbarrecadacao..ParcelaDebito pd					   
+		    	where   a.AutoRENAINF 	 	= @NumAutoInfracao   
+		    	AND     a.OrgaoAutuante    	= @CodigoOrgaoAut   
+		    	and     a.Serie			= d.Serie 
+		    	and     a.OrgaoAutuante		= d.OrgaoAutuante 
+		    	and     a.Cod			= d.Auto 
+		    	and     d.Infracao		= @Infracao
+		    	and     d.Situacao		not in ('T','C') 
+		    	and     d.Setor			= pd.Setor 
+		    	and     d.Cod			= pd.Debito 
+		 
+		if @@transtate=2 OR @@transtate=3   
+		 	   begin   
+			   if @@transtate=2   
+			      rollback tran   
+			      raiserror 55000   
+			      return   
+			   end   
+			   
+		update 	dbarrecadacao..Debito   set ValorMoeda = @ValorInfracao
+		from    dbinfracao..Auto a, 
+			dbarrecadacao..Debito d, 
+			dbarrecadacao..ParcelaDebito pd					   
+		    	where   a.AutoRENAINF 	 	= @NumAutoInfracao   
+		    	AND     a.OrgaoAutuante    	= @CodigoOrgaoAut   
+		    	and     a.Serie			= d.Serie 
+		    	and     a.OrgaoAutuante		= d.OrgaoAutuante 
+		    	and     a.Cod			= d.Auto 
+		    	and     d.Infracao		= @Infracao 
+		    	and     d.Situacao		not in ('T','C') 
+		    	and     d.Setor			= pd.Setor 
+		    	and     d.Cod			= pd.Debito 
+		 
+		if @@transtate=2 OR @@transtate=3   
+		 	   begin   
+			   if @@transtate=2   
+			      rollback tran   
+			      raiserror 55000   
+			      return   
+			   end   
+			   		   
+		commit tran
+	end
+			   
+GOTO Continua	   
+end
+
+	
+
+begin tran
+   
+if 	@IndicadorArgumento	=	1  -- Alteração data da NA
+begin 
+
+	if @IndNotifAutEdit = 2 -- Notificação por edital
+	begin
+		update 	dbinfracao..Auto
+    		set DataLimiteDefesaAutOriginal = DataLimiteDefesaAutuacao,
+    		    DataEditalNa = @DataNotifAutEdit, iNotifEditalNa = 'S'  
+    		where   AutoRENAINF 	 = @NumAutoInfracao   
+    		AND     OrgaoAutuante    = @CodigoOrgaoAut   
+		if @@transtate=2 OR @@transtate=3   
+	   	   begin   
+		   if @@transtate=2   
+		      rollback tran   
+		      raiserror 55000   
+		      return   
+		   end
+	end       
+	
+    	update 	dbinfracao..Auto
+    	set DataLimiteDefesaAutuacao = @DataLimDef 
+    	where   AutoRENAINF 	 = @NumAutoInfracao   
+    	AND     OrgaoAutuante    = @CodigoOrgaoAut   
+	if @@transtate=2 OR @@transtate=3   
+   	   begin   
+	   if @@transtate=2   
+	      rollback tran   
+	      raiserror 55000   
+	      return   
+	   end 
+	   
+
+
+end  
+if 	@IndicadorArgumento	=	2  -- Alteração data da NP
+begin 
+
+	if @IndNotifAutEdit = 2 -- Notificação por edital
+	begin
+		update 	dbinfracao..Auto
+    		set DataLimiteDefesaPenalOriginal = DataLimiteDefesaPenalidade,
+    		    DataEditalNp = @DataNotifAutEdit, iNotifEditalNp = 'S'    
+    		where   AutoRENAINF 	 = @NumAutoInfracao   
+    		AND     OrgaoAutuante    = @CodigoOrgaoAut   
+		if @@transtate=2 OR @@transtate=3   
+	   	   begin   
+		   if @@transtate=2   
+		      rollback tran   
+		      raiserror 55000   
+		      return   
+		   end
+	end     
+
+    	update 	dbinfracao..Auto
+    	set DataLimiteDefesaPenalidade = @DataLimDef 
+    	where   AutoRENAINF 	 = @NumAutoInfracao   
+    	AND     OrgaoAutuante    = @CodigoOrgaoAut   
+	if @@transtate=2 OR @@transtate=3   
+   	   begin   
+	   if @@transtate=2   
+	      rollback tran   
+	      raiserror 55000   
+	      return   
+	   end   
+end
+---///-----	 
+if 	@IndicadorArgumento	in (1,2)    
+begin
+update 	dbarrecadacao..ParcelaDebito  set DataVencimento = @DataLimDef, 
+			       DataLimDesconto = @DataLimDef  
+	from    dbinfracao..Auto a, 
+		dbarrecadacao..Debito d, 
+		dbarrecadacao..ParcelaDebito pd					   
+    	where   a.AutoRENAINF 	 	= @NumAutoInfracao   
+    	AND     a.OrgaoAutuante    	= @CodigoOrgaoAut   
+    	and     a.Serie			= d.Serie 
+    	and 	a.OrgaoAutuante		= d.OrgaoAutuante 
+    	and     a.Cod			= d.Auto 
+    	and 	d.Infracao		= @InfracaoSemDigito 
+    	and 	d.Situacao		not in ('T','C') 
+    	and     d.Setor			= pd.Setor 
+    	and     d.Cod			= pd.Debito 
+ 
+if @@transtate=2 OR @@transtate=3   
+ 	   begin   
+	   if @@transtate=2   
+	      rollback tran   
+	      raiserror 55000   
+	      return   
+	   end   
+end	   	    
+commit  tran 
+	   
+GOTO Continua 
+ 
+Transacao422:         
+
+exec dbinfracao..RNFAutoDesvinculacaoI @ParteFixa = @PFIXA
+
+
+GOTO Continua	   
+
+
+Transacao416:         
+select  @Erro = null   
+   
+exec 	@Erro =   dbinfracao..RNFValidaTransacao @ParteFixa = @PFIXA, @TipoRegistroTransacao ='RT03'   
+   
+if   	@Erro not in (null,0) -- 160 e ja cadastrada   
+	return 
+	
+--select @InfracaoSemDigito = @Infracao	
+--	
+--if 	@Infracao 	between 5000 and 6000   
+--	select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+--
+--select @Desdobramento  = ia.Desdobramento   
+--from dbinfracao..InfracaoAuto ia, dbinfracao..Auto a   
+--where a.OrgaoAutuante  = @CodigoOrgaoAut
+--and a.AutoRENAINF = @NumAutoInfracao
+--and a.OrgaoAutuante = ia.OrgaoAutuante
+--and a.Serie = ia.Serie
+--and a.Cod = ia.Auto
+--and ia.Infracao= @InfracaoSemDigito	
+   
+if	(@TipoLancamento		=	1    
+	and @TipoOcorrencia 	= 	7   
+	and @OrigemOcorrencia 	in	('3','4'))   
+	OR   
+	(@TipoLancamento		=	1    
+	and @TipoOcorrencia 	= 	3   
+	and @OrigemOcorrencia 	=	'3')
+	OR   
+	(@TipoLancamento		=	1    
+	and @TipoOcorrencia 	= 	20   
+	and @OrigemOcorrencia 	=	'3')   
+begin   
+	exec 	dbinfracao..RNFAutoU   
+    		@CodTransacao 		= @CodTransacao,   
+	    	@NumAutoInfracao		= @NumAutoInfracao,   
+	    	@CodigoOrgaoAut 		= @CodigoOrgaoAut,   
+	    	@Infracao 		= @Infracao ,    
+	    	@TipoMovimento		= 'C',   
+		@DataEmissaoNotAut	= @DataEmissaoNotAut,   
+		@DataLimDef		= @DataLimDef,   
+		@IndExibilidade 		= @IndExibilidade ,   
+		@CodigoRENAINF		= @CodigoRENAINF,   
+		@DataEmissaoNot		= @DataEmissaoNot,   
+		@DataVencNot		= @DataVencNot,   
+		@NumNotificacao		= @NumNotificacao,   
+		@DataCancelamento 	= @DataCancelamento,   
+		@MotivoCanc  	 	= @MotivoCanc,   
+		@NumeroProcesso		= @NumeroProcesso   
+end   
+
+
+--
+-- Se Tipo de Ocorrência for: Solicitação de penalidade de advertência por escrito deferida
+--
+if	@TipoOcorrencia	= 15	-- Solicitação de penalidade de advertência por escrito deferida
+and	@TipoLancamento	= 1	-- Registro Normal 		    
+and 	@OrigemOcorrencia	= '3' 	-- Órgão Autuador 
+begin
+
+		exec 	dbinfracao..RNFAutoU    
+    		@CodTransacao 		= @CodTransacao,    
+	    	@NumAutoInfracao	= @NumAutoInfracao,    
+	    	@CodigoOrgaoAut 	= @CodigoOrgaoAut,    
+	    	@Infracao 		= @Infracao ,     
+	    	@TipoMovimento		= 'V',    -- Converter em Advertência
+		@DataEmissaoNotAut	= @DataEmissaoNotAut,    
+		@DataLimDef		= @DataLimDef,    
+		@IndExibilidade 	= @IndExibilidade ,    
+		@CodigoRENAINF		= @CodigoRENAINF,    
+		@DataEmissaoNot		= @DataEmissaoNot,    
+		@DataVencNot		= @DataVencNot,    
+		@NumNotificacao		= @NumNotificacao,    
+		@DataCancelamento 	= @DataCancelamento,    
+		@MotivoCanc  	 	= @MotivoCanc,    
+		@NumeroProcesso		= @NumeroProcesso,
+		@DataInfracao		= @DataInfracao 
+	
+end   
+   
+----   Se @TipoOcorrencia = 01/09  registro de defesa da autuacao/recurso em transito -----    
+if @TipoOcorrencia in (01,09) and @TipoLancamento = 1   
+	exec Prot..RNFProtEmTransitoI   
+		@OrgaoAutuador = @CodigoOrgaoAut,   
+		@AutoRENAINF = @NumAutoInfracao,   
+		@Infracao = @Infracao,   
+		@UFOcorrencia = @UFOcorrencia,   
+		@TipoOcorrencia = @TipoOcorrencia,   
+		@DataOcorrencia = @DataOcorrencia,   
+		@NumeroProcesso = @NumeroProcesso   
+   
+----   Se @TipoOcorrencia = 01/09  desfaz registro de defesa da autuacao/recurso em transito -----    
+if @TipoOcorrencia in (01,09) and @TipoLancamento = 2   
+	exec Prot..RNFProtEmTransito_Cancelar   
+		@OrgaoAutuador = @CodigoOrgaoAut,   
+		@AutoRENAINF = @NumAutoInfracao,   
+		@Infracao = @Infracao,   
+		@UFOcorrencia = @UFOcorrencia,   
+		@TipoOcorrencia = @TipoOcorrencia,   
+		@DataOcorrencia = @DataOcorrencia,   
+		@NumeroProcesso = @NumeroProcesso   
+		   
+----   Se @TipoOcorrencia = 02/03/04/10/11/12   e lancamento = 1---    
+--   (defesa da autuacao/recurso em julgamento e decisoes em julgamento -----   
+if @TipoOcorrencia in (06,07,08,01,09,02,03,04,10,11,12,14,15,16,17,20,21)    ---- divida ativa
+									---REGISTRAR 14,15 E 16
+									--28/06/2022 ocorr 20 e 21
+begin   
+	select @TipoMovimento = null, @InstanciaRecurso = null --   
+----    registro de defesa da autuacao em julgamento ---	   
+	if @TipoOcorrencia =02   
+	begin     
+		select @InstanciaRecurso = 0, @Deferido = null   
+		if @TipoLancamento = 1   
+			select @TipoMovimento = 'R'   
+			   
+		if @TipoLancamento = 2   
+			select @TipoMovimento = 'E'		   
+	end 	   
+--- decisao de defesa da autuacao em julgamento ---   
+	if @TipoOcorrencia in (03,04,20)   
+	begin    
+		select @InstanciaRecurso = 0   
+	      
+		if @TipoOcorrencia IN (03,20)   
+			select @Deferido = 'D'   
+	   	   
+		if @TipoOcorrencia = 04   
+			select @Deferido = 'I'   
+	   	   
+		if @TipoLancamento = 1   
+			select @TipoMovimento = 'D'   
+			   
+		if @TipoLancamento = 2   
+			select @TipoMovimento = 'F'		   
+   
+	end   
+   
+---  registro de recurso de multa em julgamento ----    
+	if @TipoOcorrencia = 10   
+	begin    
+		select @Deferido = null --   
+	      
+		if @OrigemOcorrencia = '1'   
+			select @InstanciaRecurso = 1   
+		   
+		if @OrigemOcorrencia = '2'   
+			select @InstanciaRecurso = 2   
+		   
+		if @TipoLancamento = 1   
+			select @TipoMovimento = 'R'   
+			   
+		if @TipoLancamento = 2   
+			select @TipoMovimento = 'E'		   
+	end   
+	     
+--- decisao de recurso em julgamento ---   
+	if @TipoOcorrencia in (11,12)   
+	begin    
+		if @OrigemOcorrencia = '1'   
+			select @InstanciaRecurso = 1   
+		   
+		if @OrigemOcorrencia = '2'   
+			select @InstanciaRecurso = 2   
+		   
+		if @TipoOcorrencia = 11   
+			select @Deferido = 'D'   
+	   	   
+		if @TipoOcorrencia = 12   
+			select @Deferido = 'I'   
+	   	   
+		if @TipoLancamento = 1   
+			select @TipoMovimento = 'D'   
+		   
+		if @TipoLancamento = 2   
+			select @TipoMovimento = 'F'   
+	end   
+     
+	select @sDataOcorrencia = convert(char(08),@DataOcorrencia,112)   
+   
+	if @TipoOcorrencia = 06  and @TipoLancamento = 1 -- EFEITO SUSPENSIVO   
+	begin   
+--	VOU SETAR O PROCESSO PARA OS AUTOS DO RENAINF SEMPRE COM O NUMERO UM (1)		 	         
+--	E O NUMERO DO PROCESSO RENAINF CHAR(20) VOU GRAVA NO CAMPO ProcessoRENAINF   
+--	DA TABELA dbinfracao..EfeitoSuspensivo   
+         
+		         
+		select @InfracaoSemDigito = @Infracao   
+	   
+		if 	@Infracao 	between 5000 and 6000   
+			select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+
+			
+		exec dbinfracao..EfeitoSuspensivoSequencialI @Ultimo=@Ultimo output     
+	   
+		exec	dbinfracao..MovimentoAutoI_efeito    
+			@OrgaoAutuante 		=@CodigoOrgaoAut,         
+			@Serie 			='',  -- DENTRO DA PROCEDURE SERA OBTIDO ESSES DADOS A PARTIR DO AUTORENAINF   
+			@Auto 			=0,         
+			@Infracao 		=@InfracaoSemDigito,    
+			@TipoMovimento 		="E",          
+			@ProcessoRecurso 	=1,           
+			@OrdemJudicial		="N",         
+			@EfeitoSuspensivo 	=1,         
+			@DataProcesso		=@DataOcorrencia,   
+			@Sequencial 		=@Ultimo,   
+			@ProcessoRENAINF 	=@NumeroProcesso,   
+			@AutoRENAINF		=@NumAutoInfracao  ,   
+			@Renainf		='S'    ,   
+			@Desdobramento 		=@Desdobramento
+	end       
+   
+	if @TipoOcorrencia = 06  and @TipoLancamento = 2 --  ESTORNO DO EFEITO SUSPENSIVO   
+	begin   
+		select @InfracaoSemDigito = @Infracao   
+	   
+		if 	@Infracao 	between 5000 and 6000   
+			select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+		exec 	dbinfracao..MovimentoAutoI_efeitocanc 	   
+				@OrgaoAutuante = @CodigoOrgaoAut,       
+				@Serie = '',        
+				@Auto = 0,        
+				@Infracao = @InfracaoSemDigito,       
+				@TipoMovimento = 'T',	  							       
+				@EfeitoSuspensivo = 1,       
+				@ProcessoRecurso=1,   
+				@ProcessoRENAINF = @NumeroProcesso ,   
+				@Renainf	= 	'S'   ,   
+				@AutoRENAINF	=	@NumAutoInfracao,  
+				@Desdobramento 		=@Desdobramento 
+	end   
+   
+	if (@TipoOcorrencia = 07  and @TipoLancamento = 2)  -- Desfaz o cancelamento   
+	begin   
+		select @InfracaoSemDigito = @Infracao   
+   
+		if 	@Infracao 	between 5000 and 6000   
+			select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+   
+		exec 	dbinfracao..RNFReativaCancelamento 	   
+			@OrgaoAutuante = @CodigoOrgaoAut,       
+			@Infracao = @InfracaoSemDigito,       
+			@ProcessoRENAINF = @NumeroProcesso ,   
+			@AutoRENAINF	=@NumAutoInfracao   
+	end	  							       
+   
+	if (@TipoOcorrencia = 08  and @TipoLancamento = 1) -- RETIRADA DO EFEITO SUSPENSIVO OU DO CANCELAMENTO   
+	   or  (@TipoOcorrencia IN (03,20)  and @TipoLancamento = 2) -- RETIRADA DE DECISAO DE DEFERIMENTO   
+
+	begin   
+--	VOU SETAR O PROCESSO PARA OS AUTOS DO RENAINF SEMPRE COM O NUMERO UM (1)		 	         
+--	E O NUMERO DO PROCESSO RENAINF CHAR(20) VOU GRAVA NO CAMPO ProcessoRENAINF   
+--	DA TABELA dbinfracao..EfeitoSuspensivo   
+ 
+		select @Situacao = ' '   
+ 
+		select @Situacao  = ia.Situacao    
+			from  dbinfracao..Auto a (index Auto_AutoRENAINF) , dbinfracao..InfracaoAuto ia  
+			where a.AutoRENAINF = @NumAutoInfracao 
+			and   a.OrgaoAutuante = @CodigoOrgaoAut 
+			 
+--				ia.CodigoRENAINF = @CodigoRENAINF  -- retirado e acrescentado por autorenainf e orgao	    
+			 
+			and ia.OrgaoAutuante = a.OrgaoAutuante    
+			and ia.Auto = a.Cod    
+			and ia.Infracao = @InfracaoSemDigito 
+			and ia.Desdobramento = @Desdobramento 
+			and ia.Situacao	IN ('E','C') 	      
+	        
+   
+		select @InfracaoSemDigito = @Infracao   
+   
+		if 	@Infracao 	between 5000 and 6000   
+			select 		@InfracaoSemDigito = convert(numeric(04),@Infracao/10)   
+   
+--- desenvolver a retirada do cancelamento	           		        
+		if	@Situacao	=	'E'   
+		begin   
+			exec 	dbinfracao..MovimentoAutoI_efeitocanc 	   
+				@OrgaoAutuante = @CodigoOrgaoAut,       
+				@Serie = '',        
+				@Auto = 0,        
+				@Infracao = @InfracaoSemDigito,       
+				@TipoMovimento = 'T',	  							       
+				@EfeitoSuspensivo = 1,       
+				@ProcessoRecurso=1,   
+				@ProcessoRENAINF = @NumeroProcesso ,   
+				@Renainf	= 	'S'   ,   
+				@AutoRENAINF	=	@NumAutoInfracao   
+		end   
+   
+--	Reativa Cancelamento			   
+		if	@Situacao	=	'C'   
+		begin   
+			exec 	dbinfracao..RNFReativaCancelamento 	   
+				@OrgaoAutuante = @CodigoOrgaoAut,       
+				@Infracao = @InfracaoSemDigito,       
+				@ProcessoRENAINF = @NumeroProcesso ,   
+				@AutoRENAINF	=	@NumAutoInfracao   
+		end	  							       
+	end       
+	   
+	if @TipoOcorrencia in (06,07,08,01,09,02,03,04,10,11,12,14,15,16,17,20,21)   ---15/04/2019 - divida ativa
+										--- 04/03/2022 - REGISTRAR 14,15,16
+		exec Prot..RNFOcorrRecursoI   
+		    @UFOcorr = @UFOcorrencia,   
+		    @DataOcorr = @sDataOcorrencia,   
+		    @NumAutoInfracao = @NumAutoInfracao,   
+		    @CodigoOrgaoAut = @CodigoOrgaoAut,   
+		    @Infracao = @Infracao,    
+		    @Processo  = @NumeroProcesso,   
+		    @TipoOcorrencia = @TipoOcorrencia,   
+		    @OrigemOcorrencia = @OrigemOcorrencia,   
+		    @TipoLancamento = @TipoLancamento,   
+		    @RecebTransm = 'R',   
+		    @RNFIndicadorExigibilidade = @IndExibilidade,   
+		    @CodRetorno = 0   
+	     
+	if @TipoOcorrencia in (02,03,04,10,11,12,20,21)    
+		exec Prot..RNFMovimentoAutoRecursoI   
+		     @DataAtualizacao = @DataOcorrencia,   
+		     @OrgaoAutuante = @CodigoOrgaoAut,   
+		     @AutoRENAINF = @NumAutoInfracao,   
+		     @Infracao = @Infracao, 
+		     @Desdobramento=@Desdobramento,  
+		     @TipoMovimento = @TipoMovimento,   
+		     @InstanciaRecurso = @InstanciaRecurso,   
+		     @Prot = null,   
+		     @NumeroProcessoRNF = @NumeroProcesso,   
+		     @Deferido = @Deferido,   
+		     @TipoLancamento = @TipoLancamento,   
+		     @TipoOcorrencia = @TipoOcorrencia,   
+		     @OrigemOcorrencia = @OrigemOcorrencia,   
+		     @iRecebidoRENAINF = 'S'    
+end   
+----   Se @TipoOcorrencia = 02/03/04/10/11/12   e lancamento = 1---    
+--   defesa da autuacao/recurso em julgamento e decisoes em julgamento -----   
+   
+if @TipoOcorrencia in (02,03,04,10,11,12,20) and @TipoLancamento = 2   
+begin   
+        if @Infracao between 5001 and 6000    
+	        select @Infracao = convert(int, @Infracao/10)    
+   
+	update Prot..RNFMovimentoAutoRecurso   
+	set RegistroCancelado='S',DataRegistroCancelado = getdate()   
+	where OrgaoAutuante = @CodigoOrgaoAut   
+	and AutoRENAINF = @NumAutoInfracao   
+	and Infracao = @Infracao   
+	and TipoOcorrencia = @TipoOcorrencia   
+	and OrigemOcorrencia = @OrigemOcorrencia   
+	and TipoLancamento = 1				        
+end		   
+     	             
+-- calcular indicador de exigibilidade  --   
+-- Adilson 15 07 2004 ----   
+-- verificar com maria perez if	@TipoLancamento	=		   
+   
+GOTO Continua   
+
+
+Transacao423:   
+
+declare @SetorDebito varchar(44), 
+	@CodDebito numeric(15), 
+	@Vencimento datetime,
+	@RespostaOA INT, 
+	@PerDesconto int, 
+	@Modalidade int, 
+	@CodBarras char(100),  
+	@DataCad datetime,
+	@ValDesReal numeric(15,2),
+	@ValorCotacao numeric(15,6), 
+	@NOVANumDigital char(100)	                                            
+
+SELECT  @UFOrgaoAutuante 	=	'PE' 
+select  @RespostaOA		=	00	
+select  @SetorDebito 		=	null
+select  @CodRetorno 		= 	000
+select  @Modalidade		=	02 --- boleto com 20% desconto
+select  @NumRegistCNHCond  	= 	00110434123 -- BANCOS 
+select  @CodAgenCredArr 	=	70330 -- CONTINUAÇ+O DOS bancos
+
+
+-------------inicio indicação adesao sne
+declare @Data datetime,
+	@DataAdesaoSNE  datetime , 
+ 	@HoraAdesaoSNE int , 
+ 	@IndicadorAdesaoSNE int , 
+ 	@IndicadorAdesaoOASNE int  ,
+ 	@sDataAdesaoSNE char(08),
+ 	@DataLimDesconto datetime
+ 
+select 	@IndicadorAdesaoSNE	=	isnull(convert(numeric(01),substring(@P1,80,1)),0),  		 
+ 	@DataAdesaoSNE		=	substring(@P1,81,08),  
+	@HoraAdesaoSNE		=	convert(numeric(04),substring(@P1,89,04)),
+	@sDataAdesaoSNE		=	substring(@P1,81,08)
+
+	-- novos campos afs 12-06-2023
+	if	convert(numeric(4),substring(@P1,29,4))	=	132
+	begin
+
+		select	@IndAdesaoPossuidorEpocaSNE	=	convert(numeric(1),substring(@P1,93,1))
+	
+		if substring(@P1,94,8) 			= 	'00000000'
+			select	@DataAdesaoPossuidorEpocaSNE 	=	null
+		else
+			select	@DataAdesaoPossuidorEpocaSNE 	=	convert(datetime,substring(@P1,94,8))
+	
+		select	@HoraAdesaoPossuidorEpocaSNE 	=	convert(numeric(4),substring(@P1,102,4)),
+			@IndicadorAdesaoPCSNE 		=	convert(numeric(1),substring(@P1,106,1))
+	
+		if substring(@P1,107,8) 		= 	'00000000'
+			select	@DataAdesaoPCSNE 		=	null
+		else
+			select	@DataAdesaoPCSNE 		=	convert(datetime,substring(@P1,107,8))
+	
+		select	@HoraAdesaoPCSNE 		=	convert(numeric(4),substring(@P1,115,4)),
+			@IndAdesaoInfAbordadoIndSNE 	=	convert(numeric(1),substring(@P1,119,1))
+	
+		if substring(@P1,120,8) = '00000000'
+			select	@DataAdesaoInfAbordadoIndSNE 	=	null
+		else
+			select	@DataAdesaoInfAbordadoIndSNE 	=	convert(datetime,substring(@P1,120,8))
+	
+		select	@HoraAdesaoInfAbordadoIndSNE 	=	convert(numeric(4),substring(@P1,128,4)),
+			@IndicadorAdesaoOASNE 		=	convert(numeric(4),substring(@P1,132,1))
+	end
+
+
+
+select @Data = null 
+if	@DataAdesaoSNE	!=null and @sDataAdesaoSNE !='00000000'-- 
+begin				 
+	if	@HoraAdesaoSNE>2459  
+		select @HoraAdesaoSNE	=0 
+	if @HoraAdesaoSNE != 2400     
+	begin     
+		if 	@HoraAdesaoSNE	< 100    
+			    
+				select	@Data = convert( datetime, convert(char(08),@DataAdesaoSNE,112) + ' '       
+				+ '00'     
+				+ ':' + right(convert(char(05),@HoraAdesaoSNE+10000), 2) )      
+		else    
+				select	@Data = convert( datetime, convert(char(08),@DataAdesaoSNE,112) + ' '       
+				+ substring(convert(char(05),@HoraAdesaoSNE+10000), 2, 2)     
+				+ ':' + right(convert(char(05),@HoraAdesaoSNE+10000), 2) )      
+	end		    
+	else      
+		select	@Data = convert( datetime, (convert(char(08),@DataAdesaoSNE,112) + ' 00:00'))  
+		 
+	if	convert(char(08),@Data,112)<='20160101'	  
+		select @Data	=	null	 
+	 
+	SELECT   @DataAdesaoSNE		 = @Data 
+
+
+	if		@IndicadorAdesaoSNE	=	1
+			select 	@TipoMovimento	=	'2'
+	if		@IndicadorAdesaoSNE	=	2
+			select 	@TipoMovimento	=	'3'
+			
+	if not	exists 	(select 1 from 	dbinfracao..Auto a,		
+					dbinfracao..MovimentoAuto ma 
+			 where 	a.OrgaoCompetencia 		= 	@CodigoOrgaoAut  
+			 and 	a.AutoRENAINF 			= 	@NumAutoInfracao 	
+			 and	ma.Serie			=	a.Serie
+			 and 	ma.Auto				=	a.Cod
+			 and 	ma.OrgaoAutuante		=	a.OrgaoAutuante
+			 and 	ma.TipoMovimento		=	@TipoMovimento)
+	and  not	exists 	(select 1 from 	dbinfracao..Auto a,		
+					dbinfracao..MovimentoAuto ma 
+			 where 	a.OrgaoCompetencia 		= 	@CodigoOrgaoAut  
+			 and 	a.AutoINFRAEST 			= 	@NumAutoInfracao 	
+			 and	ma.Serie			=	a.Serie
+			 and 	ma.Auto				=	a.Cod
+			 and 	ma.OrgaoAutuante		=	a.OrgaoAutuante
+			 and 	ma.TipoMovimento		=	@TipoMovimento)
+	
+	BEGIN
+				 
+
+
+			IF	@IndicadorAdesaoSNE	IN	(1,2) 
+				BEGIN 
+					exec 			dbinfracao..MovimentoAutoI 
+					 @SNE				= 	'S' 
+					,@OrgaoAutuante			=	@CodigoOrgaoAut	 
+					,@IndicadorArgumento		=	@IndicadorAdesaoSNE 
+					,@NumAutoInfracao		=	@NumAutoInfracao 
+					,@Data				=	@DataAdesaoSNE 
+					,@Serie				=	'1' --- não utilizado na rotina que vai fazer o insert para o SNE 
+					,@Auto				=	1   --- não utilizado na rotina que vai fazer o insert para o SNE 
+					,@Infracao			=	1   --- não utilizado na rotina que vai fazer o insert para o SNE 
+					,@TipoMovimento			=	'1' --- não utilizado na rotina que vai fazer o insert para o SNE 
+					,@iIndAdesaoPossuidorEpocaSNE	=	@IndAdesaoPossuidorEpocaSNE
+					,@iDataAdesaoPossuidorEpocaSNE 	=	@DataAdesaoPossuidorEpocaSNE
+					,@iHoraAdesaoPossuidorEpocaSNE 	=	@HoraAdesaoPossuidorEpocaSNE
+					,@iIndicadorAdesaoPCSNE 	=	@IndicadorAdesaoPCSNE
+					,@iDataAdesaoPCSNE 		=	@DataAdesaoPCSNE
+					,@iHoraAdesaoPCSNE 		=	@HoraAdesaoPCSNE
+					,@iIndAdesaoInfAbordadoIndSNE 	=	@IndAdesaoInfAbordadoIndSNE
+					,@iDataAdesaoInfAbordadoIndSNE 	=	@DataAdesaoInfAbordadoIndSNE
+					,@iHoraAdesaoInfAbordadoIndSNE 	=	@HoraAdesaoInfAbordadoIndSNE
+					,@iIndicadorAdesaoOASNE		=	@IndicadorAdesaoOASNE
+					
+				END 
+					 
+			
+		
+	END 
+
+	
+
+end 
+else
+begin --- SEM DATA DE ADES+O AO SNE
+
+	SELECT  	@BairImovArrend 	= 	null
+			SELECT  @NomeLogradArrend 	= 	null
+			select 	@CodBcoPagto 		= 	085
+			select  @ValorInfracao 		=	0.00
+			select  @RespostaOA		=	02 ---- RESPOSTA OA = 02 	Não obriga os demais dados da 423 - 
+			SELECT  @NumRegistCNHCond   	= 	0 -- Codigos dos bancos
+			select  @CodAgenCredArr 	= 	0
+			select  @TipoOcorrencia		=	0
+			select 	@ValorPago		=	0
+			select  @ValorInfracao		=	0
+			select  @sDataOcorrencia	=	null
+		
+		select @Cor=@RespostaOA ---- RESPOSTA OA = 02 	Não obriga os demais dados da 423 - 
+		GOTO Continua
+end
+--
+--
+-------------fim indicação adesão sne
+
+select 	 @SetorDebito = d.Setor
+	,@CodDebito = d.Cod 
+	,@Vencimento = pd.DataVencimento
+	,@DataLimDesconto = pd.DataLimDesconto
+	,@PerDesconto = pd.PerDesconto
+	,@ValorInfracao = pd.ValorMoeda
+	,@Moeda = d.Moeda 
+	,@DataInfracao = a.DataInfracao
+	,@Situacao = d.Situacao
+from     dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+and 	 a.AutoRENAINF 		= @NumAutoInfracao 
+and 	 a.OrgaoAutuante		= d.OrgaoAutuante
+and 	 a.Serie			= d.Serie
+and 	 a.Cod			= d.Auto
+and 	 d.Setor			= pd.Setor
+and 	 d.Cod			= pd.Debito
+and 	 pd.Situacao 	  	in  ('A','D','E') --- aberto ou em tramite
+
+if	 @@rowcount	=	0 ---OBTER PELO AUTO INFRAEST
+begin
+	select 	 @SetorDebito = d.Setor
+		,@CodDebito = d.Cod 
+		,@Vencimento = pd.DataVencimento
+		,@DataLimDesconto = pd.DataLimDesconto
+		,@PerDesconto = pd.PerDesconto
+		,@ValorInfracao = pd.ValorMoeda
+		,@Moeda = d.Moeda 
+		,@DataInfracao = a.DataInfracao
+		,@Situacao = d.Situacao
+	from     dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+	where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+	and 	 a.AutoINFRAEST		= @NumAutoInfracao 
+	and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+	and 	 a.Serie		= d.Serie
+	and 	 a.Cod			= d.Auto
+	and 	 d.Setor		= pd.Setor
+	and 	 d.Cod			= pd.Debito
+	and 	 pd.Situacao 	  	in  ('A','D') --- aberto ou em tramite
+end
+
+IF	exists	(select 1 from dbinfracao..OrgaoAutuante o
+		where iIndicadorAdesaoOASNE in (null,0)
+		and   o.Cod = @CodigoOrgaoAut) ---Órgão não está no SNE
+	or (exists (select 1 from dbinfracao..OrgaoAutuante o
+		where o.Cod = @CodigoOrgaoAut
+		and   o.UF	!=	'PE')) 		
+	or (@IndicadorAdesaoSNE!=1) ----Veiculo não está no SNE
+	or (exists(select 1 from dbinfracao..OrgaoAutuante o
+		where iIndicadorAdesaoOASNE =1
+		and   o.Cod = @CodigoOrgaoAut
+		and   o.DataCorteSNE > @DataInfracao)) ---Data da infração anterior a data de corte para dá direito a 40%
+		begin
+	
+	
+		--select 'kfafkfkhfkj',@IndicadorAdesaoSNE
+			SELECT  @BairImovArrend 	= 	null
+			SELECT  @NomeLogradArrend 	= 	null
+			select 	@CodBcoPagto 		= 	085
+			select  @ValorInfracao 		=	0.00
+			select  @RespostaOA		=	02 ---- RESPOSTA OA = 02 	Não obriga os demais dados da 423 - 
+			SELECT  @NumRegistCNHCond   	= 	0 -- Codigos dos bancos
+			select  @CodAgenCredArr 	= 	0
+			select  @TipoOcorrencia		=	0
+			select 	@ValorPago		=	0
+			select  @ValorInfracao		=	0
+			select  @sDataOcorrencia	=	null
+		
+		select @Cor=@RespostaOA ---- RESPOSTA OA = 02 	Não obriga os demais dados da 423 - 
+		GOTO Continua
+		end
+		
+		
+--brasil - 001
+--Caixa 104
+--Itau 341
+--bradesco 237
+--santander 033
+
+
+
+select  @DataCad = max( DataCad)      
+from    dbarrecadacao..MoedaCotacao m 
+where   m.Moeda = @Moeda     
+and 	m.DataCad <= @DataInfracao      
+  
+
+select  @ValorCotacao = Valor      
+from    dbarrecadacao..MoedaCotacao m 
+where   m.Moeda = @Moeda     
+and     DataCad = @DataCad   
+
+
+
+if	(@DataLimDesconto !=null and convert(char(08),@DataLimDesconto,112)<convert(char(08),getdate(),112)) OR (@IndicadorArgumento = 2 ) AND @PerDesconto = 40---- retira o desconto de 40%
+begin
+	begin tran
+	set rowcount 1
+	update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 20
+	from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+	where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+	and 	 a.AutoRENAINF 		= @NumAutoInfracao 
+	and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+	and 	 a.Serie			= d.Serie
+	and 	 a.Cod			= d.Auto
+	and 	 d.Setor			= pd.Setor
+	and 	 d.Cod			= pd.Debito
+	and 	 pd.Situacao 		in  ('A','D','E') --- aberto ou em tramite
+	
+	if @@transtate=2 OR @@transtate=3   
+		 	   begin   
+			   if @@transtate=2   
+			      rollback tran   
+			      raiserror 55000   
+			      return   
+			   end   
+	commit tran
+	if	@@rowcount		=	0
+	begin
+	begin tran
+		update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 20
+		from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+		where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+		and 	 a.AutoINFRAEST		= @NumAutoInfracao 
+		and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+		and 	 a.Serie		= d.Serie
+		and 	 a.Cod			= d.Auto
+		and 	 d.Setor		= pd.Setor
+		and 	 d.Cod			= pd.Debito
+		and 	 pd.Situacao 		in  ('A','D', 'E') --- aberto ou em tramite
+
+		if @@transtate=2 OR @@transtate=3   
+ 	        begin   
+			   if @@transtate=2   
+				      rollback tran   
+				      raiserror 55000   
+				      return   
+		end   
+	commit tran
+	end
+
+	select 	@PerDesconto		=	20
+	set rowcount 0
+
+end	
+
+if 	@DataLimDesconto !=null and convert(char(08),@DataLimDesconto,112)>=convert(char(08),getdate(),112)  ------ resposta 02 -- boleto ja enviado e não está vencido
+	and  (	exists 	(select 1 from dbinfracao..Auto
+		where 	OrgaoCompetencia 		= @CodigoOrgaoAut  
+		and 	AutoRENAINF 		= @NumAutoInfracao 
+		and 	DataOpcaoPgtoComDesconto!=null
+		and 	DataOpcaoPgtoComDesconto >=dateadd(dd,-3, getdate()) --- SÓ LIBERAR PROX BOLETO APÓS 72 HORAS
+		)
+		OR
+		exists 	(select 1 from dbinfracao..Auto
+		where 	OrgaoCompetencia 		= @CodigoOrgaoAut  
+		and 	AutoINFRAEST 		= @NumAutoInfracao 
+		and 	DataOpcaoPgtoComDesconto!=null
+		and 	DataOpcaoPgtoComDesconto >=dateadd(dd,-3, getdate()) --- SÓ LIBERAR PROX BOLETO APÓS 72 HORAS
+		)
+	     )		
+begin
+
+		
+
+		select @ValorInfracao 		=	0.00
+		select @RespostaOA		=	02 ---- RESPOSTA OA = 02 	Não obriga os demais dados da 423 - 
+		SELECT @NumRegistCNHCond   	= 	0 -- Codigos dos bancos
+		select @CodAgenCredArr 		= 	0
+
+end
+else
+if	@SetorDebito	!=null 
+begin
+
+
+	if		exists	(select 1 
+				from dbinfracao..Auto a, Prot..Comunicado c, Prot..Protocolo p, Prot..Assunto ass 
+				where a.OrgaoCompetencia = @CodigoOrgaoAut  
+				and  a.AutoRENAINF = @NumAutoInfracao 
+				and c.OrgaoAutuante = a.OrgaoAutuante
+				and c.Serie = a.Serie
+				and c.Auto = a.Cod
+				and p.Cod = c.Prot
+				and p.Encerrado = 0 -- em andamento
+				and ass.Cod = p.CodDoAss
+				and ass.InstanciaRecurso in (0,1,2) )-- defesa/recurso pecuniário
+	or		exists	(select 1 
+				from dbinfracao..Auto a, Prot..Comunicado c, Prot..Protocolo p, Prot..Assunto ass 
+				where a.OrgaoCompetencia = @CodigoOrgaoAut  
+				and  a.AutoINFRAEST = @NumAutoInfracao 
+				and c.OrgaoAutuante = a.OrgaoAutuante
+				and c.Serie = a.Serie
+				and c.Auto = a.Cod
+				and p.Cod = c.Prot
+				and p.Encerrado = 0 -- em andamento
+				and ass.Cod = p.CodDoAss
+				and ass.InstanciaRecurso in (0,1,2) )-- defesa/recurso pecuniário			
+	begin
+	begin tran
+				select 	 @RespostaOA = 01 ---- Auto com recurso 
+				
+				set rowcount 1   ------ retira o desconto de 40%
+				update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 20
+				from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+				where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+				and 	 a.AutoRENAINF 		= @NumAutoInfracao 
+				and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+				and 	 a.Serie		= d.Serie
+				and 	 a.Cod			= d.Auto
+				and 	 d.Setor		= pd.Setor
+				and 	 d.Cod			= pd.Debito
+				and 	 pd.Situacao 		in  ('A','D','E') --- aberto ou em tramite
+				and 	 @PerDesconto 		= 40
+				
+				if @@transtate=2 OR @@transtate=3   
+					 	   begin   
+						   if @@transtate=2   
+						      rollback tran   
+						      raiserror 55000   
+						      return   
+						   end   
+
+				if	@@rowcount		=	0
+				begin
+					update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 20
+					from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+					where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+					and 	 a.AutoINFRAEST		= @NumAutoInfracao 
+					and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+					and 	 a.Serie		= d.Serie
+					and 	 a.Cod			= d.Auto
+					and 	 d.Setor		= pd.Setor
+					and 	 d.Cod			= pd.Debito
+					and 	 pd.Situacao 		in  ('A','D','E') --- aberto ou em tramite
+					and 	 @PerDesconto 		= 40			
+					if @@transtate=2 OR @@transtate=3   
+				 	   begin   
+					   if @@transtate=2   
+					      rollback tran   
+					      raiserror 55000   
+					      return   
+					   end   
+				end
+				---antes
+--				select 	@PerDesconto		=	20
+--				select 	@Modalidade		=	02 
+--				set rowcount 0
+				
+				if	convert(char(08),@DataLimDesconto,112)>=convert(char(08),getdate(),112) ------ a vencer
+				begin
+					
+							set rowcount 1   ------ atualiza o desconto com 40%
+							update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 20
+							from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+							where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+							and 	 a.AutoRENAINF 		= @NumAutoInfracao 
+							and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+							and 	 a.Serie		= d.Serie
+							and 	 a.Cod			= d.Auto
+							and 	 d.Setor		= pd.Setor
+							and 	 d.Cod			= pd.Debito
+							and 	 pd.Situacao 		in  ('A','D','E') --- aberto ou em tramite
+							if @@transtate=2 OR @@transtate=3   
+								 	   begin   
+									   if @@transtate=2   
+									      rollback tran   
+									      raiserror 55000   
+									      return   
+									   end   
+							if	 @@rowcount		=	0
+							begin
+								update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 20
+								from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+								where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+								and 	 a.AutoINFRAEST		= @NumAutoInfracao 
+								and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+								and 	 a.Serie		= d.Serie
+								and 	 a.Cod			= d.Auto
+								and 	 d.Setor		= pd.Setor
+								and 	 d.Cod			= pd.Debito
+								and 	 pd.Situacao 		in  ('A','D','E') 	
+								if @@transtate=2 OR @@transtate=3   
+									 	   begin   
+										   if @@transtate=2   
+										      rollback tran   
+										      raiserror 55000   
+										      return   
+										   end   			
+							
+							end
+							
+							set rowcount 0
+							
+							select 	@PerDesconto		=	20
+							select 	@Modalidade		=	02 --- boleto Pagamento com 20% desconto
+							select 	@RespostaOA 		= 	01 ---- com recurso
+				
+				
+				end -----solicitou COM 20% porém está Vencida	
+				else
+				begin
+							select 	@PerDesconto		=	00
+							select 	@Modalidade		=	05 --- Pagamento sem desconto
+							select 	@RespostaOA		= 	01 ----com recurso
+				end
+				
+	commit tran
+			--------------FIM DEPOIS
+	end
+	else ----não existe recurso
+	if	@IndicadorArgumento	=	4
+	begin
+		if	convert(char(08),@DataLimDesconto,112)>=convert(char(08),getdate(),112) ------ a vencer
+		begin
+		begin tran			
+					set rowcount 1   ------ atualiza o desconto com 40%
+					update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 40
+					from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+					where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+					and 	 a.AutoRENAINF 		= @NumAutoInfracao 
+					and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+					and 	 a.Serie		= d.Serie
+					and 	 a.Cod			= d.Auto
+					and 	 d.Setor		= pd.Setor
+					and 	 d.Cod			= pd.Debito
+					and 	 pd.Situacao 		in  ('A','D') --- aberto ou em tramite
+					if @@transtate=2 OR @@transtate=3   
+						 	   begin   
+							   if @@transtate=2   
+							      rollback tran   
+							      raiserror 55000   
+							      return   
+							   end   	
+
+
+					if	 @@rowcount		=	0
+					begin
+						update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 40
+						from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+						where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+						and 	 a.AutoINFRAEST		= @NumAutoInfracao 
+						and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+						and 	 a.Serie		= d.Serie
+						and 	 a.Cod			= d.Auto
+						and 	 d.Setor		= pd.Setor
+						and 	 d.Cod			= pd.Debito
+						and 	 pd.Situacao 		in  ('A','D') 				
+						if @@transtate=2 OR @@transtate=3   
+					 	   begin   
+						   if @@transtate=2   
+						      rollback tran   
+						      raiserror 55000   
+						      return   
+						   end   			
+					end
+					
+					set rowcount 0
+					
+					select 	@PerDesconto		=	40
+					select 	@Modalidade		=	01 --- boleto Pagamento com 40% desconto
+		
+		
+			update 	dbinfracao..Auto 		set DataOpcaoPgtoComDesconto = isnull(@DataFimConsulta,DataOpcaoPgtoComDesconto), iIndicadorPgtoComDesconto = @IndicadorArgumento
+			where 	OrgaoCompetencia 		= @CodigoOrgaoAut  
+			and 	AutoRENAINF 			= @NumAutoInfracao 
+			and 	DataOpcaoPgtoComDesconto	=	null --- não atualizar caso já tenha sido solicitado antes
+			if @@transtate=2 OR @@transtate=3   
+				 	   begin   
+					   if @@transtate=2   
+					      rollback tran   
+					      raiserror 55000   
+					      return   
+					   end   
+			if	@@rowcount			= 0
+			begin
+				update 	dbinfracao..Auto 		set DataOpcaoPgtoComDesconto = isnull(@DataFimConsulta,DataOpcaoPgtoComDesconto), iIndicadorPgtoComDesconto = @IndicadorArgumento
+				where 	OrgaoCompetencia 		= @CodigoOrgaoAut  
+				and 	AutoINFRAEST 			= @NumAutoInfracao 
+				and 	DataOpcaoPgtoComDesconto	=	null --- não atualizar caso já tenha sido solicitado antes
+				if @@transtate=2 OR @@transtate=3   
+					 	   begin   
+						   if @@transtate=2   
+						      rollback tran   
+						      raiserror 55000   
+						      return   
+						   end   
+			end
+		commit tran			
+		end -----solicitou porém está Vencida	
+		else
+		begin
+					select 	@PerDesconto		=	00
+					select 	@Modalidade		=	05 --- Pagamento sem desconto
+					select 	@RespostaOA		= 	04 ----Negado 40%
+		end			
+	end 
+	else
+	if	@IndicadorArgumento	=	2
+	begin
+	
+--					------------------ANTES
+--					select 	@PerDesconto		=	20
+--					select 	@Modalidade		=	02 --- Pagamento com 20% desconto
+--					select 	@RespostaOA 		= 	00 ---- sem restrição
+--					---------------FIM ANTES
+	------------------DEPOIS
+	
+		if	convert(char(08),@DataLimDesconto,112)>=convert(char(08),getdate(),112) ------ a vencer
+		begin
+		begin tran			
+					set rowcount 1   ------ atualiza o desconto com 40%
+					update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 20
+					from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+					where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+					and 	 a.AutoRENAINF 		= @NumAutoInfracao 
+					and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+					and 	 a.Serie		= d.Serie
+					and 	 a.Cod			= d.Auto
+					and 	 d.Setor		= pd.Setor
+					and 	 d.Cod			= pd.Debito
+					and 	 pd.Situacao 		in  ('A','D','E') --- aberto ou em tramite
+	
+					if @@transtate=2 OR @@transtate=3   
+						 	   begin   
+							   if @@transtate=2   
+							      rollback tran   
+							      raiserror 55000   
+							      return   
+							   end   
+					if	 @@rowcount		=	0
+					begin
+						update	 dbarrecadacao..ParcelaDebito  set PerDesconto = 20
+						from      dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd
+						where 	 a.OrgaoCompetencia 	= @CodigoOrgaoAut  
+						and 	 a.AutoINFRAEST		= @NumAutoInfracao 
+						and 	 a.OrgaoAutuante	= d.OrgaoAutuante
+						and 	 a.Serie		= d.Serie
+						and 	 a.Cod			= d.Auto
+						and 	 d.Setor		= pd.Setor
+						and 	 d.Cod			= pd.Debito
+						and 	 pd.Situacao 		in  ('A','D','E') 				
+						if @@transtate=2 OR @@transtate=3   
+					 	   begin   
+						   if @@transtate=2   
+						      rollback tran   
+						      raiserror 55000   
+						      return   
+						   end   
+					end
+					
+					set rowcount 0
+					
+					select 	@PerDesconto		=	20
+					select 	@Modalidade		=	02 --- boleto Pagamento com 40% desconto
+					select 	@RespostaOA 		= 	00 ---- sem restrição
+		
+		commit tran
+		end -----solicitou COM 20% porém está Vencida	
+		else
+		begin
+					select 	@PerDesconto		=	00
+					select 	@Modalidade		=	05 --- Pagamento sem desconto
+					select 	@RespostaOA		= 	00 ----sem restrição
+		end
+		
+	--------------FIM DEPOIS					
+	
+	end
+	else ----INDICADOR = 0 - SEM DESCONTO
+	begin
+		select 	@PerDesconto		=	00
+		select 	@Modalidade		=	05 --- Pagamento sem desconto
+		select 	@RespostaOA		= 	00 ---- 	
+	end
+	
+	delete dbtmp01..tmpDebEmitir where ID = @@spid 	-- [faml] #15519 antes: dbvcen
+	exec dbvcen..tmpDebEmitirI  @ID =  @@spid,  @SetorDebito =  @SetorDebito,  @CodDebito =  @CodDebito,  @Parcela =  99
+	    
+
+	exec dbvcen..ImprimeFichaComp_Impressao_Feb @ID =  @@spid , @GuiaWeb = 'S'
+   
+	
+	select	distinct @CodBarras = NumDigitavel
+	from	dbvcen..tmpFicha r    
+	where	ID = @@spid    
+	
+	
+	select 	@ValorPago = ValorCobrado 	--, @ValorInfracao = ValorDoc
+	from	dbvcen..tmpFicha r    
+	where	ID = @@spid  
+
+	
+	select @posicao=char_length(@CodBarras), @NOVANumDigital=null 
+	 
+	while @posicao>0 -- Caso tenha, retira a mascara do campo que esta sendo tratado 
+	 
+	begin   
+		if substring(@CodBarras, @posicao, 1) like '[0-9]'   
+			select @NOVANumDigital=substring(@CodBarras, @posicao, 1)+@NOVANumDigital
+		 
+		select @posicao=@posicao-1   
+	end   
+	   
+	
+--SELECT @CodBarras,@NOVANumDigital
+
+	
+	SELECT @BairImovArrend 		= 	SUBSTRING(@NOVANumDigital,1,20)	 ---------montagem da string da linha digitável
+	SELECT @NomeLogradArrend 	= 	SUBSTRING(@NOVANumDigital,21,30) ---------montagem da string da linha digitável						
+	SELECT @TipoOcorrencia 		=	@Modalidade 
+
+
+	if isnull(@DataLimDesconto,@Vencimento) != null -- 
+	begin 
+
+		if	@Situacao	=	'D' 
+			and convert(char(08),@Vencimento,112)<convert(char(08),getdate(),112)
+			and convert(char(08),@DataLimDesconto,112)>convert(char(08),getdate(),112)
+		begin
+			select @sDataOcorrencia 		= convert(char(08),getdate(),112) 
+		end 
+		else select @sDataOcorrencia = convert(char(08),@Vencimento,112) --- data vencimento do boleto trans 423 
+--voltei a data de vencimento		select @sDataOcorrencia = convert(char(08),isnull(@DataLimDesconto,@Vencimento),112) --- data vencimento do boleto trans 423 
+	end	 
+	else select @sDataOcorrencia = '00000000' 
+				
+	
+--	if	@Vencimento<getdate() or @Vencimento = null antes 10/11/2022
+	if	convert(char(08),isnull(@DataLimDesconto,@Vencimento),112)<convert(char(08),getdate(),112) or @Vencimento = null
+		begin
+		select  @sDataOcorrencia 		= convert(char(08),getdate(),112) --- data vencimento do boleto trans 423
+		select 	@ValorInfracao = ValorDoc
+		from	dbvcen..tmpFicha r    
+		where	ID = @@spid  
+
+		
+	--	select @ValorPago			= convert(numeric(15,2),(round(@ValorInfracao * @ValorCotacao,2)))
+	-- 	select @ValorInfracao			= convert(numeric(15,2),(round(@ValorInfracao * @ValorCotacao,2)))		
+		end
+	else	
+		begin
+		select  @ValDesReal 		= 	convert(numeric(15,2),round(((@ValorInfracao * @PerDesconto) / 100)*@ValorCotacao,2))
+	--	select  @ValorPago		=	convert(numeric(15,2),(round(@ValorInfracao * @ValorCotacao,2)) - @ValDesReal)
+	 	select  @ValorInfracao		=	convert(numeric(15,2),(round(@ValorInfracao * @ValorCotacao,2)))
+		end	
+
+
+
+
+--select 'barr',@NumDocProp,@NomeLogradArrend
+end 
+else ----setor debito = null
+begin
+select 	@CodBcoPagto = 085	--- não encontrou débito aberto para enviar o boleto.
+end
+
+IF	exists	(select 1 from dbinfracao..OrgaoAutuante o
+		where iIndicadorAdesaoOASNE in (null,0)
+		and   o.Cod = @CodigoOrgaoAut)
+		begin
+	
+			SELECT  @BairImovArrend 	= 	null
+			SELECT  @NomeLogradArrend 	= 	null
+			select 	@CodBcoPagto 		= 	085
+			select  @ValorInfracao 		=	0.00
+			select  @RespostaOA		=	02 ---- RESPOSTA OA = 02 	Não obriga os demais dados da 423 - 
+			SELECT  @NumRegistCNHCond   	= 	0 -- Codigos dos bancos
+			select  @CodAgenCredArr 	= 	0
+			select  @TipoOcorrencia		=	0
+			select 	@ValorPago		=	0
+			select  @ValorInfracao		=	0
+			select  @sDataOcorrencia	=	null
+		
+		end
+	
+select @Cor=@RespostaOA ---- RESPOSTA OA = 02 	Não obriga os demais dados da 423 - 
+
+
+GOTO Continua
+	   
+Continua:              
+select @ParteFixaOriginal = @ParteFixa   
+----- esses valores do lentransação é o tamanho da transação menos 37 da parte fixa, porque na monta parte fixa o sistema já adiciona.---------------ajs 26/10/2016   
+if 	@CodTransacao = 411   
+	select @LenTransacao = 408   
+if 	@CodTransacao = 412   
+	select @LenTransacao = 23   
+if 	@CodTransacao = 420   
+	select @LenTransacao = 23   
+if 	@CodTransacao = 416   
+	select @LenTransacao = 23   
+if 	@CodTransacao = 413   
+	select @LenTransacao = 33 ----27/07/2017 RT03-tamanho 70 - 37 = 33	   
+if 	@CodTransacao = 414   
+	select @LenTransacao = 23	   
+if 	@CodTransacao = 415   
+	select @LenTransacao = 34  	 
+if 	@CodTransacao = 419   
+	select @LenTransacao = 34 
+if 	@CodTransacao = 421   
+	select @LenTransacao = 34		 
+if 	@CodTransacao = 430   
+	select @LenTransacao = 15   
+if 	@CodTransacao = 431   
+	select @LenTransacao = 26   
+if 	@CodTransacao = 423  
+	select @LenTransacao = 157      
+--
+  
+exec dbinfracao..RNFMontaParteFixaResp @CodigoConsulta=@CodTransacao, @ParteFixaOriginal=@ParteFixa,    
+				    @LenTransacao=@LenTransacao, @ParteFixa=@ParteFixa output    
+
+
+if @Arrendatario is not null --   
+begin
+  	        select 
+  	        @NomeLogradArrend		=        @Endereco,      
+		@NumImovelArrend		=	 @NumEndereco,     
+		@ComplImovelArrend		=        @Complemento,     
+		@CEPImovelArrend		=	 @CEP,     
+		@UFImovelArrend			=	 'PE' 
+
+end
+else
+begin
+
+	select  @NumImovelArrend		=	 '00000',     
+		@CEPImovelArrend		=	 '00000000'    
+		
+		
+end
+
+exec dbinfracao..RNFSubstiruiCaracterEspecial   @sEntrada = @Endereco output
+   
+if @CodTransacao != 416   
+	exec RNFRetornoI     
+		@PFIXA 			= 	@ParteFixa,    
+		@CodRetorno 		= 	000,    
+		@CodigoOrgaoAut 	=	@CodigoOrgaoAut,    
+		@NumAutoInfracao	=	@NumAutoInfracao	,    
+		@Infracao		=	@Infracao,    
+		@Placa			=	@Placa 		,    
+		@UFPlaca		=	@UFPlaca,    
+		@IndicadorUFIntegrada	=	1,     
+		@MarcaModelo		=	@CodMarcaModelo,     
+		@DescMarcaMod		=	@Marca ,    
+		@CodMunicipioEmpl	=	@CodMunicipio,    
+		@NomeMunic		=	@Municipio ,    
+		@TipoVeiculo		=	@TipoVeiculo,      
+		@CorVeiculo		=	@Cor,    
+		@TipoDocProp		=	@TipoDocProp,    
+		@NumDocProp		=       @NumDoc ,    
+		@NomeProprietario	=	@Proprietario,      
+		@NomeLogradProp		=       @Endereco,    
+		@NumImovelProp		=       @NumEndereco,    
+		@ComplImovelProp	=       @Complemento,    
+		@CEPImovelPropr		=       @CEP,    
+		@UFImovelProp		=       'PE',    
+		@ModCNHProp 		=	@ModCNHProp,     
+		@NumRegCNHProp		=	@NumRegCNHProp,     
+		@UFExpCNHProp		=       @UFExpCNHProp,    
+		@TipoDoctArrend		=       0,    
+		@NumIdentArrendata	=	0,      
+		@NomeArrendatario	=       @Arrendatario,    
+		@NomeLogradArrend	=       @NomeLogradArrend,      
+		@NumImovelArrend	=	@NumImovelArrend,     
+		@ComplImovelArrend	=       @ComplImovelArrend,     
+		@CEPImovelArrend	=	@CEPImovelArrend,     
+		@UFImovelArrend		=     	@UFImovelArrend,    
+		@ModeloCNHArrendat	=     	0,     
+		@NumRegCNHArrend	=     	0,     
+		@UFExpCNHArrend		=     	@UFExpCNHArrend  ,    
+		@IndExibilidade		=     	1,    
+		@CodCarrVeic		=     	@CodCarrVeic,		    
+		@CodCategVeic		=     	@CodCategVeic,	    
+		@CodEspecVeic		=     	@CodEspecVeic,	    
+		@CodRenavam		=     	@CodRenavam,    
+		@BairImovProp		=     	@BairImovProp,    
+		@IdentRepasse		=     	@IdentRepasse,   
+		@CodigoRENAINF		=     	@CodigoRENAINF,    
+		@UFJurisdVeiculo	=     	@UFJurisdVeiculo,   
+		@CodMunProp		=     	@CodMunProp,
+	        @CodMunArr             	=     	@CodMunArr,
+	        @ValorInfracao		=	@ValorInfracao, ---28/10/2016 --- SNE
+	        @ValorPago		=	@ValorPago, ---28/10/2016 --- SNE
+	        @DataFimConsulta	=	@sDataOcorrencia, ---28/10/2016 --- SNE
+	        @UFOrgaoAutuante	=	@UFOrgaoAutuante,
+	        @TipoOcorrencia        	=       @TipoOcorrencia,----MODALIDADE SNE
+	        @NumRegistCNHCond 	= 	@NumRegistCNHCond, --- bancos SNE
+	        @CodAgenCredArr		=	@CodAgenCredArr, --- continuação bancos SNE
+	        @BairImovArrend		=	@BairImovArrend, --- codigo de barras
+	        @CodBcoPagto		=	@CodBcoPagto
+else   
+	exec RNFRetornoI    
+		@PFIXA 			= 	@ParteFixa,   
+		@CodRetorno 		= 	000,   
+		@CodigoOrgaoAut 	=	@CodigoOrgaoAut,   
+		@NumAutoInfracao	=	@NumAutoInfracao,   
+		@Infracao		=	@Infracao,   
+		@UFOcorrencia           =       @UFOcorrencia,   
+		@TipoOcorrencia         =       @TipoOcorrencia,   
+		@OrigemOcorrencia       =       @OrigemOcorrencia,   
+		@DataOcorrencia         =       @DataOcorrencia,   
+		@NumeroProcesso         =       @NumeroProcesso,   
+		@TipoLancamento         =       @TipoLancamento,   
+		@Placa			=	@Placa 		,   
+		@UFPlaca		=	@UFPlaca   
+   
+exec   dbinfracao..RNFtmpRetornoI @ParteFixa = @ParteFixa   
+   
+--if @CodTransacao in (411,415)  and @Erro in (0,null) 
+if @CodTransacao = 411  and @Erro in (0,null) 
+begin   
+	exec RNFAutoTransitoI @ParteFixa =  @ParteFixaOriginal   
+end   
+
+
+
+
+   
+      
+exec dbinfracao..RNFComunicacaoI     
+     @UFOrigem  = @UFOrigem,   
+     @UFDestino = @UFDestino,   
+     @Transacao = @CodTransacao,   
+     @TipoTransacao = @TipoRegistroTransacao,   
+     @SequencialTransacao  = @SequencialTransacao,   
+     @DataTransacao = @DataTransacao,   
+     @DiaJuliano  = @DiaJuliano,   
+     @ParteFixa  = @ParteFixa,   
+     @CodRetExec = @CodRetExec        
+   
+if @CodTransacao in (413, 416)   ----27/07/2017 - acrescentei a 413
+	exec RNFDetranGeraTrans @CodTransacao=@CodTransacao , @TipoRegistroTransacao='RT03',   
+	@ParteFixa=@ParteFixa   
+ELSE 
+   if @CodTransacao in (415,419,423)   
+	exec RNFDetranGeraTrans @CodTransacao=@CodTransacao , @TipoRegistroTransacao='RT01',   
+	@ParteFixa=@ParteFixa  	 
+    else   
+	exec RNFDetranGeraTrans @CodTransacao=@CodTransacao , @TipoRegistroTransacao='RT02',   
+	@ParteFixa=@ParteFixa           
+ 
+set nocount off 
+   
+return     
+   
+  
+ 
+
+GO
+
+execute sp_procxmode 'dbo.RpcRNFDetranResp', 'unchained'
+GO
+
+grant exec on  RpcRNFDetranResp to desenvolvimento
+go
+grant exec on RpcRNFDetranResp to veiculo
+go
+
+
+  

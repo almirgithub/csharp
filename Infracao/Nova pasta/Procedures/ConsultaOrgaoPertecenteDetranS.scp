@@ -1,0 +1,54 @@
+
+use master
+GO
+
+/*  Database 'dbvcen'  */
+use dbvcen
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.ConsultaOrgaoPertecenteDetranS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.ConsultaOrgaoPertecenteDetranS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.ConsultaOrgaoPertecenteDetranS
+end
+GO
+
+create proc dbo.ConsultaOrgaoPertecenteDetranS
+-- Versao 	: 1.0.0.0		  
+-- Funcao	: Verifica se o orgão tem acesso ao file server
+
+as   
+
+
+	if not exists	 (select  u.Cod ,s.Tipo ,  s.Descricao, count(*)
+				from	dbvcen..Setor s,  
+    					dbvcen..Usuario u
+				where 	s.Cod = u.Setor
+				and 		(s.Tipo in ('X', 'I') or (s.Tipo = 'F' and Prefeitura  = 'S'))
+				and 		u.Cod = suser_name()
+				group 	by s.Descricao)
+	begin
+	  	select 	'S'
+	end
+	else
+	begin
+	  	select 	'N'
+	end
+  
+return	0   
+go
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.ConsultaOrgaoPertecenteDetranS to desenvolvimento
+go
+
+Grant Execute on dbo.ConsultaOrgaoPertecenteDetranS to veiculo
+go

@@ -1,0 +1,718 @@
+--1- dados para serem rodados com a procedure RpcRNFDetranResp.scp
+
+                                                                               *(1 ou 2)
+000001423355010000000BRBRPE10092001431171000D05490122703002904380418PE42023061212023060115401202306121531220230612153212023061215331
+
+	--(1 - Para veículo COM opção ao SNE) gera p registro tipo 2
+	Serie Auto                                      DataAtualizacao              TipoMovimento ProcessoRecurso MotivoCancelamento Restituicao ValorRestituido                           NomeFavorecido                                      NumAutorizacao                            TipoMovDebito NumeroBancario                            DataPagamento                ValorPago                                 Banco        Agencia NumeroDoc                                 Usuario   Infracao                                  OrgaoAutuante                             OrgaoCompetencia                          iEnviadoRENAINF DataTransmissaoRENAINF       CodRetorno   MotivoCancRENAINF ProcessoRENAINF       Desdobramento DataTransmissaoINFRAEST      iEnviadoINFRAEST CodRetornoINFRAEST CodRetornoImg DataRetornoImg              
+	0D    549012                                    Jun 12 2023  3:48PM          2             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      almirfs   7030                                      117100                                    117100                                    NULL            Jun 12 2023  3:48PM          NULL         NULL              NULL                  1             NULL                         NULL             NULL               NULL          NULL                        
+
+	--(2 - Para veículo com CANCELAMENTO de opção ao SNE) gera p registro tipo 3
+	Serie Auto                                      DataAtualizacao              TipoMovimento ProcessoRecurso MotivoCancelamento Restituicao ValorRestituido                           NomeFavorecido                                      NumAutorizacao                            TipoMovDebito NumeroBancario                            DataPagamento                ValorPago                                 Banco        Agencia NumeroDoc                                 Usuario   Infracao                                  OrgaoAutuante                             OrgaoCompetencia                          iEnviadoRENAINF DataTransmissaoRENAINF       CodRetorno   MotivoCancRENAINF ProcessoRENAINF       Desdobramento DataTransmissaoINFRAEST      iEnviadoINFRAEST CodRetornoINFRAEST CodRetornoImg DataRetornoImg              
+	0D    549012                                    Jun 12 2023  4:03PM          3             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      almirfs   7030                                      117100                                    117100                                    NULL            Jun 12 2023  4:03PM          NULL         NULL              NULL                  1             NULL                         NULL             NULL               NULL          NULL                        
+
+--2- rodar a procedure para obter número do auto
+
+set forceplan on
+select    top 200 a.AutoRENAINF, a.*
+from     dbinfracao..Auto a(index Auto_OrgaoCompAutoRENAINF), dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd , dbinfracao..InfracaoAuto ia
+where      a.OrgaoCompetencia     = 117100   
+and      a.AutoRENAINF         !=null        
+and      a.OrgaoAutuante        = d.OrgaoAutuante 
+and      a.Serie            = d.Serie 
+and      a.Cod            = d.Auto 
+and      d.Setor            = pd.Setor 
+and      d.Cod            = pd.Debito 
+and      pd.Situacao           in  ('A','D','E') --- aberto ou em tramite 
+and      a.OrgaoAutuante        = ia.OrgaoAutuante 
+and      a.Serie            = ia.Serie 
+and      a.Cod            = ia.Auto 
+
+
+
+select top 10 * from dbinfracao..InfracaoAuto
+
+
+--3- rodar a procedure para verificar se os dados forão gravados na tabela dbinfracao..Auto
+
+select    a.*
+from     dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd , dbinfracao..InfracaoAuto ia
+where      a.OrgaoCompetencia     = 117100   
+and      a.AutoRENAINF         !=null
+and      a.OrgaoAutuante        = d.OrgaoAutuante 
+and      a.Serie            = d.Serie 
+and      a.Cod            = d.Auto 
+and      d.Setor            = pd.Setor 
+and      d.Cod            = pd.Debito 
+and      pd.Situacao           in  ('A','D','E') --- aberto ou em tramite 
+and      a.OrgaoAutuante        = ia.OrgaoAutuante 
+and      a.Serie            = ia.Serie 
+and      a.Cod            = ia.Auto 
+and      a.Cod  =     0551109         --0549012
+
+
+--4- verificar se os dados estão na tebela de movimento 
+
+select     ma.*
+from     dbinfracao..Auto a, 
+	dbarrecadacao..Debito d, 
+	dbarrecadacao..ParcelaDebito pd , 
+	dbinfracao..InfracaoAuto ia,
+	dbinfracao..MovimentoAuto ma
+where      a.OrgaoCompetencia     = 117100   
+and      a.AutoRENAINF         !=null
+and      a.OrgaoAutuante        = d.OrgaoAutuante 
+and      a.Serie            = d.Serie 
+and      a.Cod            = d.Auto 
+and      d.Setor            = pd.Setor 
+and      d.Cod            = pd.Debito 
+and      pd.Situacao           in  ('A','D','E') --- aberto ou em tramite 
+and      a.OrgaoAutuante        = ia.OrgaoAutuante 
+and      a.Serie            = ia.Serie 
+and      a.Cod            = ia.Auto 
+and      a.OrgaoAutuante        = ma.OrgaoAutuante 
+and      a.Serie            = ma.Serie 
+and      a.Cod            = ma.Auto 
+and      a.Cod  = 0551109 --0549012
+
+--0549012
+Serie Auto                                      DataAtualizacao              TipoMovimento ProcessoRecurso MotivoCancelamento Restituicao ValorRestituido                           NomeFavorecido                                      NumAutorizacao                            TipoMovDebito NumeroBancario                            DataPagamento                ValorPago                                 Banco        Agencia NumeroDoc                                 Usuario   Infracao                                  OrgaoAutuante                             OrgaoCompetencia                          iEnviadoRENAINF DataTransmissaoRENAINF       CodRetorno   MotivoCancRENAINF ProcessoRENAINF       Desdobramento DataTransmissaoINFRAEST      iEnviadoINFRAEST CodRetornoINFRAEST CodRetornoImg DataRetornoImg              
+0D    549012                                    Jun 12 2023  3:48PM          2             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      almirfs   7030                                      117100                                    117100                                    NULL            Jun 12 2023  3:48PM          NULL         NULL              NULL                  1             NULL                         NULL             NULL               NULL          NULL                        
+0D    549012                                    Jun 12 2023  4:03PM          3             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      almirfs   7030                                      117100                                    117100                                    NULL            Jun 12 2023  4:03PM          NULL         NULL              NULL                  1             NULL                         NULL             NULL               NULL          NULL                        
+0D    549012                                    Nov 18 2017 10:21PM          D             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      aegs      7030                                      117100                                    117100                                    S               Nov 19 2017  5:42AM          0            NULL              NULL                  1             NULL                         NULL             NULL               NULL          NULL                        
+0D    549012                                    Nov 18 2017 10:54AM          I             NULL            NULL               N           NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      radc      7030                                      117100                                    117100                                    S               Nov 18 2017 10:54AM          0            NULL              NULL                  1             NULL                         NULL             NULL               NULL          NULL                        
+0D    549012                                    Jan 13 2018 12:20AM          N             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      aegs      7030                                      117100                                    117100                                    S               Jan 14 2018  9:40PM          0            NULL              NULL                  1             NULL                         NULL             NULL               NULL          NULL                        
+0D    549012                                    Mar 20 2018  9:25AM          P             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      ssoares   7030                                      117100                                    117100                                    S               Mar 20 2018 10:36AM          0            NULL              NULL                  1             NULL                         NULL             NULL               NULL          NULL                        
+
+
+
+--5- entrar no sistema de infração
+--menu  Cadastro\Consulta auto de infração
+-- . informar o auto renainf
+-- . pressionar o botão pesquisar
+-- . marcar a linha da grid
+-- . pressionar o botão Movto
+
+
+-----------------------------------------------------------------------------------------------
+
+testes   0D27898108
+									       *(1 ou 2)
+         1         2         3         4         5	   6         7	       8	 9        10        11        12        13
+123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+------------------------------------------------------------------------------------------------------------------------------------                                                                               
+000001423355010000000BRBRPE10092001431171000D05511090703002904380418PE42023061412023061415451202306141533220230614153212023061406401
+000001423355010000000BRBRPE10092001431271000D05511090703002904380418PE42023061412023061415451202306141533220230614153212023061406401
+
+--000001423355010000000BRBRPE10092001431171000D05490122703002904380418PE42023061422023061415461202306141535220230613153812023061315393
+
+         1         2         3         4  	 5	   6 	     7         8	 9        10        11        12    
+1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+-----------------------------------------------------------------------#----------------------------------------------------  
+000007421417010000000PEBRPE 0085000060001171000D0551109070300290438041812023061413571202306141359120230614140012023061414050
+
+#Opção de SNE
+
+
+
+
+update RENAVAM..RetRenavam  
+set Parametro1 = '000007421417010000000PEBRPE 0124000060001171000D0551109070300290438041812023061413571202306141359120230614140012023061414050'
+where	 CodTransacao = 421 
+and	AnoJuliano = 2023
+and 	NumSeqTransacao = 1
+
+
+update RENAVAM..RetRenavam  
+set Parametro1 = '000007421417010000000PEBRPE 0124000060001171000D0551109070300290438041822023061413571202306141359120230614140012023061414050'
+where	 CodTransacao = 421 
+and	AnoJuliano = 2023
+and 	NumSeqTransacao = 2
+
+update RENAVAM..RetRenavam  
+set DiaJuliano = 166
+where	 CodTransacao = 421 
+and	AnoJuliano = 2023
+
+
+
+select	 * 
+from	RENAVAM..RetRenavam  
+where	 CodTransacao = 421  
+and	AnoJuliano = 2023   
+
+
+drop table #retRenavam421
+
+select	*
+from	RENAVAM..RetRenavam  
+where	 CodTransacao = 421 
+and	AnoJuliano = 2023
+
+
+select * from #retRenavam421
+Results :
+DataHora                     AnoJuliano DiaJuliano NumSeqTransacao CodTransacao Parametro1                                                                                                                                                                                                                                                       Parametro2                                                                                                                                                                                                                                                       Parametro3                                                                                                                                                                                                                                                      
+Jun 14 2023 12:00AM          165        14         1               421          000007421417010000000PEBRPE 0085000060001171000D0551109070300290438041812023061413571202306141359120230614140012023061414050                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+
+
+insert into RENAVAM..RetRenavam
+select * from #retRenavam421
+
+select top 5 * from dbinfracao..Auto where Cod = 2789810   2789528
+
+0D27305727  0D    2730572          
+0D27305751  0D    2730575          
+0D27310860  0D    2731086          
+0D27310887  0D    2731088          
+0D27895133  0D    2789513 
+
+
+
+------Realização dos testes 412/413
+
+--412
+
+select * from RENAVAM..RetRenavam  
+where AnoJuliano = 2023
+and NumSeqTransacao in (1,2)
+and CodTransacao = 412
+and DiaJuliano  = 73
+
+
+         1         2         3         4         5	   6         7	       8	 9        10        11        12        13        14        15        16        17
+1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+000074412417010000000PEBRPE10172000020001171000D2789513374551102090198294PEAlmir Felipe dos Santos                     12023061910301202306191035120230619103612023061910401
+000074412417010000000PEBRPE10172000020001171000D2789513374551102090198294PEAlmir Felipe dos Santos                     22023061910301202306191035120230619103612023061910401
+
+--atualizando a tabela com o novo registro
+
+update RENAVAM..RetRenavam  
+set Parametro1 = '000074412417010000000PEBRPE10172000022661171000D2789513374551102090198294PEAlmir Felipe dos Santos                     12023061910301202306191035120230619103612023061910401'
+where AnoJuliano = 2023
+and NumSeqTransacao =1
+and CodTransacao = 412
+and DiaJuliano  = 170
+
+update RENAVAM..RetRenavam  
+set Parametro1 = '000074412417010000000PEBRPE10172000022661171000D2789513374551102090198294PEAlmir Felipe dos Santos                     22023061910301202306191035120230619103612023061910401'
+,DiaJuliano = 170
+where AnoJuliano = 2023
+and NumSeqTransacao = 2
+and CodTransacao = 412
+and DiaJuliano  = 170
+
+--pegando ano juliano e dia juliano
+
+declare @ano int, @dia int
+
+select @ano = convert(smallint, datename(yy,getdate()))   
+select @dia = convert(smallint, datename(dy,getdate())) 
+
+select @dia, @ano
+
+
+--413
+
+             1         2         3         4         5	       6         7	   8	     9        10        11        12        13        14        15        16        17        18        19        20        21        22        23        24        25        26        27        28
+    1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+P1='000001413417010000000PEBRPE10276000580001171000D273108607455111NUMEROIDENTIFIAlmir Felipe dos Santos                 RUA MONTES DOS GUARARAPES     153S COMPLEMENTO IMOVELPSMURIBECA DOS GUARARA1000PE543254451021020901982940112023061914261202306191428120230'
+P2='20230619145912023061914401'
+auto: 0D27310860
+
+P1='000001413417010000000PEBRPE10276000580001171000D273108607455111NUMEROIDENTIFIAlmir Felipe dos Santos                 RUA MONTES DOS GUARARAPES     153S COMPLEMENTO IMOVELPSMURIBECA DOS GUARARA1000PE543254451021020901982940122023061914261202306191428120230'
+P2='20230619145912023061914401'
+
+
+
+update  RENAVAM..RetRenavam 
+set Parametro1 = '000001413417010000000PEBRPE10103000580001171000D273108607455111NUMEROIDENTIFIAlmir Felipe dos Santos                 RUA MONTES DOS GUARARAPES     153S COMPLEMENTO IMOVELPSMURIBECA DOS GUARARA1000PE5432544510210209019829401120230619142612023061914281'
+where AnoJuliano = 2023
+and CodTransacao = 413
+and NumSeqTransacao = 1
+
+update  RENAVAM..RetRenavam 
+set Parametro2 = '619145912023061914401'
+where AnoJuliano = 2023
+and CodTransacao = 413
+and NumSeqTransacao = 1
+
+
+
+
+
+------------ Realização dos teste em desenvolvimento transação 423/421
+
+-------------423
+
+auto ren. 0D27898108   tamanho antigo
+         1         2         3         4         5	   6         7	       8	 9  
+12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+---------------------------------------------------------------------------------------------
+000001423355010000000BRBRPE10092001431171000D27898108703002904380418PE4202306151202306151545
+000001423355010000000BRBRPE10092001431171000D27898108703002904380418PE4202306152202306151545
+
+auto ren. 0D27895281   -- novo registro
+
+000001423355010000000BRBRPE10132001431171000D27895281703002904380418PE42023061513193061515451202306151533220230615153212023061506401
+000001423355010000000BRBRPE10132001431171000D27895281703002904380418PE42023061522023061515451202306151533220230614153212023061506401
+
+
+auto ren.0D27895141   -- novo registro
+
+         1         2         3         4         5	   6         7	       8	 9  
+12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+---------------------------------------------------------------------------------------------
+000001423355010000000BRBRPE10132001431171000D27895141703002904380418PE42023061513193061515451202306151533220230615153212023061506401
+000001423355010000000BRBRPE10132001431171000D27895141703002904380418PE42023061522023061515451202306151533220230614153212023061506401
+
+
+
+
+-------------421
+auto: 0D27895273
+
+000007421417010000000PEBRPE 0124000060001171000D2789527370300290438041812023061413571202306141359120230614140012023061414050                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+000007421417010000000PEBRPE 0124000060001171000D2789527370300290438041822023061413571202306141359120230614140012023061414050                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+
+
+
+
+
+
+-----------------------------------------------------------------------
+select top 5 * from dbinfracao..Auto where Cod = 2789810   2789528
+
+0D27305727  0D    2730572          
+0D27305751  0D    2730575          
+0D27310860  0D    2731086          
+0D27310887  0D    2731088          
+0D27895133  0D    2789513          
+0D27895141  0D    2789514          
+0D27895273  0D    2789527 usado         
+0D27895281  0D    2789528 usado          
+0D27898108  0D    2789810 usado
+
+
+
+	select	TipoRegistroTransacao  , t.* 
+	from	dbinfracao..RNFTransacaoTipoRegistro t, dbinfracao..RNFTipoRegistrosTransacao tr   
+	where	t.Transacao = 423
+	and	t.Transacao = tr.Transacao   
+	and	tr.Tamanho=132
+	and	tr.Cod = t.TipoRegistroTransacao  
+
+
+select  * from 	dbinfracao..RNFParametrosReceb
+
+
+
+select top 100  * from dbinfracao..RNFTransacaoTipoRegistro
+
+select top 100  * from 	dbinfracao..RNFTipoRegistrosTransacao
+Transacao                                 Cod   Tamanho                                   QtdeParametros CodTipoTrans
+401                                       EV01  68                                        1              4           
+401                                       RT01  71                                        1              5           
+
+
+
+------------- Transação 423
+
+         1         2         3         4         5	   6         7	       8	 9        10        11        12        13
+123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+------------------------------------------------------------------------------------------------------------------------------------  
+000001423355010000000BRBRPE10132001431171000D05555090703002904380418PE42023061412023061415451202306141533220230614153212023061406401
+000001423355010000000BRBRPE10132001431171000D05511090703002904380418PE42023061422023061415451202306141533220230614153212023061406401
+
+
+
+------------- Transação 421
+select	 * 
+from	RENAVAM..RetRenavam  
+where	 CodTransacao = 421  
+and	AnoJuliano = 2023
+
+Ag. 117100
+Auto Renainf: 0D05511090
+
+DataHora                     AnoJuliano DiaJuliano NumSeqTransacao CodTransacao Parametro1                                                                                                                                                                                                                                                   Parametro2                                                                                                                                                                                                                                                       Parametro3                                                                                                                                                                                                                                                      
+Jun 14 2023 12:00AM          2023       165        1               421          000007421417010000000PEBRPE 0124000060001171000D0551109070300290438041812023061413571202306141359120230614140012023061414050                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+Jun 14 2023 12:00AM          2023       165        2               421          000007421417010000000PEBRPE 0124000060001171000D0551109070300290438041822023061413571202306141359120230614140012023061414050                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+---------------------------------------------------------------------------------------------------------
+
+
+
+
+select @P1	
+select @IndAdesaoPossuidorEpocaSNE,@DataAdesaoPossuidorEpocaSNE,@HoraAdesaoPossuidorEpocaSNE,@IndicadorAdesaoPCSNE,@DataAdesaoPCSNE,
+@HoraAdesaoPCSNE, @IndAdesaoInfAbordadoIndSNE,@DataAdesaoInfAbordadoIndSNE, @HoraAdesaoInfAbordadoIndSNE,@IndicadorAdesaoOASNE
+return
+
+============================================================================================================================================================================
+Massa para homologação
+
+-------------421    rodar a procedure RpcRNFDetranResp.scp   passando os dados para o parâmetro @P1
+auto: 0D27895273
+         1         2         3         4         5         6         7         8         9        10        11        12        13
+1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+----------------------------------------------------------------------------------------------------------------------------------
+000007421417010000000PEBRPE 0124000060001171000D2789527370300290438041812023062113571202306211359120230621140012023062114050
+000007421417010000000PEBRPE 0124000060001171000D2789527370300290438041822023062113571202306211359120230621140012023062114050
+
+**72 1->com opção SNE, 2->cancelamento de opção SNE
+
+
+-------------423    rodar a procedure RpcRNFDetranResp.scp   passando os dados para o parâmetro @P1
+auto ren. 0D27895141
+
+         1         2         3         4         5         6         7         8         9        10        11        12        13
+1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123
+--------------------------------------------------------------------------------------------------------------------------------------
+000001423355010000000BRBRPE10132001431171000D27895141703002904380418PE42023062113193062115451202306211533220230621153212023062106401
+000001423355010000000BRBRPE10132001431171000D27895141703002904380418PE42023062122023062115451202306211533220230621153212023062106401
+
+**71 indicador pagamento 40%
+**80 1->com opção SNE, 2->cancelamento de opção SNE
+
+
+-------------412 rodar a procedure RNFTrataRetorno.scp  passando os parâmetros  @CodTransacao  @NumSeqTransacao  @Serie  @nAuto  @CodigoOrgaoAut
+
+0D05490122
+0D05490270
+0D05502732
+0D05502740
+0D05503844
+0D05504026
+0D05504034
+0D05511081
+0D05511090
+0D05511987
+
+
+
+
+
+
+auto:  0D05515389
+sequencia 1 e 2
+
+         1         2         3         4         5	   6         7	       8	 9        10        11        12        13        14        15        16        17
+1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+000074412417010000000PEBRPE10172000020001171000D0551538974551102090198294PEAlmir Felipe dos Santos                     12023062110301202306211035120230621103612023062110401
+000074412417010000000PEBRPE10172000020001171000D0551538974551102090198294PEAlmir Felipe dos Santos                     22023062110301202306211035120230621103612023062110401
+
+--atualizando a tabela com o novo registro
+update  RENAVAM..RetRenavam 
+set Parametro1 = '000074412417010000000PEBRPE10172000020001171000D0551538974551102090198294PEAlmir Felipe dos Santos                     12023062110301202306211035120230621103612023062110401',
+DiaJuliano = 172,
+CodTransacao = 412
+where AnoJuliano = 2023
+and DiaJuliano = 2
+and NumSeqTransacao = 1
+and CodTransacao = 901
+
+
+update  RENAVAM..RetRenavam 
+set Parametro1 = '000074412417010000000PEBRPE10172000020001171000D0551538974551102090198294PEAlmir Felipe dos Santos                     22023062110301202306211035120230621103612023062110401'
+DiaJuliano = 172,
+CodTransacao = 412
+where AnoJuliano = 2023
+and DiaJuliano = 2
+and NumSeqTransacao = 2
+and CodTransacao = 901
+
+
+--pegando ano juliano e dia juliano
+
+declare @ano int, @dia int
+
+select @ano = convert(smallint, datename(yy,getdate()))   
+select @dia = convert(smallint, datename(dy,getdate())) 
+
+select @dia, @ano
+
+
+-------------413 rodar a procedure RNFTrataRetorno.scp  passando os parâmetros  @CodTransacao  @NumSeqTransacao  @Serie  @nAuto  @CodigoOrgaoAut
+sequencia 3 e 4
+
+             1         2         3         4         5	       6         7	   8	     9        10        11        12        13        14        15        16        17        18        19        20        21        22        23        24        25        26        27        28
+    1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+    ------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+P1='000001413417010000000PEBRPE10276000580001171000D273108607455111NUMEROIDENTIFIAlmir Felipe dos Santos                 RUA MONTES DOS GUARARAPES     153S COMPLEMENTO IMOVELPSMURIBECA DOS GUARARA1000PE543254451021020901982940112023062114261202306211428120230'
+P2='621145912023062114401'
+auto: 0D27310860
+
+P1='000001413417010000000PEBRPE10276000580001171000D273108607455111NUMEROIDENTIFIAlmir Felipe dos Santos                 RUA MONTES DOS GUARARAPES     153S COMPLEMENTO IMOVELPSMURIBECA DOS GUARARA1000PE543254451021020901982940122023061914261202306191428120230'
+P2='619145912023061914401'
+
+
+
+update  RENAVAM..RetRenavam 
+set Parametro1 =  '000001413417010000000PEBRPE10276000580001171000D273108607455111NUMEROIDENTIFIAlmir Felipe dos Santos                 RUA MONTES DOS GUARARAPES     153S COMPLEMENTO IMOVELPSMURIBECA DOS GUARARA1000PE543254451021020901982940112023061914261202306191428120230'
+Parametro2 = '619145912023061914401',
+DiaJuliano = 171,
+CodTransacao = 413
+where AnoJuliano = 2023
+and DiaJuliano = 2
+and NumSeqTransacao = 3
+and CodTransacao = 901
+
+
+update  RENAVAM..RetRenavam 
+set Parametro1 = '000001413417010000000PEBRPE10276000580001171000D273108607455111NUMEROIDENTIFIAlmir Felipe dos Santos                 RUA MONTES DOS GUARARAPES     153S COMPLEMENTO IMOVELPSMURIBECA DOS GUARARA1000PE543254451021020901982940122023062114261202306211428120230',
+Parametro2 = '621145912023061914401',
+DiaJuliano = 171,
+CodTransacao = 413
+where AnoJuliano = 2023
+and DiaJuliano = 2
+and NumSeqTransacao = 4
+and CodTransacao = 901
+
+---------------------============******************************************************************Novos testes  27-06-2023
+
+select * from RNFCampos order by  TipoCampo,Tamanho
+
+P126  
+
+P50                   N         6       0        NUMERO AUTENTICACAO             NumeroAutenticacao  
+
+
+
+CodAgencPagto
+
+
+ exec dbinfracao..RNFRegistroTransacaoS     @Transacao =  'REGISTRA AIT', @TipoRegistro =  'EV01',  @Indicador = 'NOVA', @Maquina =  'DAT-038'
+
+
+select top 500 * from dbinfracao..Auto where Cod = 2789810   2789528
+
+
+     exec dbinfracao..RNFTransmiteMovimento @Serie =  'ST',  @CodigoOrgaoAut = 117100, @Auto = 10528,  @Infracao =  574,  
+@TipoMovimento=  'IMPLANTAÇÃO',  @FlagTransmissao =  '',  @pDataLimiteDefesa =   NULL,     @pDataEmissaoNot =  NULL,  @pDataVencNot =  NULL,    
+@pNumNotificacao  =  NULL,  @pValorInfracao  =  NULL,  @sPgResidual =  'N',  @DataApresentacao =  NULL, @NumeroBancario =  '',  
+@NumeroAutorizacao =  NULL
+
+
+
+ exec dbinfracao..RNFTrataRetorno @CodTransacao =  411,  @NumSeqTransacao = 6,@CodigoOrgaoAut= 117100,  @nAuto =  10528,
+@Serie= 'ST',  @NumeroBancario =  '',  @NumeroAutorizacao =  NULL, @Maquina =  'DAT-038'
+ 
+
+SELECT TOP 100 * FROM dbvcen..Municipio where UF = 'PE'
+
+select * from dbinfracao..RNFTipoRegistrosTransacao  where Transacao = 411 and Cod = 'RT01'
+
+
+-------------------------Massa de testes 411  tarefa 70194
+
+--obtendo massa para os testes
+select top 20 AutoRENAINF, * from dbinfracao..Auto where DataInfracao >= '20230101' and AutoRENAINF is not null
+	AutoRENAINF Placa    UFPlaca Chassi            
+	          ST00010528  SNE0801  SP      936SNE1SNLL770801 
+   	          ST00010536  SNE0801  SP      936SNE1SNLL770801 
+          	  ST00010544  SNE0801  SP      936SNE1SNLL770801 
+	          ST00010552  SNE0801  SP      936SNE1SNLL770801 
+	 ST00010560  SNE0801  SP      936SNE1SNLL770801 
+	ST00010960  PFY0736  PE      9C2JC4110CR551378 
+	J 02230923  AKJ7282  RN      9BWCA05X93P001522 
+	B 00026413  APA1632  PR      9BWCA05W58P032023 
+	I 00967487  JMW5337  BA      9BGSC19Z02B115102 
+	D 22013752  MNB5281  PB      9BD17103G62702288 
+	AA07488276  NAI0258  RR      9BWZZZ237WP020760 
+
+
+ ---VERIFICANDO O REGISTRO
+select top 30 * from RENAVAM..RetRenavam where 
+CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano = 180
+---------------------------------- EV01  411
+AutoRenainf.: ST00010528  Órgão Autuante: 117100
+
+.informar o Ag. Autuador
+.informar o Auto Remainf
+.pressionar o botão Pesquisar
+.selecionar a linha na grid e pressionar o botão Movto
+.marcar a opção Implantação e pressionar o botão Trans.RNF
+.colocar um break point na linha da tabela dbinfracao..RNFTransmiteMovimento da função fTransmiteRENAINF dentro do  frmConSituacaoAuto
+.mostra a string salva na variável lsMensagem
+
+
+-------RT02
+ 0D05584836
+
+
+update	RENAVAM..RetRenavam 
+set DiaJuliano = 181,
+DataHora = '20230630',
+Parametro1 = '007363411417010000000PEBRPE10498000020001171000D0558483673400SNE0801   04433319236PE2531014104HONDA/CB 250F TWISTER    010857930500419990104000000000001178438098487   CICERO FERNANDES SA                     RUA DANCING DAYS              87   CASA         ',
+Parametro2 = '                IMBIRIBEIRA         2531PE51180340202013242062PE00000000000JOSUE FRANCELINO DE LIMA                RUA SANTO AMARO DA UNIÃO      12345CASA A              2289PE54325445002013242062PE120230630150312023063015081202306301510120230630151210'
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 170
+and NumSeqTransacao = 22
+
+
+update	RENAVAM..RetRenavam 
+set DiaJuliano = 181,
+DataHora = '20230630',
+Parametro1 = '007363411417010000000PEBRPE10498000020001171000D0558483673400SNE0801   04433319236PE2531014104HONDA/CB 250F TWISTER    010857930500419990104000000000001178438098487   CICERO FERNANDES SA                     RUA DANCING DAYS              87   CASA         ', 
+Parametro2 = '                IMBIRIBEIRA         2531PE51180340202013242062PE00000000000JOSUE FRANCELINO DE LIMA                RUA SANTO AMARO DA UNIÃO      12345CASA A              2289PE54325445002013242062PE220230630150312023063015081202306301510120230630151210'
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 170
+and NumSeqTransacao = 23
+--------------------------------------
+
+update	RENAVAM..RetRenavam 
+set DiaJuliano = 181,
+DataHora = '20230630',
+Parametro1 = '007363411417010000000PEBRPE10498000020001171000D0558558173400SNE0801   04433319236PE2531014104HONDA/CB 250F TWISTER    010857930500419990104000000000001178438098487   CICERO FERNANDES SA                     RUA DANCING DAYS              87   CASA         ',
+Parametro2 = '                IMBIRIBEIRA         2531PE51180340202013242062PE00000000000JOSUE FRANCELINO DE LIMA                RUA SANTO AMARO DA UNIÃO      12345CASA A              2289PE54325445002013242062PE120230630150312023063015081202306301510120230630151210'
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 170
+and NumSeqTransacao = 1
+
+
+update	RENAVAM..RetRenavam 
+set DiaJuliano = 181,
+DataHora = '20230630',
+Parametro1 = '007363411417010000000PEBRPE10498000020001171000D0558558173400SNE0801   04433319236PE2531014104HONDA/CB 250F TWISTER    010857930500419990104000000000001178438098487   CICERO FERNANDES SA                     RUA DANCING DAYS              87   CASA         ', 
+Parametro2 = '                IMBIRIBEIRA         2531PE51180340202013242062PE00000000000JOSUE FRANCELINO DE LIMA                RUA SANTO AMARO DA UNIÃO      12345CASA A              2289PE54325445002013242062PE220230630150312023063015081202306301510120230630151210'
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 170
+and NumSeqTransacao = 2
+
+-----------
+update	RENAVAM..RetRenavam 
+set DiaJuliano = 181,
+DataHora = '20230630',
+Parametro1 = '007363411417010000000PEBRPE10498000020001171000D0552880473400SNE0801   04433319236PE2531014104HONDA/CB 250F TWISTER    010857930500419990104000000000001178438098487   CICERO FERNANDES SA                     RUA DANCING DAYS              87   CASA         ',
+Parametro2 = '                IMBIRIBEIRA         2531PE51180340202013242062PE00000000000JOSUE FRANCELINO DE LIMA                RUA SANTO AMARO DA UNIÃO      12345CASA A              2289PE54325445002013242062PE120230630150312023063015081202306301510120230630151210'
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 170
+and NumSeqTransacao = 3
+
+
+update	RENAVAM..RetRenavam 
+set DiaJuliano = 181,
+DataHora = '20230630',
+Parametro1 = '007363411417010000000PEBRPE10498000020001171000D0552880473400SNE0801   04433319236PE2531014104HONDA/CB 250F TWISTER    010857930500419990104000000000001178438098487   CICERO FERNANDES SA                     RUA DANCING DAYS              87   CASA         ', 
+Parametro2 = '                IMBIRIBEIRA         2531PE51180340202013242062PE00000000000JOSUE FRANCELINO DE LIMA                RUA SANTO AMARO DA UNIÃO      12345CASA A              2289PE54325445002013242062PE220230630150312023063015081202306301510120230630151210'
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 170
+and NumSeqTransacao = 4
+
+
+
+
+
+
+
+
+--atualizando os parametros
+update	RENAVAM..RetRenavam 
+set Parametro1 = '007363411417010000000PEBRPE10498000020001171000D0558483673400SNE0801   04433319236PE2531014104HONDA/CB 250F TWISTER    010857930500419990104000000000001178438098487   CICERO FERNANDES SA                     RUA DANCING DAYS              87   CASA         '--,
+--   Parametro2 = '                IMBIRIBEIRA         2531PE51180340202013242062PE00000000000JOSUE FRANCELINO DE LIMA                RUA SANTO AMARO DA UNIÃO      12345CASA A              2289PE54325445002013242062PE120230628150312023062815081202306281510120230628151210'
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 180
+and NumSeqTransacao = 22
+
+update	RENAVAM..RetRenavam 
+set  Parametro1 = '007363411417010000000PEBRPE10498000020001171000D0558483673400SNE0801   04433319236PE2531014104HONDA/CB 250F TWISTER    010857930500419990104000000000001178438098487   CICERO FERNANDES SA                     RUA DANCING DAYS              87   CASA         '--, 
+--Parametro2 = '                IMBIRIBEIRA         2531PE51180340202013242062PE00000000000JOSUE FRANCELINO DE LIMA                RUA SANTO AMARO DA UNIÃO      12345CASA A              2289PE54325445002013242062PE220230628150312023062815081202306281510120230628151210'
+where  CodTransacao = 411
+and AnoJuliano = 2023--
+and DiaJuliano  = 180
+and NumSeqTransacao = 23
+
+--atualizando o dia juliano
+update	RENAVAM..RetRenavam 
+set DiaJuliano = 180
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 179
+and NumSeqTransacao = 23
+
+update	RENAVAM..RetRenavam 
+set  DiaJuliano = 180
+where  CodTransacao = 411
+and AnoJuliano = 2023
+and DiaJuliano  = 179
+and NumSeqTransacao = 2
+
+select OrgaoCompetencia ,  * from dbinfracao..Auto 
+where Cod = 1056 
+and DigitoVerificador = 0 
+and Serie = 'ST' 
+and Placa = 'SNE0801'
+--and OrgaoCompetencia = 	225310
+
+
+
+
+set forceplan on
+select    top 200 a.AutoRENAINF, a.*
+from     dbinfracao..Auto a(index Auto_OrgaoCompAutoRENAINF), dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd , dbinfracao..InfracaoAuto ia
+where      a.OrgaoCompetencia     = 117100   
+and      a.AutoRENAINF         !=null        
+and      a.OrgaoAutuante        = d.OrgaoAutuante 
+and      a.Serie            = d.Serie 
+and      a.Cod            = d.Auto 
+and      d.Setor            = pd.Setor 
+and      d.Cod            = pd.Debito 
+and      pd.Situacao           in  ('A','D','E') --- aberto ou em tramite 
+and      a.OrgaoAutuante        = ia.OrgaoAutuante 
+and      a.Serie            = ia.Serie 
+and      a.Cod            = ia.Auto 
+AND      A.UFPlaca = 'PE'
+0D05559599  0D    555959                                    9                                         400555972                                 MNJ3689  PB      NULL     NULL       9C6KE038030009902      NULL                                      PE    JOSE WEVERTON MOURA DA SILVA                        2381                                      1                                         1                                         23502                                     RUA FRANCISCO CORDEIRO DE SOUZA DISTRITO INDUSTRIA  Aug  8 2018  4:00PM          1197622                                   N        C               115591346                                 Oct 20 2018 12:04AM          01010501000000        NULL         51                NULL                  NULL         N            N                S               N              NULL                                                                                                                                                                                                                                                             madm      N            N            N               L                                                   117100                                    10                                        NULL                                                NULL                         NULL        NULL     117100                                    0D05559599  S            N             NULL                                      47742780                                  Oct  3 2018 12:00AM          S                Aug 24 2018 10:22PM          Jan 28 2019 12:00AM          NULL                                      NULL                                      NULL             NULL                                      NULL                                      NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           S              NULL                         Dec 10 2018 12:00AM           NULL                         Dec 28 2018 12:00AM                            NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05559700  0D    555970                                    0                                         400555980                                 EOH9043  SP      NULL     NULL       9C2KC1670BR309169      6677539506                                SP    NELSON FRANCISCO DE SOUZA FILHO                     2381                                      1                                         1                                         2855                                      AV MESTRE VITALINO N 80                             Jun 28 2018 10:59AM          1197622                                   N        C               115801545                                 Oct 26 2018 12:21AM          01010501000000        NULL         24                NULL                  NULL         N            N                S               N              NULL                                                                                                                                                                                                                                                             hta       N            N            N                                                                   117100                                    10                                        NULL                                                NULL                         NULL        NULL     117100                                    0D05559700  S            S             NULL                                      45938741                                  Oct 10 2018 12:00AM          S                Jul 13 2018 10:04PM          Jan 28 2019 12:00AM          NULL                                      2                                         NULL             NULL                                      13639442407                               NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             S              S              Aug 22 2018 12:00AM          Dec 17 2018 12:00AM           Sep 25 2018 12:00AM          Dec 28 2018 12:00AM                            NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05562212  0D    556221                                    2                                         400556243                                 DAF8794  SP      NULL     NULL       9C2JC30101R246131      NULL                                      PE    EVERTON PAULO ZACARIAS                              2305                                      1                                         1                                         2805                                      RUA JOAO GUILHERME EM FRENTE AO N 277               Jan 18 2019  7:48AM          9206507                                   N        C               122675320                                 Apr 24 2019 12:55AM          01010501000000        NULL         24                NULL                  NULL         N            N                N               N              NULL                                                                                                                                                                                                                                                             otavio    N            N            N                                                                   117100                                    10                                        NULL                                                NULL                         NULL        NULL     117100                                    0D05562212  S            N             NULL                                      54038766                                  Apr  8 2019 12:00AM          S                Jan 28 2019 10:00PM          Jul 22 2019 12:00AM          0                                         NULL                                      NULL             NULL                                      NULL                                      NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             S              S              Mar 11 2019 12:00AM          Jun 13 2019 12:00AM           Mar 22 2019 12:00AM          Jun 21 2019 12:00AM          N                 NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05562220  0D    556222                                    0                                         400556243                                 DAF8794  SP      NULL     NULL       9C2JC30101R246131      NULL                                      PE    EVERTON PAULO ZACARIAS                              2305                                      1                                         1                                         2805                                      RUA JOAO GUILHERME EM FRENTE AO N 277               Jan 18 2019  7:48AM          9206507                                   N        C               122675339                                 Apr 24 2019 12:55AM          01010501000000        NULL         24                NULL                  NULL         N            N                N               S              NULL                                                                                                                                                                                                                                                             otavio    N            N            N                                                                   117100                                    10                                        NULL                                                NULL                         NULL        NULL     117100                                    0D05562220  S            N             NULL                                      54038774                                  Apr  8 2019 12:00AM          S                Jan 28 2019 10:00PM          Jul 22 2019 12:00AM          0                                         NULL                                      NULL             NULL                                      NULL                                      NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             S              S              Mar 11 2019 12:00AM          Jun 13 2019 12:00AM           Mar 22 2019 12:00AM          Jun 21 2019 12:00AM                            NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05562247  0D    556224                                    7                                         400556243                                 EFI7487  SP      NULL     NULL       9C2KC1550AR097099      NULL                                      PE    ADARMESON ALBERTO VALERIO                           2473                                      1                                         1                                         2855                                      RUA MARIA GERSONITA EM FRENTE AO N 19               Jan 21 2019  2:40PM          9206507                                   N        C               121824896                                 Mar 27 2019  5:15AM          01010501000000        NULL         24                NULL                  NULL         N            N                N               N              NULL                                                                                                                                                                                                                                                             otavio    N            N            N                                                                   117100                                    10                                        NULL                                                NULL                         NULL        NULL     117100                                    0D05562247  S            N             NULL                                      54038782                                  Mar 11 2019 12:00AM          S                Jan 28 2019 10:00PM          May 16 2019 12:00AM          0                                         NULL                                      NULL             NULL                                      NULL                                      NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05562255  0D    556225                                    5                                         400556243                                 EFI7487  SP      NULL     NULL       9C2KC1550AR097099      NULL                                      PE    ADARMESON ALBERT VALERIO                            2473                                      1                                         1                                         2855                                      RUA MARIA GERSONITA EM FRENTE AO N 19               Jan 21 2019  2:44PM          9206507                                   N        C               121824837                                 Mar 27 2019  5:15AM          01010501000000        NULL         24                NULL                  NULL         N            N                N               S              NULL                                                                                                                                                                                                                                                             otavio    N            N            N                                                                   117100                                    10                                        NULL                                                NULL                         NULL        NULL     117100                                    0D05562255  S            N             NULL                                      54038790                                  Mar 11 2019 12:00AM          S                Jan 28 2019 10:00PM          May 16 2019 12:00AM          0                                         NULL                                      NULL             NULL                                      NULL                                      NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05562433  0D    556243                                    3                                         400556260                                 DZN7422  SP      NULL     NULL       9C2KC08208R030026      NULL                                      PE    ANDERSON ANDRADE SILVA                              2473                                      1                                         1                                         2809                                      RUA PEDRO FRANCISCO SOBRAL  EM FRENTE AO N 150      Mar  4 2019  8:05PM          9206507                                   N        C               123527279                                 May 16 2019  1:46AM          01010501000000        NULL         24                NULL                  NULL         N            N                N               N              NULL                                                                                                                                                                                                                                                             jrbo      N            N            N                                                                   117100                                    10                                        NULL                                                NULL                         NULL        NULL     117100                                    0D05562433  N            N             NULL                                      55850898                                  Apr 30 2019 12:00AM          S                Mar 21 2019 10:28PM          Jul  5 2019 12:00AM          NULL                                      NULL                                      NULL             NULL                                      NULL                                      NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05562441  0D    556244                                    1                                         400556260                                 DZN7422  SP      NULL     NULL       9C2KC08208R030026      NULL                                      PE    ANDERSON ANDRADE SILVA                              2473                                      1                                         1                                         2809                                      RUA PEDRO FRANCISCO SOBRAL  EM FRENTE AO N 150      Mar  4 2019  8:05PM          9206507                                   N        C               123527252                                 May 16 2019  1:46AM          01010501000000        NULL         24                NULL                  NULL         N            N                S               S              NULL                                                                                                                                                                                                                                                             jrbo      N            N            N                                                                   117100                                    10                                        NULL                                                NULL                         NULL        NULL     117100                                    0D05562441  S            N             NULL                                      55850901                                  Apr 30 2019 12:00AM          S                Mar 21 2019 10:28PM          Jul  5 2019 12:00AM          NULL                                      NULL                                      NULL             NULL                                      NULL                                      NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05576450  0D    557645                                    0                                         400557665                                 HVU9691  CE      NULL     NULL       9BD17106G85117213      5015218877                                PE    WASHINGTON ANKE LORENZ RAMOS                        2513                                      1                                         1                                         152462                                    AV JOAO PEREIRA DE OLIVEIRA FRENTE N 712            Nov 26 2017  5:01PM          1091638                                   N        C               107820145                                 Mar 14 2018 12:57AM          01010501000000        NULL         16                NULL                  NULL         N            N                S               N              NULL                                                                                                                                                                                                                                                             phds      S            N            N                                                                   117100                                    2                                         NULL                                                NULL                         NULL        NULL     117100                                    0D05576450  S            N             NULL                                      38249170                                  Feb 26 2018 12:00AM          S                Dec  7 2017 11:13PM          May  3 2018 12:00AM          0                                         2                                         NULL             NULL                                      9541166407                                NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             S              NULL           Jan 16 2018 12:00AM          NULL                          Feb  9 2018 12:00AM          NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05582477  0D    558247                                    7                                         400558262                                 HWU4391  CE      NULL     NULL       9BD17834612261512      4226480954                                PE    LEANDRO CAMARA DA SILVA                             2531                                      1                                         1                                         152442                                    RUA NOVA DESCOBERTA REF N 1196                      Oct 26 2017  2:00AM          242845                                    N        C               105694592                                 Jan 10 2018  6:14AM          01010501000000        NULL         99                NULL                  NULL         S            N                S               N              NULL                                                                                                                                                                                                                                                             jrbo      N            N            N                                                                   117100                                    2                                         NULL                                                NULL                         NULL        NULL     117100                                    0D05582477  S            N             NULL                                      37386956                                  Dec 25 2017 12:00AM          S                Nov 13 2017 10:27PM          Apr 16 2018 12:00AM          0                                         2                                         NULL             NULL                                      2888798484                                NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           S              NULL                         Mar  1 2018 12:00AM           NULL                         Mar 15 2018 12:00AM                            NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05582485  0D    558248                                    5                                         400558262                                 HWU4391  CE      NULL     NULL       9BD17834612261512      4226480954                                PE    LEANDRO CAMARA DA SILVA                             2531                                      1                                         1                                         152442                                    RUA NOVA DESCOBERTA REF N 1196                      Oct 26 2017  2:02AM          242845                                    N        C               105694681                                 Jan 10 2018  6:14AM          01010501000000        NULL         99                NULL                  NULL         N            N                S               N              NULL                                                                                                                                                                                                                                                             jrbo      S            N            N                                                                   117100                                    2                                         NULL                                                NULL                         NULL        NULL     117100                                    0D05582485  S            N             NULL                                      37386964                                  Dec 25 2017 12:00AM          S                Nov 13 2017 10:27PM          Mar  1 2018 12:00AM          0                                         2                                         NULL             NULL                                      2888798484                                NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05583244  0D    558324                                    4                                         400558343                                 KAT2753  MT      NULL     NULL       93XLRH77W4C302854      NULL                                      NULL  NULL                                                2611                                      3                                         1                                         222208                                    AV CENTRAL NORTE EM FRENTE AO N 06                  Nov 25 2017  6:52PM          1063561                                   N        C               106572997                                 Feb 10 2018 12:37AM          01010501000000        NULL         99                NULL                  NULL         N            N                N               N              NULL                                                                                                                                                                                                                                                             radc      N            N            N                                                                   117100                                    1                                         NULL                                                NULL                         NULL        NULL     117100                                    0D05583244  N            N             NULL                                      38489651                                  Jan 24 2018 12:00AM          S                Dec 15 2017 10:11PM          Apr  2 2018 12:00AM          0                                         NULL                                      NULL             NULL                                      NULL                                      NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05583872  0D    558387                                    2                                         400558408                                 AQF8144  SP      NULL     NULL       9C6KE092080204510      NULL                                      PE    LUCIANO MOREIRA DA SILVA                            2497                                      1                                         1                                         9605                                      RODOVIA PE 604 EM FRENTE AO POSTE DE N M163552      Nov 23 2017  6:35PM          1120830                                   N        C               106560077                                 Feb  7 2018 12:07AM          01010501000000        NULL         51                NULL                  NULL         N            N                S               N              NULL                                                                                                                                                                                                                                                             sandro    N            N            N                                                                   117100                                    1                                         NULL                                                NULL                         NULL        NULL     117100                                    0D05583872  S            N             NULL                                      38346800                                  Jan 22 2018 12:00AM          S                Dec 12 2017 10:36PM          Mar 29 2018 12:00AM          0                                         NULL                                      NULL             NULL                                      8937033461                                NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05583880  0D    558388                                    0                                         400558408                                 AQF8144  SP      NULL     NULL       9C6KE092080204510      NULL                                      PE    LUCIANO MOREIRA DA SILVA                            2497                                      1                                         1                                         9605                                      RODOVIA PE 604 EM FRENTE AO POSTE DE N M163552      Nov 23 2017  6:35PM          1120830                                   N        C               106559907                                 Feb  7 2018 12:07AM          01010501000000        NULL         51                NULL                  NULL         N            N                S               N              NULL                                                                                                                                                                                                                                                             sandro    N            N            N                                                                   117100                                    1                                         NULL                                                NULL                         NULL        NULL     117100                                    0D05583880  S            N             NULL                                      38346818                                  Jan 22 2018 12:00AM          S                Dec 12 2017 10:36PM          Mar 29 2018 12:00AM          0                                         NULL                                      NULL             NULL                                      8937033461                                NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+ 0D05584836  0D    558483                                    6                                         400558505                                 NZL9466  BA      NULL     NULL       9BWAB05U0CP133353      2354619220                                BA    ADILSON ANDRADE COSTA                               2301                                      1                                         1                                         115772                                    RUA BARAO DE LUCENA  EM FRENTE AO N 159             Jan 14 2018  4:30PM          1127985                                   D        C               NULL                                      NULL                         01010501000000        NULL         10                NULL                  NULL         S            N                S               N              NULL                                                                                                                                                                                                                                                             jrbo      N            N            N                                                                   117100                                    1                                         NULL                                                NULL                         NULL        NULL     117100                                    0D05584836  S            N             NULL                                      40445011                                  Mar 14 2018 12:00AM          NULL             Feb  2 2018 10:30PM          NULL                         0                                         2                                         NULL             NULL                                      92117988504                               NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             NULL           NULL           NULL                         NULL                          NULL                         NULL                                           NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+0D05585581  0D    558558                                    1                                         400558572                                 NQF5863  PB      NULL     NULL       9C2KD0550CR006423      5799954495                                PE    RONALDO TADEU AGRA DE ALENCAR                       2611                                      1                                         1                                         14910                                     AV CENTRAL NORTE E/F AO N 06                        Nov 25 2017  4:59PM          1120930                                   N        C               107819520                                 Mar 14 2018 12:57AM          01010501000000        NULL         24                NULL                  NULL         S            N                S               N              NULL                                                                                                                                                                                                                                                             hta       N            N            N                                                                   117100                                    1                                         NULL                                                NULL                         NULL        NULL     117100                                    0D05585581  S            N             NULL                                      38459140                                  Feb 26 2018 12:00AM          S                Dec 14 2017 10:38PM          Jun  4 2018 12:00AM          0                                         2                                         NULL             NULL                                      12506893415                               NULL                                                                                                                                                                                                                                          NULL                                                                                                    NULL                                      NULL                                      NULL                                                NULL                                                NULL         NULL             S              S              Jan 23 2018 12:00AM          May  3 2018 12:00AM           Feb  9 2018 12:00AM          May  4 2018 12:00AM                            NULL                  NULL        NULL          NULL                  NULL        NULL          NULL            NULL           NULL                  NULL         NULL                                      NULL                NULL                NULL                                      NULL                                      NULL          NULL                                                NULL                         NULL                       NULL                  0                   NULL                         NULL                      NULL                         0                     NULL                         NULL              NULL          NULL          NULL                         NULL                                      NULL                         NULL                                                                                                  NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                                      NULL                         NULL                         NULL                        
+
+
+select     ma.*
+from     dbinfracao..Auto a, 
+	dbarrecadacao..Debito d, 
+	dbarrecadacao..ParcelaDebito pd , 
+	dbinfracao..InfracaoAuto ia,
+	dbinfracao..MovimentoAuto ma
+where      a.OrgaoCompetencia     = 117100   
+and      a.AutoRENAINF         !=null
+and      a.OrgaoAutuante        = d.OrgaoAutuante 
+and      a.Serie            = d.Serie 
+and      a.Cod            = d.Auto 
+and      d.Setor            = pd.Setor 
+and      d.Cod            = pd.Debito 
+and      pd.Situacao           in  ('A','D','E') --- aberto ou em tramite 
+and      a.OrgaoAutuante        = ia.OrgaoAutuante 
+and      a.Serie            = ia.Serie 
+and      a.Cod            = ia.Auto 
+and      a.OrgaoAutuante        = ma.OrgaoAutuante 
+and      a.Serie            = ma.Serie 
+and      a.Cod            = ma.Auto 
+and      a.Cod  = 0558483   --0551109 --0549012
+
+
+select top 200 AutoRENAINF, * from dbinfracao..Auto where DataInfracao >= '20230101' and AutoRENAINF is not null

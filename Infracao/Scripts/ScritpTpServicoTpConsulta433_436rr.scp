@@ -1,0 +1,11 @@
+
+
+--gravando a transação na tabela TipoConsulta
+
+insert into RENAVAM..TipoConsulta
+values(433, 'T')
+
+insert into RENAVAM..TipoConsulta
+values(436, 'T')
+
+

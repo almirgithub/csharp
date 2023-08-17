@@ -1,0 +1,119 @@
+
+
+exec dbinfracao..InfracaoS_cod_desc
+
+
+select * from  dbinfracao..TipoArqNotInfracao
+
+
+
+exec dbinfracao..InfracaoS_cod_desc  @Maquina =  'HPD-217'
+
+gin  
+	select 	Cod*10+isnull(i.Desdobramento,0), i.Descricao  
+	from	dbinfracao..Infracao i  
+	where	not exists (select * from  dbinfracao..TipoArqNotInfracao t where i.Cod = t.Infracao and i.Desdobramento = t.Desdobramento and t.TipoArqNot = @TipoArqNot)  
+	and      ((i.Cod < 5000) or (i.Cod > 5999))  
+	
+	
+	
+	select 	 *
+	from	dbinfracao..tmpAgente 
+	
+
+delete from 
+dbinfracao..tmpAgente 
+
+
+	declare @Codig numeric(09)
+	select @Codig = 4563215
+	select convert(int,right(ltrim(rtrim(convert(char(9), @Codig))),1))
+	
+	
+	select top 50 *  from dbfisc01..AgenteTransito
+	where nOrgaoLotacao = 117100
+	order by nMatriculaAgente
+	
+	where nMatriculaAgente = 9903194
+	
+	
+
+select 	 *
+from	dbinfracao..tmpAgente 
+
+select 	 *
+from	dbinfracao..tmpInfracao 		
+
+ 
+ drop table #Auto
+ 
+ 
+select top 10 a.DataInfracao, a.OrgaoAutuante,  * from  dbinfracao..Auto a
+where a.Placa in('HXJ5095','PFB4366','KKL6040','KJO9414')
+and Placa in ('KJO9414','PCQ1743','NZR8699')
+
+
+
+SELECT TOP 20 * from 	Prot..Comunicado 
+where Auto in(1272868, 1270644)
+and OrgaoAutuante = 117100
+
+ drop table #Auto
+
+	select	top 100 a.DataInfracao, a.OrgaoAutuante, a.Municipio, a.Agente, a.* from 	dbinfracao..Auto a
+		--dbinfracao..tmpAgente ag
+	where 	a.DataInfracao between '20180101' and '20181001'
+	and  	a.OrgaoAutuante 	= 	117100
+	and  	a.Agente		in	(select 	convert(int, rtrim(ltrim(convert(char(9), ag.Agente)))) 
+						from dbinfracao..tmpAgente ag
+					 	where	ag.Spid	=	144)
+	and 	Municipio 	= 	2531  --@Municipio
+	--and	ag.Spid		=	@@spid
+
+	
+	select  	isnull(c.Prot, 0)	as Protocolo,
+		st.Descricao,
+		a.Agente as MatrAgente,
+		a.Placa,
+		ia.OrgaoAutuante,
+		ia.Serie,
+		ia.Auto*10+a.DigitoVerificador as Auto,
+		convert(char(15), a.DataInfracao,103),
+		i.Descricao
+	from 	#Auto a , 
+		dbinfracao..InfracaoAuto ia,
+		dbinfracao..Infracao i,
+		dbinfracao..SitInfracaoAuto st,
+		Prot..Comunicado c
+	where 	a.Serie 		= ia.Serie
+	and 	a.OrgaoAutuante 	= ia.OrgaoAutuante
+	and 	a.Cod 		= ia.Auto
+	and 	ia.Infracao 	= i.Cod
+	and 	ia.Desdobramento 	= i.Desdobramento
+	and 	ia.Situacao 	= st.Cod
+	and 	ia.Infracao 	in (	select 	convert(int, rtrim(ltrim(convert(char(6), i.Infracao))) + 
+					  	convert(char(1), i.Desdobramento)) 
+					from dbinfracao..tmpInfracao i
+					where	i.Spid	=	@@spid)
+	and 	a.Serie 		*= c.Serie
+	and 	a.OrgaoAutuante 	*= c.OrgaoAutuante
+	and 	a.Cod 		*= c.Auto
+	order 	by a.Agente,st.Descricao,a.DataInfracao
+	
+	
+SELECT TOP 10 * FROM dbinfracao..Infracao
+WHERE 	Cod = 6610
+                   
+                   
+                   
+ exec dbinfracao..AgenteInfracaoAuditoriaS   @OrgaoAutuante =  117100,   @Municipio =  2531
+ ,   @DataInicial  =  '20180101',   @DataFinal =  '20180110', @Maquina =  'HPD-217'                   
+ 
+ select top 10 *  from dbinfracao..InfracaoAuto ia
+ 
+ 	select	top 50 DataInfracao,OrgaoAutuante, Municipio, * 
+	from 	dbinfracao..Auto
+	where 	DataInfracao >= '20171227' and DataInfracao <= '20171230'
+	and  	OrgaoAutuante 	= 	117100
+	and     Municipio = 2531
+	and     Agente = 21890

@@ -1,0 +1,10 @@
+-----------------------------------------------------------------------
+-- Inserir nosvo campo na tabela de dbinfracao..MaquinaTalaoEletronico
+-- afs - 16/02/2021
+-----------------------------------------------------------------------
+
+alter table dbinfracao..MaquinaTalaoEletronico
+	add	AgenteEquip	int	null
+
+
+-----------------------------------------------------------------------

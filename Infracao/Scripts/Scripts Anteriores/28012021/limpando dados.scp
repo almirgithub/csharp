@@ -1,0 +1,24 @@
+
+update dbinfracao..InfracaoAuto set Situacao = 'A'
+from dbinfracao..Auto  h, dbinfracao..InfracaoAuto a 
+where  h.Placa ='KFH6C82'
+and   a.Serie = h.Serie
+and   h.Cod = a.Auto
+and   a.OrgaoAutuante = a.OrgaoAutuante 
+and h.Cod in (876928,876932)
+
+
+
+
+DELETE dbinfracao..MovimentoAuto
+from  dbinfracao..Auto  h, dbinfracao..InfracaoAuto a , dbinfracao..MovimentoAuto d
+where  h.Placa ='KFH6C82'
+and   h.Serie = d.Serie
+and   h.OrgaoAutuante = d.OrgaoAutuante
+and   a.Auto = d.Auto
+and   a.Serie = d.Serie
+and   h.Cod = a.Auto
+and   a.OrgaoAutuante = d.OrgaoAutuante 
+and h.Cod in (876928,876932)
+and d.TipoMovimento = 'D'
+

@@ -1,0 +1,180 @@
+use master
+GO
+
+/*
+  Script for Server HOMVEIC_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Table(s)
+*/
+
+PRINT 'TABLE : dbo.AutosIncompletos'
+GO
+
+
+if exists (select * from dbo.sysobjects where id = Object_id('dbo.AutosIncompletos') and type in ('U','S'))
+begin
+  drop table dbo.AutosIncompletos
+end
+
+GO
+
+create table dbo.AutosIncompletos (
+Usuario char(8) 				--Usuario 
+default suser_name() not null,
+DataCriacao datetime not null,			--data de criação do registro
+Sequencial int not null,			--sequencial do registro
+UFPlaca char(2) null,				--UF DA PLACA
+Municipio numeric(6,0) null,			--Municipio de cometimento
+FinalPlaca tinyint null,			--Final da placa
+Placa varchar(7) null,				--Placa do veículo
+NomeMunicipio varchar(30) null,			--Nome do municipio de cometimento
+Renavam numeric(12,0) null,			--Renavam do veículo
+Categoria numeric(4,0) null,			--Categoria do veiculo
+Tipo numeric(4,0) null,				--Tipo do veiculo
+Marca numeric(6,0) null,			--Marca do veiculo
+NomeMarca varchar(31) null,			--Nome da marca do veiculo
+Auto numeric(10,0) not null,			--Auto de infração
+Digito tinyint null,				--Digito do auto
+NumNotificacao numeric(10,0) null,		--Numero da notificasção
+DataInfracao datetime null,			--Data da infração
+InfracaoAuto numeric(6,0)  null,		--Numero da infração
+Peso numeric(5,0) null,				--Peso obtido
+Local varchar(100) null,			--Local de cometimento
+Moeda tinyint null,				--Moeda 
+ValorMulta numeric(13,2) null,			--Valor da multa
+Reincidencia varchar(32) null,			--Reincidencia 
+Indicador tinyint null,				--Indicador de registro do auto
+Erro tinyint					--Codigo do erro
+default 0  null,
+Situacao tinyint				--Situação do auto
+default 0  null,
+Serie char(2) not null,				--Serie do auto
+UFCNH char(2) null,				--UF DA CNH
+CNH numeric(15,0) null,				--Numero da CNH
+OrgaoAutuante numeric(6,0) not null,		--Orgao Autuante
+DataVencimento datetime null,			--Data de vencimento do auto
+AgenteEquip numeric(6,0)			--Codigo do agente equipamento
+default 0  null,	
+Arquivo varchar(100) null,			--Nome do arquivo
+StoradProcedure char(50) null,			--Nome da procedure utilizada
+MatrAgente int null,				--Matricula do agente
+VelocidadeCons int null,			--Velocidade considerada
+DataAfericao datetime null,			--Data aferição
+CodEquipamento char(50) null,			--Codigo do equipamento
+VelocidadeAfer int null,			--Velocidade aferida
+VelocidadePerm int null,			--Velocidade permitida
+AutoDPRF char(10) null,				--Auto da policia federal
+ExcessoVerif int null,				--Excesso verificado
+TipoAuto smallint null,				--Tipo de auto	
+NumNotifAutuacao numeric(10,0) null,		--Numero da notificação de autuação
+DataLimiteDefesaAutuacao datetime null,		--Data de limite de defesa da autuação
+Processo int null,				--Processo		
+DataProcesso datetime null,			--Data do processo
+NumNotificacaoPenalidade numeric(10,0) null,	--Numero da notificação de penalidade
+DataLimiteDefesaPenalidade datetime null,	--Data de llmite de defea
+CPFCondutor numeric(11,0) null,			--CPF Condutor	
+Desdobramento smallint null,			--Desdobramento da infração
+sAgenteEquip char(20) null,			--Descricao do agente
+NumeroEquip numeric(10,0) null,			--Numero do equipamento
+ImagemAuto char(15) null,			--Nome da imagem
+RecolhimentoVeic char(1) null,			--Recolhimento veiculo
+RecolhimentoCNH char(1) null,			--Recolhimento cnh	
+RecolhimentoCLA char(1) null,			--Recolhimento cla
+RemocaoVeic char(1) null,			--Remocao veiculo
+RetencaoVeic char(1) null,			--Retenção veiculo
+RecolhimentoCRV char(1) null,			--Recolhimento crv
+AutoAssinado char(1) null,			--Auto assinado
+Abordagem char(1) null,				--Abordagem
+TipoDoctoCond smallint null,			--Tipo documento do condutor
+NumDoctoCond char(20) null,			--Numero documento do condutor
+UfDoctoCond char(2) null,			--UF documento do condutor
+NomeCond char(40) null,				--Nome do condutor
+iNaoPossuiCnh char(1) null,			--Indicador de possiuir cnh
+iNaoPortandoCnh char(1) null,			--Indicador de portando CNH
+TipoDoctoInfra smallint null,			--Tipo documento infrator
+NumDoctoInfra char(20) null,			--Numero docto infrator
+UfDoctoInfra char(2) null,			--UF DOCTO INFRATOR
+NomeInfra char(40) null,			--Nome infrator
+NumeroTeste char(10) null,			--Numero do teste
+SerieEquip char(20) null,			--Serie do equipamento
+BafDescartavel char(1) null,			--Bafometro descartavel
+Recusa char(1) null,				--Recusa alcoolemia
+OrgaoExpDocCondutor char(10) null,		--Orgao exp documento do condutor
+OrgaoExpDocInfrator char(10) null,		--Orgao exp documento do infrator
+Chassi char(21) null,				--Chassi
+ModeloEquip char(50) null,			--Modelo do equipamento
+MarcaEquip char(50) null,			--Marca do equipamento
+UnidadeMed int null,				--Unidade de medida
+NumeroCedula numeric(11,0) null,		--Cedula 	
+ExercicioCrlvRecolhido numeric(4,0) null,	--Exercicio CRLV RECOLHIDO	
+CnhInfrator numeric(12,0) null,			--CNH do infrator
+UfCnhInfrator char(2) null,			--UF CNHD DO INFRATOR
+NomeMaeCondutor varchar(50) null,		--Nome da mae do condutor
+DataNascCondutor datetime null,			--Data de nascimento do condutor
+CpfAgenteTransito char(11) null,		--cpf do agente de transito
+MotivoCancelamento int null,			--motivo do cancelamento
+ObservacaoMotivoCancelamento varchar(150) null,	--observações do cancelamento
+Latitude char(12) null,				--latitude
+Longitude char(12) null,			--longitude
+DataUltAfericao datetime null,			--dat ult aferição
+NumeroAfericao numeric(10,0) null,		--numero aferição
+DataValidadeAfericao datetime null,		--Data validade aferição
+Pais int null,					--pais
+Maquina numeric(15,0) null)			--maquina
+GO
+
+
+PRINT 'CREATING Index(s) for Table : dbo.AutosIncompletos'
+GO
+
+
+PRINT 'INDEX : dbo.AutosIncompletos.AutosIncompletos_Auto'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('AutosIncompletos') and keys1 is not null and name ='AutosIncompletos_Auto')
+begin
+drop index AutosIncompletos.AutosIncompletos_Auto
+end
+
+GO
+
+create nonclustered index AutosIncompletos_Auto on dbo.AutosIncompletos(OrgaoAutuante, Serie, Auto) 
+GO
+
+
+PRINT 'INDEX : dbo.AutosIncompletos.AutosIncompletos_DataCriacao'
+GO
+
+if exists (select 1 from sysindexes where id = object_id('AutosIncompletos') and keys1 is not null and name ='AutosIncompletos_DataCriacao')
+begin
+drop index AutosIncompletos.AutosIncompletos_DataCriacao
+end
+
+GO
+
+create nonclustered index AutosIncompletos_DataCriacao on dbo.AutosIncompletos(DataCriacao) 
+GO
+
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Select on dbo.AutosIncompletos to desenvolvimento
+ 
+
+GO
+
+Grant Select on dbo.AutosIncompletos to soselect
+ 
+
+GO
+
+

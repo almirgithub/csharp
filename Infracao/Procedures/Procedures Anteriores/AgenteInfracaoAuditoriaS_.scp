@@ -1,0 +1,122 @@
+
+use master
+GO
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.AgenteInfracaoAuditoriaS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.AgenteInfracaoAuditoriaS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.AgenteInfracaoAuditoriaS
+end
+
+GO
+
+create proc dbo.AgenteInfracaoAuditoriaS
+-- Versao 	: 1.0.0.0		  
+-- Funcao	: Consulta od dados doagente de acordo com os pparâmetros informados
+-- Autor	: afs - 24-03-2022		 
+ 
+(  
+	@OrgaoAutuante	numeric(6),
+	@Municipio	numeric(6),
+	@DataInicial	datetime,
+	@DataFinal	datetime
+
+
+)  
+as   
+
+	if 	@OrgaoAutuante	is	null
+	begin        			
+         	raiserror 60000 'O órgão autuante deverá ser informado!'
+         	return -900        
+	end     
+
+	if	@Municipio	is	null
+	begin
+         	raiserror 60000 'O município deverá ser informado!'
+         	return -900        
+	end
+	
+	if	@DataInicial	is 	null	or
+		@DataFinal	is 	null
+	begin
+         	raiserror 60000 'O período deverá ser informado!'
+         	return -900        
+	end
+	
+	if	not exists(select 1 from dbinfracao..tmpAgente where Spid = @@spid)
+	begin
+         	raiserror 60000 'O agente deverá ser informado!'
+         	return -900        
+	end
+
+	if	not exists(select 1 from dbinfracao..tmpInfracao where Spid = 144)--)
+	begin
+         	raiserror 60000 'A infração deverá ser informada!'
+         	return -900        
+	end
+	
+	select	a.*	into	#Auto 
+	from 	dbinfracao..Auto a
+		--dbinfracao..tmpAgente ag
+	where 	a.DataInfracao between @DataInicial and @DataFinal
+	and  	a.OrgaoAutuante 	= 	@OrgaoAutuante 
+	and  	a.Agente		in	(select 	convert(int, rtrim(ltrim(convert(char(9), ag.Agente)))) 
+						from dbinfracao..tmpAgente ag
+					 	where	ag.Spid	=	@@spid)
+	and 	Municipio 	= 	@Municipio
+	--and	ag.Spid		=	@@spid
+
+	
+	select  	null	as Protocolo,
+		st.Descricao,
+		a.Agente as MatrAgente,
+		a.Placa,
+		ia.OrgaoAutuante,
+		ia.Serie,
+		ia.Auto*10+a.DigitoVerificador as Auto,
+		convert(char(15), a.DataInfracao,103),
+		i.Descricao
+	from 	#Auto a , 
+		dbinfracao..InfracaoAuto ia,
+		dbinfracao..Infracao i,
+		dbinfracao..SitInfracaoAuto st,
+		Prot..Comunicado c,
+		dbinfracao..tmpInfracao tmp
+	where 	a.Serie 		= ia.Serie
+	and 	a.OrgaoAutuante 	= ia.OrgaoAutuante
+	and 	a.Cod 		= ia.Auto
+	and 	ia.Infracao 	= i.Cod
+	and 	ia.Desdobramento 	= i.Desdobramento
+	and 	ia.Situacao 	= st.Cod
+	and 	ia.Infracao 	= tmp.Infracao 
+	and	ia.Desdobramento  = tmp.Desdobramento
+	and 	tmp.Spid		= @@spid
+	and 	a.Serie 		*= c.Serie
+	and 	a.OrgaoAutuante 	*= c.OrgaoAutuante
+	and 	a.Cod 		*= c.Auto
+	order 	by a.Agente,st.Descricao,a.DataInfracao
+            
+   
+return	0   
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.AgenteInfracaoAuditoriaS to desenvolvimento
+GO
+
+Grant Execute on dbo.AgenteInfracaoAuditoriaS to veiculo
+GO

@@ -1,0 +1,71 @@
+select a.Guid ,av.ImagemAR ,av.ARCorreio , a.Nome,   a.Caminho + '\' + a.Guid + a.Extensao 
+		from 	MPS..Arquivo a, 
+				dbvcen..AvisoRecebimento av
+		where 	av.ARCorreio 	= 	'BG514239412BR'
+		and 		av.ImagemAR = 	a.Nome
+
+
+
+select  * from dbvcen..AvisoRecebimento where ARCorreio = 'BG514239412BR'
+
+select   * from MPS..Arquivo where Nome ='202200227_Redacao.pdf' -- Extensao = '.tif'    -Caminho  = '\\intranet\dfs\Arquivo\HOMOLOGACAO\2021\2'   \Infracao' \AppFisc\ImagensAuto\2021\6' 
+
+select top 5 * from  MPS..Arquivo where Guid = '000b50bc-cfd7-48a3-99a6-1ee92294eb08'
+
+--------------Alterando   #61790
+update   MPS..Arquivo    
+set Guid = '19876196000000112022090519'
+where Nome =  '202200227_Redacao.pdf'
+and  Caminho = '\\intranet\dfs\Arquivo\HOMOLOGACAO\EPT\Artefatos\Redacao\2022\4'
+
+update   MPS..Arquivo   
+set Nome = '21949757000001202018072021.tif'
+where Guid =  '19876196000000112022090519'
+
+update   MPS..Arquivo   
+set Extensao  = '.TIF'
+where Guid =  '19876196000000112022090519'
+
+update  dbvcen..AvisoRecebimento 
+set ImagemAR = '21949757000001202018072021.tif'
+where ARCorreio = 'BG514239412BR'
+--------------------------------------------------------------------------------------------------------------------------------------
+Alteração
+
+update   MPS..Arquivo   
+set Nome =  '583f348d-11c1-4ce8-90e7-f9cb1d547e2d.pdf'
+where Guid = '583f348d-11c1-4ce8-90e7-f9cb1d547e2d'
+
+update   MPS..Arquivo   
+set Nome =  'a4c3f6ff-9190-42c0-9d2f-1cfd0e0e9c12.pdf'
+where Guid =  'a4c3f6ff-9190-42c0-9d2f-1cfd0e0e9c12'
+
+update  dbvcen..AvisoRecebimento 
+set ImagemAR = '583f348d-11c1-4ce8-90e7-f9cb1d547e2d.pdf'
+where Sistema = 106 and TipoDocumento = 89 and ARCorreio = 'BG870046902BR'
+
+update  dbvcen..AvisoRecebimento 
+set ImagemAR = 'a4c3f6ff-9190-42c0-9d2f-1cfd0e0e9c12.pdf'
+where Sistema = 106 and TipoDocumento = 5 and ARCorreio = 'BG929975153BR'
+-------------------------------------------
+
+select * from  MPS..Arquivo  
+where Guid = 'a4c3f6ff-9190-42c0-9d2f-1cfd0e0e9c12'
+
+
+select * from   MPS..Arquivo   where Guid =   '583f348d-11c1-4ce8-90e7-f9cb1d547e2d'
+
+
+select * from dbvcen..AvisoRecebimento where Sistema = 106 and TipoDocumento = 5 and ARCorreio = 'BG929975153BR' 
+
+select * from    MPS..Arquivo    where Guid = '583f348d-11c1-4ce8-90e7-f9cb1d547e2d'
+where Nome =  '202200227_Redacao.pdf'
+and  Caminho = '\\intranet\dfs\Arquivo\HOMOLOGACAO\EPT\Artefatos\Redacao\2022\4'
+
+select * from  dbvcen..AvisoRecebimento where ARCorreio in('BG870046902BR', 'BG929975153BR')
+
+---------------------------------------------------------------------------------------------------
+
+
+sp_w
+

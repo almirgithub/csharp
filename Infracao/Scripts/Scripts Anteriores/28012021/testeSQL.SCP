@@ -1,0 +1,64 @@
+
+
+select top 10 * from dbinfracao..MovimentoAuto
+where Serie = 'SP' and Auto  = 312 
+and   OrgaoAutuante = 265450
+
+Results :
+Serie Auto                                      DataAtualizacao              TipoMovimento ProcessoRecurso MotivoCancelamento Restituicao ValorRestituido                           NomeFavorecido                                      NumAutorizacao                            TipoMovDebito NumeroBancario                            DataPagamento                ValorPago                                 Banco        Agencia NumeroDoc                                 Usuario   Infracao                                  OrgaoAutuante                             OrgaoCompetencia                          iEnviadoRENAINF DataTransmissaoRENAINF       CodRetorno   MotivoCancRENAINF ProcessoRENAINF       Desdobramento DataTransmissaoINFRAEST      iEnviadoINFRAEST CodRetornoINFRAEST
+SP    312                                       Dec 19 2008  5:43PM          D             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      renavam   7455                                      265450                                    265450                                    NULL            NULL                         NULL         NULL              NULL                  0             NULL                         NULL             NULL              
+SP    312                                       Nov  5 2008  7:13PM          I             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      renavam   7455                                      265450                                    265450                                    NULL            NULL                         NULL         NULL              NULL                  0             NULL                         NULL             NULL              
+SP    312                                       Dec 29 2008  5:52PM          N             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      renavam   7455                                      265450                                    265450                                    NULL            NULL                         NULL         NULL              NULL                  0             NULL                         NULL             NULL              
+SP    312                                       Oct 13 2009 11:31AM          O             NULL            NULL               N           NULL                                      NULL                                                NULL                                      4             609101005271249106                        Oct  9 2009 12:00AM          85.13                                     NULL         NULL    271249106                                 consolid  7455                                      265450                                    265450                                    S               Oct 14 2009  8:36PM          0            NULL              NULL                  0             NULL                         NULL             NULL              
+
+
+
+delete dbinfracao..MovimentoAuto
+where Serie = 'SP' and Auto  = 312 
+and   OrgaoAutuante = 265450
+and  TipoMovimento = '6'
+
+
+ exec MovimentoAutoS_historico      
+ @Serie =  'SP',      
+ @Auto =  312,      
+ @Infracao  =  554,      
+ @OrgaoAutuante= 265450
+ 
+ 
+ select TOP 10 *
+	from 	dbinfracao..InfracaoAuto ia (index InfracaoAuto_KEY)  
+	where 	ia.Auto 			= 312   
+	and 	ia.Serie 		= 'SP'
+	and	ia.OrgaoAutuante  	= 265450
+	and     ia.Situacao		= 'D'
+	
+	
+
+select top 10 * from dbinfracao..MovimentoAuto
+where Serie = 'AD' and Auto  = 15768945
+and   OrgaoAutuante = 225310
+
+select top 10 * from dbinfracao..MovimentoAuto
+where Auto in(8060485, 1053817, 3726594, 2696737, 6079190,6337090, 6429911, 15768945)
+and Serie in ('RD','DN','F','AC','F','AD')
+and   OrgaoAutuante in (100, 225310, 300)
+
+Results :
+Serie Auto                                      DataAtualizacao              TipoMovimento ProcessoRecurso MotivoCancelamento Restituicao ValorRestituido                           NomeFavorecido                                      NumAutorizacao                            TipoMovDebito NumeroBancario                            DataPagamento                ValorPago                                 Banco        Agencia NumeroDoc                                 Usuario   Infracao                                  OrgaoAutuante                             OrgaoCompetencia                          iEnviadoRENAINF DataTransmissaoRENAINF       CodRetorno   MotivoCancRENAINF ProcessoRENAINF       Desdobramento DataTransmissaoINFRAEST      iEnviadoINFRAEST CodRetornoINFRAEST
+RD    1053817                                   Aug  8 2019  7:26AM          D             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      ajs       579                                       100                                       100                                       NULL            NULL                         NULL         NULL              NULL                  0             NULL                         NULL             NULL              
+RD    1053817                                   Aug  8 2019  7:26AM          I             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      ajs       579                                       100                                       100                                       NULL            NULL                         NULL         NULL              NULL                  0             NULL                         NULL             NULL              
+DN    1053817                                   May 25 2015 12:46PM          D             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      renavam   7455                                      300                                       300                                       NULL            NULL                         NULL         NULL              NULL                  0             NULL                         NULL             NULL              
+DN    1053817                                   May 25 2015 12:46PM          I             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      renavam   7455                                      300                                       300                                       NULL            NULL                         NULL         NULL              NULL                  0             NULL                         NULL             NULL              
+DN    1053817                                   Jun  8 2016 10:24AM          N             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      renavam   7455                                      300                                       300                                       NULL            NULL                         NULL         NULL              NULL                  0             NULL                         NULL             NULL              
+DN    1053817                                   Jun 15 2016 12:17PM          O             NULL            NULL               N           NULL                                      NULL                                                NULL                                      1             616066006137249132                        Jun 15 2016 12:00AM          68.11                                     NULL         NULL    137249132                                 bbonline  7455                                      300                                       300                                       S               Jun 15 2016  1:20PM          0            NULL              NULL                  0             NULL                         NULL             NULL              
+AD    8060485                                   Jun  5 2017 10:04PM          D             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      aegs      554                                       225310                                    225310                                    S               Jun  6 2017  8:45AM          0            NULL              NULL                  2             NULL                         NULL             NULL              
+AD    8060485                                   Jun  5 2017  3:20PM          I             NULL            NULL               NULL        NULL                                      NULL                                                NULL                                      NULL          NULL                                      NULL                         NULL                                      NULL         NULL    NULL                                      celso     554                                       225310                                    225310                                    S               Jun  5 2017  8:29PM          0            NULL              NULL                  2             NULL                         NULL             NULL              
+AD    8060485            
+
+
+
+select top 10 * from dbinfracao..MovimentoAuto
+where Auto = 1053817 --, 3726594, 2696737, 6079190,6337090, 6429911, 15768945)
+and Serie  = 'DN' --,'F','AC','F','AD')
+and   OrgaoAutuante = 300 --, 225310)

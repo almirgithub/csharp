@@ -1,0 +1,357 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28253 SMP SP140 /P/Sun_svr4/OS 5.10/ase157sp140x/4122/64-bit/FBO/Thu May 24 14:24:10 2018) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.zajsDesfazNotificaoPenalidade'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.zajsDesfazNotificaoPenalidade') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.zajsDesfazNotificaoPenalidade
+end
+
+GO
+
+create proc dbo.zajsDesfazNotificaoPenalidade (
+	@Placa		char(07)
+,	@OrgaoAutuante	numeric(06)
+,	@Serie		char(02)
+,	@Auto		numeric(10)
+)
+
+/*
+
+Autor	:	Adilson Santos
+Data	:	28/11/2019
+Objetivo	:	Desfazer a notificação de penalidade
+
+*/
+
+AS 
+
+begin
+
+
+declare 	@SituacaoAnt		char(01)
+declare	@vencimento		datetime,     
+	@PrazoLimiteDefesaAut	int,     
+	@hoje			datetime,  
+	@limdesconto		datetime
+	
+select 	@SituacaoAnt	=	'N'
+
+
+if exists (select 1
+	from 	dbinfracao..InfracaoAuto ia (index InfracaoAuto_KEY),  
+	dbarrecadacao..Debito d /*(index Debito_Infra)*/ ,  
+	dbarrecadacao..MovimentoBaixa mb 
+	where 	ia.Auto 			= @Auto  
+	and 	ia.Serie 		= @Serie
+	and	ia.OrgaoAutuante  	= @OrgaoAutuante
+	and 	ia.Auto 			= d.Auto  
+	and 	ia.Serie 		= d.Serie  
+	and	ia.OrgaoAutuante  	= d.OrgaoAutuante  
+	and 	ia.Infracao		= d.Infracao  
+	and 	ia.Desdobramento		= d.Desdobramento 
+	and 	d.Setor			= mb.Setor  
+	and 	d.Cod			= mb.Debito  
+	and      mb.Anulado		= 0
+	and      mb.TipoMovimento		in (select Cod from dbarrecadacao..TipoMovBaixa where Tipo = 'B')	
+	)
+	begin
+	
+		select @SituacaoAnt	=	'P'
+	end
+	
+	
+if	 exists(select 1 
+	 from 	Prot..Comunicado c, dbinfracao..MovimentoAuto ma
+	 where 	ma.Auto 			= @Auto  
+	 and 	ma.Serie 		= @Serie
+	 and	ma.OrgaoAutuante  	= @OrgaoAutuante
+	 and 	ma.Auto 			= c.Auto  
+	 and 	ma.Serie 		= c.Serie  
+	 and	ma.OrgaoAutuante  	= c.OrgaoAutuante  
+	 and 	ma.Infracao		= c.Infracao)	   	
+	 begin
+		raiserror 55000 'Existe processo para o auto informado!'     
+		return -900  		 
+	 end
+	 
+if	 not exists(select 1 
+	 from 	dbinfracao..MovimentoAuto ma
+	 where 	ma.Auto 			= @Auto  
+	 and 	ma.Serie 		= @Serie
+	 and	ma.OrgaoAutuante  	= @OrgaoAutuante
+	 and 	ma.TipoMovimento		= 'N')	   	
+ 	 begin
+		raiserror 55000 'Não há notificação de penalidade gerada para o auto informado!'     
+	 	return -900  		 
+ 	 end	
+
+   
+select 	@hoje = getdate()      
+select 	@PrazoLimiteDefesaAut = PrazoDefesaAutuacao     
+from 	dbvcen..ParametroGeral     
+
+
+select @vencimento = convert( datetime, convert( varchar( 20), dateadd(day, @PrazoLimiteDefesaAut, @hoje), 101))      
+while exists (select 1 from dbvcen..DiaNaoUtil where Data = @vencimento)      
+	select @vencimento = dateadd(dd, 1, @vencimento)      
+	-- VERIFICA DATAVENCIMENTO e DATALIMDESCONTO SABADO E DOMINGO      
+if datepart(dw,@vencimento) = 1      
+	select @vencimento = dateadd(dd,1,@vencimento)      
+else if datepart(dw,@vencimento)=7      
+	select @vencimento = dateadd(dd,2,@vencimento)      
+
+select @limdesconto = dateadd(yy,10,@vencimento)	     
+
+set rowcount 1			     ---garantir que apenas uma linha será atualizada
+
+begin tran
+if	@SituacaoAnt	=	'N'
+begin
+
+	--debito
+	
+	update 	dbarrecadacao..Debito   
+	Set 	Situacao = 'D'  
+	from 	dbinfracao..InfracaoAuto ia (index InfracaoAuto_KEY),  
+		dbarrecadacao..Debito d ,  
+		dbarrecadacao..ParcelaDebito pd  
+	where 	ia.Auto 		= @Auto  
+	and 	ia.Serie 		= @Serie  
+	and	ia.OrgaoAutuante  	= @OrgaoAutuante  
+	and 	ia.Auto 		= d.Auto  
+	and 	ia.Serie 		= d.Serie  
+	and	ia.OrgaoAutuante  	= d.OrgaoAutuante  
+	and 	ia.Infracao		= d.Infracao  
+	and 	ia.Desdobramento	= d.Desdobramento 
+	and 	d.Setor			= pd.Setor  
+	and 	d.Cod			= pd.Debito  
+	and 	pd.Parcela		= 99  
+	if @@transtate=2 OR @@transtate=3        
+	begin        
+		if 	@@transtate=2     
+			rollback tran        
+		raiserror 55000 'Erro update da tabela Debito!'        
+		return -900        
+	end   
+	
+	-----parceladebito
+	
+	update 	dbarrecadacao..ParcelaDebito   
+	Set 	Situacao = 'D' ,
+		DataVencimento = @vencimento,     
+		DataLimDesconto = @limdesconto 
+	from 	dbinfracao..InfracaoAuto ia (index InfracaoAuto_KEY),  
+		dbarrecadacao..Debito d  ,  
+		dbarrecadacao..ParcelaDebito pd  
+	where 	ia.Auto 		= @Auto  
+	and 	ia.Serie 		= @Serie  
+	and	ia.OrgaoAutuante  	= @OrgaoAutuante  
+	and 	ia.Auto 		= d.Auto  
+	and 	ia.Serie 		= d.Serie  
+	and	ia.OrgaoAutuante  	= d.OrgaoAutuante  
+	and 	ia.Infracao		= d.Infracao  
+	and 	ia.Desdobramento	= d.Desdobramento 
+	and 	d.Setor			= pd.Setor  
+	and 	d.Cod			= pd.Debito  
+	and 	pd.Parcela		= 99  
+	if @@transtate=2 OR @@transtate=3        
+	begin        
+		if 	@@transtate=2     
+			rollback tran        
+		raiserror 55000 'Erro update da tabela ParcelaDebito!'        
+		return -900        
+	end   
+		
+	---infracaoauto
+			
+	update 	dbinfracao..InfracaoAuto   
+		Set 	Situacao = 'D'  
+	where 	Auto 			= @Auto  
+	and 	Serie 			= @Serie  
+	and	OrgaoAutuante  		= @OrgaoAutuante  
+	if @@transtate=2 OR @@transtate=3        
+	begin        
+		if 	@@transtate=2     
+			rollback tran        
+		raiserror 55000 'Erro update da tabela InfracaoAuto!'        
+  		return -900        
+	end   	
+	
+	----auto
+	
+	update 	dbinfracao..Auto   
+		Set 	Situacao 	= 'D', 
+			iNotifPenalidade	= null,
+			NumNotificacao	= null,
+			DataNotificacao	= null,
+			DataLimiteDefesaPenalidade = null	 ,
+			DataLimiteDefesaAutuacao = @vencimento,
+			TipoNotificacao	= null 
+			
+	where 	Cod 			= @Auto  
+	and 	Serie 			= @Serie  
+	and	OrgaoAutuante  		= @OrgaoAutuante  
+	if @@transtate=2 OR @@transtate=3        
+	begin        
+		if 	@@transtate=2     
+			rollback tran        
+		raiserror 55000 'Erro update da tabela auto!'        
+  		return -900        
+	end   
+		
+
+	--movimentoauto
+	
+	insert dbinfracao..MovimentoAuto 
+	select 
+	Serie, 
+	Auto, 
+	getdate(), 
+	'6', 
+	ProcessoRecurso, 
+	MotivoCancelamento, 
+	Restituicao, 
+	ValorRestituido, 
+	NomeFavorecido, 
+	NumAutorizacao, 
+	TipoMovDebito, 
+	NumeroBancario, 
+	DataPagamento, 
+	ValorPago, 
+	Banco, 
+	Agencia, 
+	NumeroDoc, 
+	'sa', 
+	Infracao, 
+	OrgaoAutuante, 
+	OrgaoCompetencia, 
+	null, 
+	null, 
+	999, 
+	null, 
+	null, 
+	Desdobramento, 
+	null, 
+	null, 
+	null 
+	from dbinfracao..MovimentoAuto
+	where OrgaoAutuante=@OrgaoAutuante  
+	and Serie= @Serie 
+	and TipoMovimento = 'N' 
+	AND Auto = @Auto
+	
+	if @@transtate=2 OR @@transtate=3        
+	begin        
+		if 	@@transtate=2     
+			rollback tran        
+		raiserror 55000 'Erro no insert da tabela MovimentoAuto!'        
+  		return -900        
+	end   
+
+		
+end
+else
+begin
+
+	--quando o auto está pago não altera a situação do auto
+	
+	--movimentoauto
+
+	insert dbinfracao..MovimentoAuto 
+	select 
+	Serie, 
+	Auto, 
+	getdate(), 
+	'6', 
+	ProcessoRecurso, 
+	MotivoCancelamento, 
+	Restituicao, 
+	ValorRestituido, 
+	NomeFavorecido, 
+	NumAutorizacao, 
+	TipoMovDebito, 
+	NumeroBancario, 
+	DataPagamento, 
+	ValorPago, 
+	Banco, 
+	Agencia, 
+	NumeroDoc, 
+	'sa', 
+	Infracao, 
+	OrgaoAutuante, 
+	OrgaoCompetencia, 
+	null, 
+	null, 
+	999, 
+	null, 
+	null, 
+	Desdobramento, 
+	null, 
+	null, 
+	null 
+	from dbinfracao..MovimentoAuto
+	where OrgaoAutuante=@OrgaoAutuante  
+	and Serie= @Serie 
+	and TipoMovimento = 'N' 
+	AND Auto = @Auto
+	
+	if @@transtate=2 OR @@transtate=3        
+	begin        
+		if 	@@transtate=2     
+			rollback tran        
+		raiserror 55000 'Erro insert na tabela MovimentoAuto!'        
+  		return -900        
+	end   		
+	
+	--auto
+	
+	update 	dbinfracao..Auto      
+		set 	TipoNotificacao = null,      
+			NumNotificacao = null,      
+			DataNotificacao = null, 
+			iNotifPenalidade = null,     
+			DataLimiteDefesaPenalidade = null     
+	where OrgaoAutuante = @OrgaoAutuante      
+	and Serie = @Serie      
+	and Cod =  @Auto    
+	if @@transtate=2 OR @@transtate=3        
+	begin        
+		if 	@@transtate=2     
+			rollback tran        
+		raiserror 55000 'Erro update da tabela auto!'        
+  		return -900        
+	end   
+end
+commit tran
+
+return
+end
+
+
+GO
+
+execute sp_procxmode 'dbo.zajsDesfazNotificaoPenalidade', 'unchained'
+GO
+grant exec on zajsDesfazNotificaoPenalidade to desenvolvimento
+go
+grant exec on zajsDesfazNotificaoPenalidade to veiculo
+
+
+  

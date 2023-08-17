@@ -1,0 +1,246 @@
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+
+update	dbinfracao..RNFTipoRegistrosTransacao 
+set 	Tamanho = 451   
+where   Transacao = 411  
+and 	Cod = 'EV01'
+
+
+update	dbinfracao..RNFTipoRegistrosTransacao 
+set 	Tamanho = 445   
+where   Transacao = 411  
+and 	Cod = 'RT01'
+
+update	dbinfracao..RNFTipoRegistrosTransacao 
+set 	Tamanho = 498   
+where   Transacao = 411  
+and 	Cod = 'RT02'
+
+
+
+
+DELETE dbo.RNFTransacaoTipoRegistro
+WHERE Transacao = 411 and TipoRegistroTransacao = 'EV01'
+
+
+
+
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 1, 'PFIXA', 1, 37, 0, 0, 0, 0)
+
+GO
+
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 2, 'P5', 38, 43, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 3, 'P8', 44, 53, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 4, 'P9', 54, 57, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 5, 'P166', 58, 58, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 6, 'P10', 59, 60, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 7, 'P11', 61, 70, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 8, 'P12', 71, 72, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 9, 'P14', 73, 74, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 10, 'P15', 75, 75, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 11, 'P16', 76, 76, 0, 0, 0, 0)
+
+GO
+
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 12, 'P17', 77, 87, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 13, 'P18', 88, 89, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 14, 'P19', 90, 169, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 15, 'P185', 170, 177, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 16, 'P21', 178, 181, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 17, 'P22', 182, 185, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 18, 'P23', 186, 186, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 19, 'P24', 187, 194, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 20, 'P25', 195, 202, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 21, 'P127', 203, 210, 0, 0, 0, 0)
+
+GO
+
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 22, 'P26', 211, 212, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 23, 'P27', 213, 219, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 24, 'P160', 220, 220, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 25, 'P161', 221, 234, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 26, 'P5', 235, 240, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 27, 'P147', 241, 241, 0, 0, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 28, 'P91', 242, 255, 1, 6, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 29, 'P59', 0, 0, 7, 20, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 30, 'P98', 0, 0, 21, 21, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 31, 'P151', 0, 0, 22, 141, 0, 0)
+
+GO
+
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 32, 'P54', 0, 0, 142, 181, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 33, 'P180', 0, 0, 182, 185, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 34, 'P50', 0, 0, 186, 191, 0, 0)
+
+GO
+
+insert into RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (411, 'EV01', 35, 'P48', 0, 0, 192, 196, 0, 0)
+
+GO

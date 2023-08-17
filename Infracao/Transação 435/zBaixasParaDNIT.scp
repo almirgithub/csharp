@@ -1,0 +1,185 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/12.5.3/EBF 12333 ESD#1/P/RS6000/AIX 5.1/ase1253/1900/64-bit/FBO/Tue Jan 25 02:55:17 2005) on rs6000
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.zBaixasParaDNIT'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.zBaixasParaDNIT') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.zBaixasParaDNIT
+end
+
+GO
+
+create proc dbo.zBaixasParaDNIT                           /* 	Objetivo: 	Gerar arquivo de baixas de multas da Policia Rodoviaria Federal 
+	Autor:  	Adilson Santos 05/11/1999 */	
+
+(@Tipo char(01))
+as
+declare @TotalRegistros int, @Remessa int, @DataVigencia  char(08), @nAno int,@Arquivo char(50)
+declare @DataFinal datetime
+
+if @Tipo  = 'R'
+begin
+	select 888,'C:\Baixas\DNIT\L6DET'+substring(convert(char(04),1000+888),2,3)+'.TXT','20050728'
+   return
+end
+
+create table #PgtoDNIT (
+Placa char(7) null,
+UF char(2) null,
+Auto int null,
+Serie char(1) null,
+Infracao int null,
+ValorMultaUFIR numeric(10,2) null,
+Banco numeric(3,0) null,
+Agencia char(4) null,
+ValorPago numeric(12,2) null,
+DataPagamento datetime null,
+DataCredito datetime null,
+DataVigencia char(6) not null,
+Remessa int null)
+
+
+
+
+/*drop table dbinfracao..PgtoDNER
+create table 
+dbinfracao..PgtoDNER
+(Placa char(07) null,
+ UF CHAR(02) NULL,
+Auto int null, 
+Serie char(1) null, 
+Infracao int null,
+ValorMultaUFIR numeric(10,2) null,
+Banco numeric(3,0) null,
+Agencia char(04) null,
+ValorPago numeric(12,2) null,
+DataPagamento datetime null,
+DataCredito   datetime null,
+DataVigencia char(06)) 
+*/
+
+insert #PgtoDNIT
+
+select 	a.Placa,a.UFPlaca,ar.Auto, ar.Serie, ar.Infracao,0,1,'1',
+ar.ValPriReal+ar.ValJurReal+ar.ValJurReal+ar.ValMulReal-ar.ValDesReal,ar.DataPagamento,ar.VigenciaRepasse,
+substring(convert(varchar(08),ar.VigenciaRepasse,112),1,6),888
+from 	dbarrecadacao..AutoRepasse ar, dbinfracao..Auto a, 
+	dbinfracao..MovimentoAuto ma
+where ar.VigenciaRepasse>='20000101'
+and ar.OrgaoAutuante in ( 300,200)
+--and ar.AgenteEquip = 30
+and ar.Auto = a.Cod
+and ar.Serie = a.Serie 
+and ar.OrgaoAutuante = a.OrgaoAutuante
+and ar.Auto = ma.Auto
+and ar.Serie = ma.Serie 
+and ar.OrgaoAutuante = ma.OrgaoAutuante
+and ma.TipoMovimento = 'O'
+and ma.DataAtualizacao >=dateadd(dd,-7,getdate())
+
+
+/*
+select 	a.Placa,a.UFPlaca,ar.Auto, ar.Serie, ar.Infracao,0,1,'1',
+ar.ValPriReal+ar.ValJurReal+ar.ValJurReal+ar.ValMulReal-ar.ValDesReal,ar.DataPagamento,ar.VigenciaRepasse,
+substring(convert(varchar(08),ar.VigenciaRepasse,112),1,6),@Remessa
+from 	dbarrecadacao..AutoRepasse ar, dbinfracao..Auto a
+where ar.VigenciaRepasse=@Vigencia
+and ar.OrgaoAutuante = 300
+and ar.AgenteEquip = 30
+and ar.Auto = a.Cod
+and ar.Serie = a.Serie 
+and ar.OrgaoAutuante = a.OrgaoAutuante
+*/
+
+select 	convert(char(07),Placa)+UF+Serie+substring(convert(varchar(11),10000000000+Auto),2,10)+
+	substring(convert(varchar(08),10000000+Infracao),2,7)+
+	substring(convert(varchar(07),1000000+ValorPago),2,6)+
+	substring(convert(varchar(16),1000000000000.+ValorPago),15,2)+
+	convert(varchar(08),DataPagamento,112)+
+	ISNULL(convert(varchar(08),DataCredito,112),convert(varchar(08),DataPagamento,112))+
+	DataVigencia
+
+from    #PgtoDNIT
+p
+
+RETURN 
+ 
+/*Name                           Owner                          Object_type 
+HisRetorno                     dbo                            user table
+Data_located_on_segment        When_created 
+default                        Oct 10 2003  5:20:26:940PM
+Column_name                    Type                           Length      Prec Scale Nulls Default_name            Rule_name                      Access_Rule_name               Identity 
+Banco                          int                                      4 NULL  NULL 1     NULL                           NULL                           NULL              0
+Arquivo                        varchar                                 20 NULL  NULL 0     NULL                           NULL                           NULL                           0
+NumRegistro                    numeric                     4    6     0 0     NULL                           NULL                           NULL                           0
+NumBancario                    varchar                                 40 NULL  NULL 0     NULL   NULL                           NULL                           0
+AgenciaCobradora               varchar                                  6 NULL  NULL 1     NULL                           NULL                           NULL                           0
+NumDocumento                   int                                      4 NULL  NULL 1     NULL                           NULL                           NULL                           0
+Setor                          varchar   20 NULL  NULL 1     NULL                           NULL                           NULL                           0
+Debito                         int                                      4 NULL  NULL 1     NULL                           NULL                 NULL                           0
+Parcela                        numeric                                  2    2     0 1     NULL                           NULL                           NULL                           0
+RetRemessa              numeric                                  3    3     0 1     NULL                           NULL                           NULL                           0
+ValTitulo                      numeric                                  8   15     2 0     NULL                           NULL                           NULL                           0
+ValAbatimento                  numeric                                  8   15     2 0     NULL                           NULL                           NULL                           0
+ValDesconto                    numeric                                  8   15     2 0     NULL                           NULL                           NULL                           0
+ValPago                        numeric                                  8   15     2 0     NULL                           NULL                           NULL                           0
+ValTarifa                      numeric                                  8   15     2 0     NULL                    NULL                           NULL                           0
+ValJuros                       numeric                                  8   15     2 0     NULL                           NULL                           NULL              0
+ValMulta                       numeric                                  8   15     2 0     NULL                           NULL                           NULL                           0
+MotRejeicao                    numeric                     3    3     0 1     NULL                           NULL                           NULL                           0
+DataOcorrencia                 datetime                                 8 NULL  NULL 0     NULL   NULL                           NULL                           0
+DataCreConta                   datetime                                 8 NULL  NULL 1     NULL                           NULL                           NULL                           0
+Situacao                       tinyint                                  1 NULL  NULL 0     NULL                           NULL                           NULL                           0
+DataInsercao                   datetime    8 NULL  NULL 0     NULL                           NULL                           NULL                           0
+Usuario                        char                                     8 NULL  NULL 0     NULL                           NULL                 NULL                           0
+Digito                         char                                     1 NULL  NULL 1     NULL                           NULL                           NULL                           0
+BancoDeposito              int                                      4 NULL  NULL 1     NULL                           NULL                           NULL                           0
+ProcOnLine                     char                                     1 NULL  NULL 1     NULL                           NULL                           NULL                           0
+
+(Sort Order : (none of the selected columns))
+
+index_name                     index_description                                                    index_keys                                                                                                                                                                                                                                                      index_max_rows_per_page index_fillfactor index_reservepagegap index_created 
+HisRetorno_Key                 clustered, unique located on default                                  Arquivo, NumRegistro, Banco, NumBancario, Setor, Debito, Parcela                                                                                                                                                                                                        0                0                    0 Dec 13 2003  2:27PM
+HisRetorno_Arquivo             nonclustered located on ind01                                         Banco, Arquivo, Situacao                                                                                                                                 0                0                    0 Dec 13 2003  2:27PM
+HisRetorno_DataCreConta        nonclustered located on ind01                                    DataCreConta                                                          0                0                    0 Dec 13 2003  2:27PM
+HisRetorno_DataCreContaBanco   nonclustered located on ind01                                         DataCreConta, Banco                                                                                                                                                                                                                                                  0    0                    0 Dec 13 2003  2:27PM
+HisRetorno_DataOcorrencia      nonclustered located on ind01                                         DataOcorrencia                                                                                                                                                                           0                0                    0 Dec 13 2003  2:27PM
+HisRetorno_NumBancario        nonclustered located on ind01                                         NumBancario                                                                                                    0                0                    0 Dec 13 2003  3:33PM
+No defined keys for this object.
+Object is not partitioned.
+Lock scheme Allpages
+The attribute 'exp_row_size' is not applicable to tables with allpages lock scheme.
+The attribute 'concurrency_opt_threshold' is not applicable to tables with allpages lock scheme.
+*/ 
+
+GO
+
+execute sp_procxmode 'dbo.zBaixasParaDNIT', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.zBaixasParaDNIT to public
+
+GO
+
+
+  

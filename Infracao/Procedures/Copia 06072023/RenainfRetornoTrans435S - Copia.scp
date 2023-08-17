@@ -1,0 +1,364 @@
+use master
+GO
+
+use dbinfracao
+GO
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.RenainfRetornoTrans435S'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.RenainfRetornoTrans435S') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.RenainfRetornoTrans435S
+end
+
+GO
+
+create proc dbo.RenainfRetornoTrans435S
+/*
+	Autor     : Almir
+	Data      : 105-12-2022  
+	Objetivo  : retorna as informa‡äes da transa‡Æo 435
+*/
+  
+(    
+	@sEnvio		varchar(100)	=	null,
+	@sRetorno		varchar(500)	=	null,
+	@sTipoRetorno	char(02)		=	'EV'
+)   
+   
+as  
+
+
+	declare	@indicadorArg		smallint, 
+		@ArgumentoPesq		varchar(14), 
+		@UfCnh			char(02), 
+		@DataInicioCons		datetime, 
+		@DataFimCons		datetime,
+		@LenTran			smallint,
+		@sCodRetorno		char(03),
+		@nCodRetornoExec		int,
+		@nIndicArgumento		smallint,
+		@sArgumentoPesq		varchar(14),
+		@sUfCnhInformada		char(02),
+		@sDataInicioCons		numeric(08),
+		@sDataFimConsulta		numeric(08),
+		@nQuantidadeOc		smallint,
+		@nNumeroRenainf		numeric(11),
+		@sDataInfracao		numeric(8),
+		@nIndicEnvolvimento		smallint,
+		@nTipoInfracao		smallint,
+		@Contador			smallint
+
+
+	--criando uma tabela tempor ria
+	create	table #Retorno435 
+	(
+		CodigoRetornoExecucao	int		null,
+		IndicadorArgumento		smallint		null,   
+		ArgumentoPesquisa		varchar(14) 	null,   
+		UfCNHPGUInformada		char(02)		null,   
+   		DataInicioConsulta		numeric(08)	null,
+   		DataFimConsulta		numeric(08)	null,
+		QuantidadeOcorrencia	smallint		null,
+		NumeroRenainf		numeric(11)	null,
+		DataInfracao		numeric(08)	null,
+		IndicadorEnvInfracao	smallint		null,
+		TipoInfracao		smallint		null
+		
+	) 
+
+
+
+	if	@sTipoRetorno	=	'EV'
+	begin
+		select	@indicadorArg	=	convert(smallint, substring(@sEnvio, 38, 1))
+		select	@ArgumentoPesq	=	substring(@sEnvio, 39, 14)
+		select 	@UfCnh		=	substring(@sEnvio, 53, 2)
+		select	@DataInicioCons	=	convert(datetime, substring(@sEnvio, 55, 8))
+		select	@DataFimCons	=	convert(datetime, substring(@sEnvio, 63, 8))
+		
+		select	(case	when	@indicadorArg	=	1	then	'CPF'
+				when	@indicadorArg	=	2	then	'CNPJ'
+				when	@indicadorArg	=	3	then	'CNH modelo com foto (RENACH)'
+				when	@indicadorArg	=	4	then	'CNH modelo sem foto (PGU)'
+				when	@indicadorArg	=	5	then	'Carteira de Habilitação Estrangeira'
+			end), @ArgumentoPesq, @UfCnh, @DataInicioCons, @DataFimCons
+					
+	end
+	else	if	@sTipoRetorno	=	'RT'
+	begin
+		select	@LenTran	=	convert(smallint, substring(@sRetorno, 29, 4))
+		
+		if	@LenTran	=	73 --RT01
+		begin
+			select 	@nCodRetornoExec	=	convert(int, substring(@sRetorno, 38, 3))
+			select 	@nIndicArgumento	=	convert(smallint, substring(@sRetorno, 41, 1))
+			select 	@sArgumentoPesq		=	substring(@sRetorno, 42, 14)
+			select 	@sUfCnhInformada	=	substring(@sRetorno, 56, 2)
+			select 	@sDataInicioCons	=	convert(numeric, substring(@sRetorno, 58, 8))
+			select 	@sDataFimConsulta	=	convert(numeric, substring(@sRetorno, 66, 8))
+
+			--salvando na tabela tempor ria
+			insert	into	#Retorno435 (	CodigoRetornoExecucao, 
+							IndicadorArgumento, 
+							ArgumentoPesquisa, 
+							UfCNHPGUInformada, 
+   							DataInicioConsulta,
+   							DataFimConsulta,
+							QuantidadeOcorrencia,
+							NumeroRenainf,
+							DataInfracao,
+							IndicadorEnvInfracao,
+							TipoInfracao)
+			values	(	@nCodRetornoExec, @nIndicArgumento, @sArgumentoPesq, @sUfCnhInformada, 	@sDataInicioCons, @sDataFimConsulta, null, null, null, null, null) 
+			
+		end
+		else	if @LenTran	in	(80, 101, 122, 143, 164, 185, 206, 227, 248, 269, 290, 311, 332, 353, 374, 395, 416, 437, 458, 479, 500)
+		begin
+
+	     		select	@Contador       		= 	0  
+	  
+	     		--Parte Fixa  		
+			select 	@nCodRetornoExec		=	convert(int, substring(@sRetorno, 38, 3))
+			select 	@nQuantidadeOc		=	convert(smallint, substring(@sRetorno, 41, 2))
+			select 	@nIndicArgumento		=	convert(smallint, substring(@sRetorno, 43, 1))
+			select 	@sArgumentoPesq		=	substring(@sRetorno, 44, 14)
+			select 	@sUfCnhInformada		=	substring(@sRetorno, 58, 2)
+			
+	     		--Varrendo a variavel
+		     	while	@Contador 	< 	@nQuantidadeOc  
+			begin
+							
+				select	@nNumeroRenainf		=	convert(numeric, substring(@sRetorno, 60+(21 * @Contador), 11))
+				select 	@sDataInfracao		=	convert(numeric, substring(@sRetorno, 71+(21 * @Contador), 8))
+				select 	@nIndicEnvolvimento		=	convert(smallint, substring(@sRetorno, 79+(21 * @Contador), 1))
+				select 	@nTipoInfracao		=	convert(smallint, substring(@sRetorno, 80+(21 * @Contador), 1))
+
+
+				insert	into	#Retorno435 (	CodigoRetornoExecucao, 
+								IndicadorArgumento, 
+								ArgumentoPesquisa, 
+								UfCNHPGUInformada, 
+   								DataInicioConsulta,
+   								DataFimConsulta,
+								QuantidadeOcorrencia,
+								NumeroRenainf,
+								DataInfracao,
+								IndicadorEnvInfracao,
+								TipoInfracao)
+				values	(	@nCodRetornoExec, @nIndicArgumento, @sArgumentoPesq, @sUfCnhInformada, 	null, null, 
+						@nQuantidadeOc, @nNumeroRenainf, @sDataInfracao, @nIndicEnvolvimento, @nTipoInfracao) 
+		
+	          		--Contando o proximo registro  
+	           		select	@Contador 	=  	@Contador  	+ 	1	
+	  		end
+	     	end  
+
+		select	CodigoRetornoExecucao, 
+			(case	when	CodigoRetornoExecucao	=	0	then	'Transação ou atualização efetuada'
+				when	CodigoRetornoExecucao	=	1	then	'Nenhum registro encontrado'
+				when	CodigoRetornoExecucao	=	3	then	'Existem mais registros/ocorrências do que previsto para esta consulta'
+				when	CodigoRetornoExecucao	=	168	then	'UF de expedição da CNH do condutor inv lida'
+				when	CodigoRetornoExecucao	=	207	then	'UF da CNH é obrigat¢ria para PGU'
+				when	CodigoRetornoExecucao	=	209	then	'Data inicio para consulta inv lida'
+				when	CodigoRetornoExecucao	=	211	then	'Data fim para consulta inv lida'
+				when	CodigoRetornoExecucao	=	222	then	'Indicador do argumento de pesquisa inv lido/nÆo informado'
+				when	CodigoRetornoExecucao	=	223	then	'Argumento de pesquisa inv lido/nÆo informado'
+				when	CodigoRetornoExecucao	=	245	then	'Data in¡cio para consulta maior que data corrente'
+				when	CodigoRetornoExecucao	=	246	then	'Data fim para consulta maior que data corrente'
+				when	CodigoRetornoExecucao	=	247	then	'Data in¡cio para consulta maior que data fim para consulta'
+				when	CodigoRetornoExecucao	=	248	then	'Data in¡cio para consulta ou data fim para consulta nÆo informada'
+				when	CodigoRetornoExecucao	=	339	then	'H  mais infrações que o suportado pela consulta. Refinar critérios de pesquisa.'
+			end) as 	DescricaoRet, QuantidadeOcorrencia,  IndicadorArgumento,
+			(case	when	IndicadorArgumento	=	1	then	'CPF'
+				when	IndicadorArgumento	=	2	then	'CNPJ'
+				when	IndicadorArgumento	=	3	then	'CNH modelo com foto (RENACH)'
+				when	IndicadorArgumento	=	4	then	'CNH modelo sem foto (PGU)'
+				when	IndicadorArgumento	=	5	then	'Carteira de Habilitação Estrangeira'
+			end) as  IndicadorArg, ArgumentoPesquisa, UfCNHPGUInformada
+			/*, convert(datetime, DataInicioConsulta,112), 
+			convert(datetime, DataFimConsulta, 112), NumeroRenainf, convert(datetime, DataInfracao, 112), 
+			IndicadorEnvInfracao, TipoInfracao, 
+			(case	when	TipoInfracao	=	1	then	'Pontuada'
+				when	TipoInfracao	=	2	then	'Advertência por Escrito'	
+			end) as DescTipoInfracao*/
+		from	#Retorno435
+		
+	end
+	
+	
+
+return
+go
+
+execute sp_procxmode 'dbo.RenainfRetornoTrans435S', 'unchained'
+go
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.RenainfRetornoTrans435S to desenvolvimento
+go
+
+Grant Execute on dbo.RenainfRetornoTrans435S to veiculo
+go
+
+/*
+  
+
+          
+	--Carregando as variaveis    
+	SELECT @Ano = CONVERT(SMALLINT, datename(yy,getdate()))    
+	SELECT @Dia = CONVERT(SMALLINT, datename(dy,getdate()))    
+    
+	SELECT @Part1 = Parametro1,    
+	       @Part2 = Parametro2,    
+	       @Part3 = Parametro3    
+	FROM   RENAVAM..RetRenavam    
+	WHERE  NumSeqTransacao = @NumSeqTransacao    
+	AND    CodTransacao    = @CodConsulta    
+	AND    AnoJuliano      = @Ano    
+	AND    DiaJuliano      = @Dia    
+	AND    DataHora        <= getdate()    
+  
+	--Concatenando variaveis de retorno RT01, RT02 E RT03  
+	SELECT @RT0123 = @Part1 + @Part2 + @Part3  
+
+	--Dados padrao da transacao  
+	SELECT @LenTran    = CONVERT(SMALLINT, ltrim(SUBSTRING(@RT0123, 29,4)))    
+	SELECT @CodRetExec = CONVERT(INT, ltrim(SUBSTRING(@RT0123, 38, 3)))    
+	--Retorno RT01  
+	IF @LenTran = 40  
+	BEGIN    
+
+	     --Fixar o tipo de retorno da transacao  
+	     SELECT @TipoRetorno = 'RT01'   
+	       
+	     --Inserindo na tabela retorno  
+	     INSERT RENAVAM..RetornoRecall(AnoJuliano, DiaJuliano, CodConsulta, NumSeqTransacao,   
+	     CodRetExec, TipoRetorno)    
+	     VALUES (@Ano, @Dia, @CodConsulta, @NumSeqTransacao, @CodRetExec, @TipoRetorno)    
+	       
+	     RETURN 0  
+	END  
+	--Retorno RT02  
+	ELSE IF @LenTran in (74,85,96,107,118,129,140,151,162,173,184,195,206,217,228,239,250,261,272,283,294,305,316,327,338,349,360,371,382,393)
+	BEGIN     
+
+	     --Fixar o tipo de retorno da transacao  
+	     SELECT @TipoRetorno = 'RT02'   
+       
+	     --Zerando variaveis	  
+	     SELECT @Contador       = 0  
+	     SELECT @QtdRecall	    = 0  
+	  
+	     --Parte Fixa  
+	     SELECT @ParteFixa      = rtrim(SUBSTRING(@RT0123, 1, 37))  
+	     SELECT @Chassi         = rtrim(SUBSTRING(@RT0123, 41, 21))  
+	     SELECT @QtdRecall	    = CONVERT(numeric(2), SUBSTRING(@RT0123, 62, 2))  
+         
+	     --Varrendo a variavel Linha01  
+	     WHILE @Contador < @QtdRecall  
+	     BEGIN                       
+		  --Dados dos Recall  
+	
+	  	  set @IdentRecall          = rtrim(SUBSTRING(@RT0123, 64+(11*@Contador), 10))  
+		  set @IndicRecall          = CONVERT(numeric(1), SUBSTRING(@RT0123, 74+(11*@Contador), 1))
+	
+	          --Inserindo na tabela retorno  
+	          INSERT RENAVAM..RetornoRecall    
+	     	  (AnoJuliano, DiaJuliano, CodConsulta, NumSeqTransacao, CodRetExec, TipoRetorno,   
+		   CodIdentVeic, IdentRecall,  QtdRecall,  IndicRecall)       
+	          VALUES  
+	          (@Ano, @Dia, @CodConsulta, @NumSeqTransacao, @CodRetExec, @TipoRetorno,  
+	           @Chassi, @IdentRecall,  @QtdRecall,  @IndicRecall)
+	     
+	
+	          --Contando o proximo registro  
+	           SELECT @Contador =  @Contador  + 1
+	  
+	     END  
+	END         
+	--Retorno RT03  
+	ELSE IF @LenTran = 529 
+	BEGIN  
+
+	     	--Fixar o tipo de retorno da transacao  
+	     	set @TipoRetorno 		= 	'RT03'   	           
+	     	--Carregando variaveis  
+	     	set @Chassi	               	= 	rtrim(SUBSTRING(@RT0123, 41, 21))    
+
+	     	if SUBSTRING(@RT0123, 62, 8) 	!= 	'00000000'
+	        	set @DataUltAtualiz	= 	convert(datetime,SUBSTRING(@RT0123, 62, 8),112)  
+	     	else
+	        	set @DataUltAtualiz   	= 	null
+	        	
+	     	set @CodMontadora              	= 	rtrim(SUBSTRING(@RT0123, 70, 6))  
+	     	set @TpAtuIdentRecall           = 	convert(numeric(1),SUBSTRING(@RT0123, 76, 1))  
+	     	set @IdentRecall               	= 	rtrim(SUBSTRING(@RT0123, 77, 10))  
+	     	set @NomeRecall               	= 	rtrim(SUBSTRING(@RT0123, 87, 150))  
+	     	set @IndicRecall               	= 	convert(numeric(1),SUBSTRING(@RT0123, 237, 1))  
+	     	
+	     	if SUBSTRING(@RT0123, 238, 8) 	!= 	'00000000'
+	        	set @DataRealizRecall   = 	convert(datetime,SUBSTRING(@RT0123, 238, 8),112)  
+	     	else
+	        	set @DataRealizRecall  	= 	null
+
+		set @CodIdentConcess            = 	rtrim(SUBSTRING(@RT0123, 246, 14)) 
+		set @DescricaoRecall            = 	rtrim(SUBSTRING(@RT0123, 260, 253))
+		set @QuantNotifRecall	        = 	convert(numeric(2), SUBSTRING(@RT0123, 513, 2))
+		set @SitUltNotifRecall	        = 	convert(numeric(1), SUBSTRING(@RT0123, 515, 1))
+		set @DataHoraUltNotifRecall     = 	convert(numeric(14), SUBSTRING(@RT0123, 516, 14))
+	     	set @QtdRecall 			= 	1 
+	     	
+
+		if @QuantNotifRecall 	=	0
+	     		set @QuantNotifRecall = null
+	     		
+		if @SitUltNotifRecall 	=	0
+	     		set @SitUltNotifRecall = null	  
+	     		   		
+	     	if @DataHoraUltNotifRecall 	=	0
+	     		set @DataHoraUltNotifRecall = null
+	     		
+	     		
+	     	
+	     	
+	     	--Inserindo na tabela retorno  
+	     	INSERT RENAVAM..RetornoRecall    
+	     	(AnoJuliano, DiaJuliano, CodConsulta, NumSeqTransacao, CodRetExec, TipoRetorno, CodIdentVeic, 
+	     	IdentRecall, QtdRecall, IndicRecall, DataUltAtualiz, CodMontadora, TpAtuIdentRecall, NomeRecall, 
+	     	DataRealizRecall, CodIdentConcess, DescricaoRecall, QuantNotifRecall, SitUltNotifRecall, DataHoraUltNotifRecall)
+	     	VALUES  
+	     	(@Ano, @Dia, @CodConsulta, @NumSeqTransacao, @CodRetExec, @TipoRetorno, @Chassi, 
+	     	@IdentRecall, @QtdRecall, @IndicRecall, @DataUltAtualiz, @CodMontadora, @TpAtuIdentRecall, @NomeRecall, 
+	     	@DataRealizRecall, @CodIdentConcess, @DescricaoRecall, @QuantNotifRecall, @SitUltNotifRecall, @DataHoraUltNotifRecall)
+	       
+	  
+	END  
+       
+RETURN 0  
+go
+
+execute sp_procxmode 'dbo.RenainfRetornoTrans435S', 'unchained'
+go
+
+PRINT 'CREATING PRIVILEGE : '
+go
+
+Grant Execute on dbo.RenainfRetornoTrans435S to desenvolvimento
+go
+
+Grant Execute on dbo.RenainfRetornoTrans435S to veiculo
+go
+*/
+
+
+
+

@@ -1,0 +1,1210 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 26390 SMP SP138 /P/Sun_svr4/OS 5.10/ase157sp138x/4002/64-bit/FBO/Mon Aug 29 09:09:29 2016) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.RNFGeraArquivoTransacaoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.RNFGeraArquivoTransacaoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.RNFGeraArquivoTransacaoS
+end
+
+GO
+
+create proc dbo.RNFGeraArquivoTransacaoS  
+
+/* 
+	Funcao	: Geração de arquivos de transações renainf BATCH   
+	Autor	: Adilson - 09/08/2017	
+	Alteração: 28/11/2017 - Adilson - Retirada do rowcount	
+	Alteração: 25/01/2019 - Adilson - Atualizar o retorno mesmo que ja tenha sido atualizado antes, pode ser um reprocessamento	
+	Alteração: 02/07/2019 - Adilson - Eliminar a tentativa de inclusão em duplicidade do envio de transações batch RENAINF					   
+	Alteração: 29/11/2019 - Adilson - Tipo lancamento
+	Alteração: 01/06/2020-  Adilson - Alterações para o SNE ------não esta em produção
+	Alteração: 19/04/2021 - Adilson - Set rowcount 9000 para a transação 414
+	Alteração: 11/11/2021 - Adilson - Melhoria no processamento do retorno
+	Alteração: 16/11/2021 - Adilson - Melhoria no recebmento dos dados do SNE na 413
+	Alteração: 02/12/2021 - Adilson - Force index
+	Alteração: 01/02/2022 - Adilson - Tratar apenas o RT02 para dados do SNE na 413
+	Altearção: 31/03/2023 - Adilson - Controle do envio da 414 baseado na quantiade de arquivos pendentes de retorno
+	Alteração: 25/04/2023 - Adilson - Tratar arquivo de retorno que foi usado para retirar o caractere especial da 413
+*/ 
+(
+
+	@CodArquivo		int 		= null   
+,	@ArquivoRetorno		varchar(60)     = null
+,	@Registro1  		varchar(518) 	= null
+
+,	@NovoBBOnline		char(1) 		= null	
+,	@Transacao		numeric(03) 	= null
+,	@VerificaHora		int		= 0
+
+) 
+
+as    
+
+--select @ArquivoRetorno= 'K3249.P33210PE.D200612.V1243.T413.R0000'
+declare	@DataGeracao	datetime
+declare	 @Serie                         	char(2)		           
+	,@Auto                          numeric(10)	           
+	,@CodConsulta	 	 	int		           
+	,@CodigoOrgaoAut		numeric(06,0) 	           
+	,@Desdobramento			smallint 	           
+	,@NumAutoInfracao		char(10)      	           
+	,@UFPlaca			char(02)      	           
+	,@Condicionalidade		char(01)      	           
+	,@TipoLancamento		numeric(1,0)  	           
+	,@iCondicionalidade414		char(1)		           
+	,@ValorRepasse			numeric(10,2)
+	,@UFOrgaoAutuante		CHAR(02)
+	,@NumeroAutorizacao 		numeric(10)
+	,@NumeroBancario 	        varchar(40)   
+
+                                                                   
+
+   
+    
+ 
+	declare     
+	 @Competencia 		char(01) 	    
+	,@InfracaoSemDigito 	numeric(4) 	    
+	,@ValorRegistroInfracao 	numeric(11 ,2)     
+	-- EV01 414                                 
+	,@DataPagtoInfr		datetime            
+	,@DataCredito		datetime            
+	,@UFPagto		Char(02)            
+	,@NumDocArrec		numeric(16 ,0)       
+	,@ValorPago		numeric(07, 2)       
+	,@CodBcoPagto		numeric(03 ,0)       
+	,@CodAgencPagto		numeric(05 ,0)       
+	,@NumTermFinanc		numeric(06, 0)       
+	,@IndAgenteFinanc 	char(02)            
+	,@NumeroAutenticacao	numeric(06, 0)       
+	,@sTipoLancamento	char(01)            
+	,@DataLimiteDefesa	datetime            
+	,@sDataLimiteDefesa	char(08)            
+	,@DataTransacao		datetime 	    
+	,@UFOrigem 		char(02) 	    
+	,@UFDestino 		char(02)            
+	,@TamanhoTransacao	int  		    
+	,@SequencialTransacao	int  		    
+	,@DiaJuliano 		smallint            
+	,@CodRetExec 		smallint            
+ 	,@AnoJuliano		smallint            
+	,@OrigemOcorrenciaProt	smallint 
+	,@Data 			datetime
+	,@DataAdesaoSNE  	datetime  
+	,@HoraAdesaoSNE 	int 
+	,@IndicadorAdesaoSNE 	int  
+	,@IndicadorAdesaoOASNE 	int  
+	,@sDataAdesaoSNE 	char(08)
+
+
+	-- novos campos afs 12-06-2023
+	declare	@IndAdesaoPossuidorEpocaSNE numeric(1),  
+		@DataAdesaoPossuidorEpocaSNE datetime,  
+		@HoraAdesaoPossuidorEpocaSNE numeric(4),  
+		@IndicadorAdesaoPCSNE numeric(1),  
+		@DataAdesaoPCSNE datetime,  
+		@HoraAdesaoPCSNE numeric(4),  
+		@IndAdesaoCondAbordadoIndSNE numeric(1),  
+		@DataAdesaoCondAbordadoIndSNE datetime,  
+		@HoraAdesaoCondAbordadoIndSNE numeric(4)
+	
+		
+select 	@DataGeracao	=	dateadd(hh,-7,getdate())
+
+
+
+declare @DataInicial datetime
+select @DataInicial = dateadd(dd,-30,getdate())
+select 	Transacao,b.Arquivo ,count(*) as qt  
+	into #tm 
+from  	RNFArquivoTranBatch b where DataGeracao>= @DataInicial and Transacao = 414 and b.CodRetorno = null 
+group by Transacao,b.Arquivo
+union
+select 	Transacao,b.Arquivo ,count(*) as qt  
+from  	RNFArquivoTranBatch b where DataGeracao>= @DataInicial and Transacao = 412 and b.CodRetorno = null 
+group 	by Transacao,b.Arquivo
+union
+select 	Transacao,b.Arquivo ,count(*) as qt  
+from  	RNFArquivoTranBatch b where DataGeracao>= @DataInicial and Transacao = 413 and b.CodRetorno = null 
+group by Transacao,b.Arquivo
+
+
+
+if	@ArquivoRetorno		=		NULL
+begin
+
+	declare  @Hora 		char(08)
+		,@Arquivo	char(60)
+		,@Pasta		char(100)
+	select 	 @Hora 		= CONVERT(CHAR(15),getdate(),108)
+	SELECT 	 @Hora 		= substring(@Hora,1,2)+substring(@Hora,4,2)
+
+	select 	@Arquivo = 'K3244.P33210PE.D'+substring(convert(char(08),getdate(),112),3,6)+'.V'+ltrim(rtrim(@Hora))+'.T'+substring(convert(char(04),@Transacao+1000),2,3)+'.R0000'
+	
+	if	@VerificaHora	=	9 and @Transacao = 413 --------regerar arquivo da 413 rejeitados
+	begin
+	if	not exists (select 	1 
+			from
+			RNFArquivoTranBatch r, dbinfracao..Auto a(index Auto_OrgaoCompetencia) ,	dbinfracao..MovimentoAuto ma(index MovimentoAuto_key)
+		where 	r.DataGeracao>='20190601' 
+		and 	r.CodRetorno ='187' 
+		and     r.Transacao = 413
+		and 	a.Serie =r.Serie 
+		and 	a.OrgaoCompetencia = r.OrgaoCompetencia 
+		and 	a.Cod = r.Auto
+		and 	ma.CodRetorno = 187
+		and 	ma.Serie =r.Serie 
+		and 	ma.OrgaoAutuante = a.OrgaoAutuante
+		and 	ma.Auto = r.Auto
+		and 	ma.TipoMovimento = 'N')
+		begin 
+		       raiserror 55000 'Processo encerrado! '        
+		       return -900  
+		end
+						
+		if	exists(select 1 from 	RNFArquivoTranBatch WHERE Arquivo = @Arquivo )
+		begin
+	
+			declare @status int
+			select @status = 1
+			while @status = 1
+			begin
+	
+				select 	@Hora 		= CONVERT(CHAR(15),getdate(),108)
+				SELECT 	@Hora 		= substring(@Hora,1,2)+substring(@Hora,4,2)
+				select 	@Arquivo = 'K3244.P33210PE.D'+substring(convert(char(08),getdate(),112),3,6)+'.V'+ltrim(rtrim(@Hora))+'.T'+substring(convert(char(04),@Transacao+1000),2,3)+'.R0000'
+				if 	not 	exists(select 1 from 	RNFArquivoTranBatch WHERE Arquivo = @Arquivo )
+				begin
+					select @status = 0
+	
+				end
+			end
+	  	end
+
+		set rowcount 1 
+
+		set forceplan on    
+		
+
+		select 	r.OrgaoCompetencia, r.Serie, r.[Auto], r.Transacao, r.DataGeracao, r.DataRetorno, r.Arquivo, r.Registro, r.CodRetorno                     into  #tmp413 	from
+			RNFArquivoTranBatch r, dbinfracao..Auto a(index Auto_OrgaoCompetencia) ,	dbinfracao..MovimentoAuto ma(index MovimentoAuto_key)
+		where 	r.DataGeracao>='20190601' 
+		and 	r.CodRetorno ='187' 
+		and     r.Transacao = 413
+		and 	a.Serie =r.Serie 
+		and 	a.OrgaoCompetencia = r.OrgaoCompetencia 
+		and 	a.Cod = r.Auto
+		and 	ma.CodRetorno = 187
+		and 	ma.Serie =r.Serie 
+		and 	ma.OrgaoAutuante = a.OrgaoAutuante
+		and 	ma.Auto = r.Auto
+		and 	ma.TipoMovimento = 'N'
+		
+		
+		declare @ArquivoAnt char(60)
+		select @ArquivoAnt = Arquivo , @DataGeracao = DataGeracao from #tmp413
+		
+		set rowcount 0
+		
+		update  RNFArquivoTranBatch set Arquivo = @Arquivo , Registro = ltrim(rtrim(Registro))+'1',CodRetorno = null
+		from	RNFArquivoTranBatch r, dbinfracao..Auto a ,	dbinfracao..MovimentoAuto ma(index MovimentoAuto_key)
+		where 	r.Arquivo = @ArquivoAnt
+		and 	r.CodRetorno ='187' 
+		and     r.Transacao = 413
+		and 	a.Serie =r.Serie 
+		and 	a.OrgaoCompetencia = r.OrgaoCompetencia 
+		and 	a.Cod = r.Auto
+		and 	ma.CodRetorno = 187
+		and 	ma.Serie =r.Serie 
+		and 	ma.OrgaoAutuante = a.OrgaoAutuante
+		and 	ma.Auto = r.Auto
+		and 	ma.TipoMovimento = 'N'
+		
+		set rowcount 10000
+		
+
+		select @Pasta = 'C:\Multas\Pen\' 	
+		set forceplan off
+	end 
+	else	
+	if	@Transacao	=	412
+	begin
+		
+
+			select   a.OrgaoCompetencia 
+				,a.Serie, 
+				ia.Auto,
+				412 as Transacao,
+				getdate() as Data,			
+				convert(datetime,null) as Dta,
+				@Arquivo as Arq
+				,'10000004121' 
+				+substring(convert(char(07),a.OrgaoCompetencia+1000000),2,6)
+				+isnull(isnull(a.AutoRENAINF,a.AutoINFRAEST),space(10))
+				+substring(convert(char(05),isnull(ia.Infracao*10+i.Digito,ia.Infracao)+10000),2,4)
+				+'PE'
+				+substring(convert(char(12),isnull(ISNULL(ia.CodigoRENAINF,ia.CodigoINFRAEST),0)+100000000000),2,11)
+				+CONVERT(CHAR(08),a.DataNotificacaoAutuacao,112)
+				+CONVERT(CHAR(08),a.DataLimiteDefesaAutuacao,112) as texto into #tmp412
+	
+			from 	dbinfracao..NotMultaNC  nc,
+				dbinfracao..Auto a(index Auto_Placa),
+				dbinfracao..InfracaoAuto ia(index InfracaoAuto_KEY),
+				dbinfracao..MovimentoAuto ma(index OrgaoCompetencia),
+				dbinfracao..Infracao i		
+			where   nc.DataCriacao			>=@DataGeracao
+			and 	nc.TipoNotificacao		=2
+			and     substring(Registro1,51,7) 	= a.Placa
+			and 	a.NumNotifAutuacao  		= nc.NumeroNotificacao 
+			and 	a.OrgaoCompetencia 		= ia.OrgaoCompetencia
+			and 	a.OrgaoAutuante			= ia.OrgaoAutuante
+			and 	a.Serie 			= ia.Serie
+			and 	a.Cod 				= ia.Auto
+			and 	ia.Infracao			= i.Cod
+			and 	ia.Desdobramento		= i.Desdobramento 
+			and 	ma.OrgaoCompetencia		= a.OrgaoCompetencia
+			and 	a.OrgaoAutuante			= ma.OrgaoAutuante
+			and 	ma.Serie			= a.Serie	
+			and 	ma.Auto				= a.Cod
+			and 	ma.TipoMovimento		= 'D'
+			and 	ma.CodRetorno			= null
+			and	isnull(a.AutoRENAINF,a.AutoINFRAEST) !=null
+	 					
+			AND 	not exists	(select 1 from 	RNFArquivoTranBatch
+	 					where 	OrgaoCompetencia	=	a.OrgaoCompetencia
+						and 	Serie			=	a.Serie	
+						and 	Auto			=	a.Cod
+	 					and 	Transacao		= 	@Transacao)
+
+
+	 					
+			select OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao , count(*) as Qtde 
+			into #tmpDuplc
+			from #tmp412 
+			group by OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao
+			having count(*)>1
+			
+			delete 	#tmp412
+			from   	#tmp412 t, #tmpDuplc d
+			where  	t.OrgaoCompetencia	=d.OrgaoCompetencia
+			and 	t.Serie			=d.Serie		
+			and 	t.Auto			=d.Auto		
+			and 	t.Transacao 		=d.Transacao
+			
+				 					
+			/* Adaptive Server has expanded all '*' elements in the following statement */ insert	RNFArquivoTranBatch
+			(OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao		
+			,DataGeracao		
+			,DataRetorno		
+			,Arquivo		
+			,Registro		
+			)
+			 					
+			select  t.OrgaoCompetencia, t.Serie, t.[Auto], t.Transacao, t.[Data], t.Dta, t.Arq, t.texto                                                                                                    from #tmp412 t
+			where	not exists	(select 1 from 	RNFArquivoTranBatch b
+	 					where 	b.OrgaoCompetencia	=	t.OrgaoCompetencia
+						and 	b.Serie			=	t.Serie	
+						and 	b.Auto			=	t.Auto
+	 					and 	b.Transacao		= 	t.Transacao)
+	 						 					
+			select @Pasta = 'C:\Multas\Autuacao\' 					
+		 							         	            
+	    	       
+	end
+	else
+	if	@Transacao	=	413
+	begin
+		
+
+			select   a.OrgaoCompetencia 
+				,a.Serie, 
+				ia.Auto,
+				413 as Transacao,
+				getdate() as Data,			
+				convert(datetime,null) as data,
+				@Arquivo as arquivo
+				,'10000004131' 
+				+substring(convert(char(07),a.OrgaoCompetencia+1000000),2,6)
+				+isnull(isnull(a.AutoRENAINF,a.AutoINFRAEST),space(10)) 
+				+substring(convert(char(05),isnull(ia.Infracao*10+i.Digito,ia.Infracao)+10000),2,4) 
+				+'PE'
+				+substring(convert(char(11),isnull(a.NumNotificacao,0)+10000000000),2,10) 
+				+CONVERT(CHAR(08),a.DataNotificacao,112) 
+				+CONVERT(CHAR(08),a.DataLimiteDefesaPenalidade,112) 
+				+'1' 
+				+substring(convert(char(12),isnull(ISNULL(ia.CodigoRENAINF,ia.CodigoINFRAEST),0)+100000000000),2,11) 
+				+'1' as xxxx into #tmp 
+				
+	
+			from 	dbinfracao..NotMultaNC  nc,
+				dbinfracao..Auto a(index Auto_Placa),
+				dbinfracao..InfracaoAuto ia(index InfracaoAuto_KEY),
+				dbinfracao..MovimentoAuto ma(index OrgaoCompetencia),
+				dbinfracao..Infracao i		
+			where   	nc.DataCriacao			>=@DataGeracao 
+			and 	nc.TipoNotificacao		=1  
+			and     	substring(Registro1,51,7) 	= a.Placa
+			and 	a.NumNotificacao  		= nc.NumeroNotificacao 
+			and 	a.OrgaoCompetencia 		= ia.OrgaoCompetencia
+			and 	a.OrgaoAutuante			= ia.OrgaoAutuante
+			and 	a.Serie 			= ia.Serie
+			and 	a.Cod 				= ia.Auto
+			and 	ia.Infracao			= i.Cod
+			and 	ia.Desdobramento		= i.Desdobramento 
+			and 	ma.OrgaoCompetencia		= a.OrgaoCompetencia
+			and 	a.OrgaoAutuante			= ma.OrgaoAutuante
+			and 	ma.Serie			= a.Serie	
+			and 	ma.Auto				= a.Cod
+			and 	ma.TipoMovimento		= 'N'
+			and 	ma.CodRetorno			= null
+			and	isnull(a.AutoRENAINF,a.AutoINFRAEST) !=null
+			
+			
+			AND 	not exists	(select 1 from 	RNFArquivoTranBatch
+	 					where 	OrgaoCompetencia	=	a.OrgaoCompetencia
+						and 	Serie			=	a.Serie	
+						and 	Auto			=	a.Cod
+	 					and 	Transacao		= 	@Transacao)
+	 					
+			select OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao , count(*) as Qtde 
+			into #tmpDupl
+			from #tmp 
+			group by OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao
+			having count(*)>1
+			
+			delete 	#tmp
+			from   	#tmp t, #tmpDupl d
+			where  	t.OrgaoCompetencia	=d.OrgaoCompetencia
+			and 	t.Serie			=d.Serie		
+			and 	t.Auto			=d.Auto		
+			and 	t.Transacao 		=d.Transacao
+			
+			
+			
+
+	 					
+			/* Adaptive Server has expanded all '*' elements in the following statement */ insert	RNFArquivoTranBatch
+			(OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao		
+			,DataGeracao		
+			,DataRetorno		
+			,Arquivo		
+			,Registro		
+			)
+			 					
+			select  t.OrgaoCompetencia, t.Serie, t.[Auto], t.Transacao, t.[Data], t.[data], t.arquivo, t.xxxx                                                                                              from #tmp t
+			where	not exists	(select 1 from 	RNFArquivoTranBatch b
+	 					where 	b.OrgaoCompetencia	=	t.OrgaoCompetencia
+						and 	b.Serie			=	t.Serie	
+						and 	b.Auto			=	t.Auto
+	 					and 	b.Transacao		= 	t.Transacao)
+			
+			select @Pasta = 'C:\Multas\Pen\' 					
+	 					
+	end
+	else
+	if	@Transacao	=	414	
+	begin
+--		if	@VerificaHora	=	1
+--		begin
+--			if	exists( select 1 from RNFArquivoTranBatch r 
+--					where 	DataGeracao 	>=convert(char(08),getdate(),112) 
+--					and 	Transacao 	= 414 
+--					and 	 (datepart(hh,DataGeracao) between 11 and 12)) 
+--				and exists( select 1 from RNFArquivoTranBatch r 
+--					where 	DataGeracao 	>=convert(char(08),getdate(),112) 
+--					and 	Transacao 	= 414 
+--					and 	(datepart(hh,DataGeracao) between 14 and 18))
+--					begin
+--						select 0
+--						return
+--					end
+--			else
+--			begin
+--				if ( (datepart(hh,getdate()) between 11 and 12) or (datepart(hh,getdate()) between 14 and 18) ) --- horas que serão gerados
+--
+--				begin
+--					select 1
+--					return					
+--				end
+--				else
+--				begin
+--					select 0
+--					return
+--				end	
+--			end		
+--		
+--		end
+		
+		if	@VerificaHora	=	1
+		begin 
+		 
+		 
+			if  8 > (select count(*) from #tm  where Transacao = 414) 
+			begin
+				select  distinct a.Cod, a.Serie, a.OrgaoAutuante into #Auto 
+				from 	
+				dbinfracao..MovimentoAuto ma (index MovimentoAuto_DataAtualizacao), 
+				dbarrecadacao..Debito d, 
+				dbarrecadacao..RNFMovimentoBaixaLocal m ,        
+				
+				dbinfracao..Auto a,
+				dbarrecadacao..MovimentoBaixa mb   ,
+				dbinfracao..Infracao i      
+				where 	ma.DataAtualizacao >= dateadd(dd,-60,getdate())
+				and	ma.TipoMovimento = 'O'	
+				and     ma.CodRetorno 		= null
+				and	ma.Usuario not in ('renavam','consolid')	
+				and	m.Setor 				= d.Setor         
+				and	m.Debito 				= d.Cod         
+				and	d.Serie 				= ma.Serie         
+				and 	d.OrgaoAutuante 			= ma.OrgaoAutuante         
+				and	d.Auto					= ma.Auto   
+				and 	ma.Serie = a.Serie         
+				and 	ma.OrgaoAutuante = a.OrgaoAutuante         
+				and	ma.Auto		= a.Cod         
+				and 	ma.iEnviadoRENAINF = null         
+				and 	a.AutoRENAINF		!= 	null         
+				
+				
+				and   	d.Setor			=	mb.Setor   
+				and 	d.Cod			=	mb.Debito   
+				and 	mb.TipoMovimento in (select Cod from dbarrecadacao..TipoMovBaixa where Tipo  ='B')   
+				and 	mb.Anulado		=	0   
+				and 	ma.Infracao		= i.Cod
+				and 	ma.Desdobramento	= i.Desdobramento
+				and 	ma.TipoMovDebito	!=16	  
+--				and  	 	(select count(*)  
+--						from 	dbarrecadacao..MovimentoBaixa mb1         
+--						where 	d.Setor = mb1.Setor         
+--						and 	d.Cod = mb1.Debito        
+--						and 	mb1.Parcela = 99        
+--						and      mb1.Anulado = 0      
+--						and	mb1.TipoMovimento in (select Cod from dbarrecadacao..TipoMovBaixa        
+--						where Tipo = 'B')  )  = 1 	
+				
+				AND 	not exists	(select 1 from 	RNFArquivoTranBatch
+							where 	OrgaoCompetencia	=	a.OrgaoCompetencia
+							and 	Serie			=	a.Serie	
+							and 	Auto			=	a.Cod
+							and 	Transacao		= 	@Transacao)
+				
+				union  
+				
+				select 		distinct a.Cod, a.Serie, a.OrgaoAutuante
+				from 		       
+					dbinfracao..MovimentoAuto ma(index MovimentoAuto_DataAtualizacao)  ,        
+					dbinfracao..Auto a,        
+					dbinfracao..OrgaoAutuante o   ,     
+					dbarrecadacao..MovimentoBaixa m ,       
+					dbarrecadacao..Debito d    ,
+					dbinfracao..Infracao i  
+				where 	ma.DataAtualizacao >= dateadd(dd,-60,getdate())     
+				and	ma.TipoMovimento 	= 'O'	
+				and     ma.CodRetorno 		= null   
+				and	m.Setor 		= d.Setor        
+				and	m.Debito 		= d.Cod        
+				and 	m.TipoMovimento 	in (select Cod from dbarrecadacao..TipoMovBaixa where Tipo  ='B')   
+				and 	m.Anulado		= 0   
+				and	d.Serie 		= ma.Serie        
+				and 	d.OrgaoAutuante 	= ma.OrgaoAutuante        
+				and	d.Auto			= ma.Auto        
+				
+				and	ma.Usuario 		not in ('renavam','consolid')	
+				and 	ma.Serie 		= a.Serie        
+				and 	ma.OrgaoAutuante 	= a.OrgaoAutuante        
+				and	ma.Auto			= a.Cod        
+				and 	a.AutoINFRAEST 		!=NULL  
+				
+				and 	ma.OrgaoCompetencia	=o.Cod      
+				
+				and 	ma.Infracao		= i.Cod
+				and 	ma.Desdobramento	= i.Desdobramento
+				and 	ma.TipoMovDebito	!=16
+				
+--				and  	 	(select count(*)  
+--						from 	dbarrecadacao..MovimentoBaixa mb         
+--						where 	d.Setor = mb.Setor         
+--						and 	d.Cod = mb.Debito        
+--						and 	mb.Parcela = 99        
+--						and      mb.Anulado = 0      
+--						and	mb.TipoMovimento in (select Cod from dbarrecadacao..TipoMovBaixa        
+--						where Tipo = 'B')  )  = 1 	
+				AND 	not exists	(select 1 from 	RNFArquivoTranBatch
+							where 	OrgaoCompetencia	=	a.OrgaoCompetencia
+							and 	Serie			=	a.Serie	
+							and 	Auto			=	a.Cod
+							and 	Transacao		= 	@Transacao)
+			 
+			end ----if <8
+			 
+			if	100<(select count(*) from #Auto) ----- só retorar true se houver mais de 100 registros para serem gerados							 
+			begin 
+				select 1
+			end 
+			else 
+			begin	 
+				select 0
+			end	 
+			return	 
+		end 
+		
+		set rowcount 9000
+		select 		a.OrgaoCompetencia 
+				,a.Serie, 
+				a.Cod as Auto,
+				414 as Transacao,
+				getdate() as Data,
+				convert(datetime,null) as Dta,
+				@Arquivo as Arq
+				,'1000000414'
+				+'1'
+				+substring(convert(char(07),a.OrgaoCompetencia+1000000),2,6)
+				+isnull(substring(a.AutoRENAINF+SPACE(10),1,10),space(10)) 
+
+				+substring(convert(char(05),isnull(d.Infracao*10+i.Digito,d.Infracao)+10000),2,4) 
+				+'PE'
+				+isnull(substring(NumBancario,1,16),space(16))
+				+CONVERT(CHAR(08),mb.DataPagamento,112) 
+				+substring(convert(char(08),(mb.ValPriReal+mb.ValJurReal+mb.ValMulReal-mb.ValDesReal)*100+10000000),2,7)
+	
+				+substring(convert(char(04),mb.Banco+1000),2,3)
+				+space(05)
+				+(
+					substring(convert(char(11),isnull(ma.NumAutorizacao,0)+10000000000
+					                 )
+					    ,2,10)
+				 )
+				+'00'
+--				+'000000' ----	ANTES 05/06/2023
+--				+'000000' ----  ANTES 05/06/2023
+				+isnull(CONVERT(CHAR(08),mb.DataCredConta,112),'00000000')
+				+'0000000'
+				+'1' as xx into  #tmp414 
+	
+		from 	
+			dbinfracao..MovimentoAuto ma (index MovimentoAuto_DataAtualizacao), 
+			dbarrecadacao..Debito d, 
+			dbarrecadacao..RNFMovimentoBaixaLocal m ,        
+				                
+			dbinfracao..Auto a,
+			dbarrecadacao..MovimentoBaixa mb   ,
+	                dbinfracao..Infracao i      
+		where 	ma.DataAtualizacao >= dateadd(dd,-60,getdate())
+		and	ma.TipoMovimento = 'O'	--in ('O','B','E') comentado em 16/12/2004   
+		and     ma.CodRetorno 		= null
+		and	ma.Usuario not in ('renavam','consolid')	-- Retirar a baixa realizada em outra UF        
+		and	m.Setor 				= d.Setor         
+		and	m.Debito 				= d.Cod         
+		and	d.Serie 				= ma.Serie         
+		and 	d.OrgaoAutuante 			= ma.OrgaoAutuante         
+		and	d.Auto					= ma.Auto   
+--		and	m.DataEnvioRENAINF 			is null	-- o que nao foi enviado para a BINIT         
+--		and	m.DataBaixaEfetiva 			is not null	-- foi efetivamente baixado         
+      
+     
+
+		and 	ma.Serie = a.Serie         
+		and 	ma.OrgaoAutuante = a.OrgaoAutuante         
+		and	ma.Auto		= a.Cod         
+		and 	ma.iEnviadoRENAINF = null         
+		and 	a.AutoRENAINF		!= 	null         
+		     
+		     
+		and   	d.Setor			=	mb.Setor   
+		and 	d.Cod			=	mb.Debito   
+		and 	mb.TipoMovimento in (select Cod from dbarrecadacao..TipoMovBaixa where Tipo  ='B')   
+		and 	mb.Anulado		=0   
+		and 	ma.Infracao		= i.Cod
+		and 	ma.Desdobramento	= i.Desdobramento
+		and     ma.TipoMovDebito	!=16
+		and     ma.NumeroBancario	= mb.NumBancario
+		and 	(ma.NumAutorizacao = convert(numeric(10),mb.SequencialRegistro) or ma.NumAutorizacao is null)	  
+
+--		and  	 	(select count(*)  --- só transmitir pagamento sem duplicidade   
+--				from 	dbarrecadacao..MovimentoBaixa mb1         
+--				where 	d.Setor = mb1.Setor         
+--				and 	d.Cod = mb1.Debito        
+--				and 	mb1.Parcela = 99        
+--				and      mb1.Anulado = 0   
+--				and     mb1.TipoMovimento !=16   
+--				and	mb1.TipoMovimento in (select Cod from dbarrecadacao..TipoMovBaixa        
+--									where Tipo = 'B')  )  = 1 	
+			    
+		AND 	not exists	(select 1 from 	RNFArquivoTranBatch
+	 					where 	OrgaoCompetencia	=	a.OrgaoCompetencia
+						and 	Serie			=	a.Serie	
+						and 	Auto			=	a.Cod
+	 					and 	Transacao		= 	@Transacao)
+		union  
+		
+		select 		a.OrgaoCompetencia 
+				,a.Serie, 
+				a.Cod as Auto,
+				414 as Transacao,
+				getdate() as Data,
+			--	null,
+				convert(datetime,null) as Dta,
+				@Arquivo as Arq
+				,'1000000414'
+				+'1'
+				+substring(convert(char(07),a.OrgaoCompetencia+1000000),2,6)
+				+isnull(substring(a.AutoINFRAEST+SPACE(10),1,10),space(10)) 
+
+				+substring(convert(char(05),isnull(d.Infracao*10+i.Digito,d.Infracao)+10000),2,4) 
+				+'PE'
+				+isnull(substring(NumBancario,1,16),space(16))
+				+CONVERT(CHAR(08),m.DataPagamento,112) 
+				+substring(convert(char(08),(m.ValPriReal+m.ValJurReal+m.ValMulReal-m.ValDesReal)*100+10000000),2,7)
+	
+	
+				+substring(convert(char(04),m.Banco+1000),2,3)
+				+space(05)
+				+(
+					substring(convert(char(11),isnull(ma.NumAutorizacao,0)+10000000000
+					                 )
+					    ,2,10)
+				 )
+				+'00'
+--				+'000000' ----	ANTES 05/06/2023
+--				+'000000' ----  ANTES 05/06/2023
+				+isnull(CONVERT(CHAR(08),m.DataCredConta,112),'00000000')
+				+'0000000'
+				+'1'
+			from 		       
+				dbinfracao..MovimentoAuto ma(index MovimentoAuto_DataAtualizacao)  ,        
+				dbinfracao..Auto a,        
+				dbinfracao..OrgaoAutuante o   ,     
+				dbarrecadacao..MovimentoBaixa m ,       
+				dbarrecadacao..Debito d    ,
+				dbinfracao..Infracao i  
+			where 	ma.DataAtualizacao >= dateadd(dd,-60,getdate())     
+			and	ma.TipoMovimento 	= 'O'	--in ('O','B','E') comentado em 16/12/2004   
+			and     ma.CodRetorno 		= null      
+--			AND 	ma.iEnviadoRENAINF 	is null	-- o que nao foi enviado para a BINIT        
+			and	m.Setor 		= d.Setor        
+			and	m.Debito 		= d.Cod        
+			and 	m.TipoMovimento 	in (select Cod from dbarrecadacao..TipoMovBaixa where Tipo  ='B')   
+			and 	m.Anulado		= 0   
+			and	d.Serie 		= ma.Serie        
+			and 	d.OrgaoAutuante 	= ma.OrgaoAutuante        
+			and	d.Auto			= ma.Auto        
+    
+			and	ma.Usuario 		not in ('renavam','consolid')	-- Retirar a baixa realizada em outra UF       
+			and 	ma.Serie 		= a.Serie        
+			and 	ma.OrgaoAutuante 	= a.OrgaoAutuante        
+			and	ma.Auto			= a.Cod        
+			and 	a.AutoINFRAEST 		!=NULL  -- 15/03/2017 - RENAINF TOTAL      
+
+			and 	ma.OrgaoCompetencia	=o.Cod      
+--			and 	o.UF			='PE'     
+			and 	ma.Infracao		= i.Cod
+			and 	ma.Desdobramento	= i.Desdobramento
+			and     ma.TipoMovDebito	!=16
+			and     ma.NumeroBancario	= m.NumBancario
+			and 	(ma.NumAutorizacao = convert(numeric(10),m.SequencialRegistro) or ma.NumAutorizacao is null)
+
+--			and  	 	(select count(*)  --- só transmitir pagamento sem duplicidade   
+--					from 	dbarrecadacao..MovimentoBaixa mb         
+--					where 	d.Setor = mb.Setor         
+--					and 	d.Cod = mb.Debito        
+--					and 	mb.Parcela = 99        
+--					and     mb.Anulado = 0  
+--					and     mb.TipoMovimento !=16    
+--					and	mb.TipoMovimento in (select Cod from dbarrecadacao..TipoMovBaixa        
+--										where Tipo = 'B')  )  = 1 	
+			AND 	not exists	(select 1 from 	RNFArquivoTranBatch
+	 					where 	OrgaoCompetencia	=	a.OrgaoCompetencia
+						and 	Serie			=	a.Serie	
+						and 	Auto			=	a.Cod
+	 					and 	Transacao		= 	@Transacao)
+			set rowcount 0		
+			
+			select OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao , count(*) as Qtde 
+			into #tmpDuplicidade
+			from #tmp414 
+			group by OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao
+			having count(*)>1
+			
+			delete 	#tmp414
+			from   	#tmp414 t, #tmpDuplicidade d
+			where  	t.OrgaoCompetencia	=d.OrgaoCompetencia
+			and 	t.Serie			=d.Serie		
+			and 	t.Auto			=d.Auto		
+			and 	t.Transacao 		=d.Transacao
+			
+			if	100> (select count(*) from #tmp414) ----não gerar com menos de 100 registros
+			begin 
+				select 	null,
+					null as p1,
+					null as p2,  
+					null as p3 
+					where 'a'='b'
+					return
+			
+			end
+			/* Adaptive Server has expanded all '*' elements in the following statement */ 
+			insert	RNFArquivoTranBatch
+			(OrgaoCompetencia	
+			,Serie			
+			,Auto			
+			,Transacao		
+			,DataGeracao		
+			,DataRetorno		
+			,Arquivo		
+			,Registro		
+			)
+
+			select  t.OrgaoCompetencia, t.Serie, t.[Auto], t.Transacao, t.[Data], t.Dta, t.Arq, t.xx                                                                                              from #tmp414 t
+			where	not exists	(select 1 from 	dbinfracao..RNFArquivoTranBatch b
+	 					where 	b.OrgaoCompetencia	=	t.OrgaoCompetencia
+						and 	b.Serie			=	t.Serie	
+						and 	b.Auto			=	t.Auto
+	 					and 	b.Transacao		= 	t.Transacao)
+			
+			select @Pasta = 'C:\Multas\PGTO\' 		
+			
+				    
+	end
+	
+	
+	declare  @QtdeRegistros numeric(12)
+	
+	select   Arquivo, Registro into #tmpRetorno 
+	from 	dbinfracao..RNFArquivoTranBatch  nc
+	where 	nc.DataGeracao	>= @DataGeracao
+	and  nc.Transacao = @Transacao
+	and  nc.Arquivo	=@Arquivo
+	
+	
+	select   @QtdeRegistros = count(*) from #tmpRetorno
+	insert  #tmpRetorno					----inserindo o header
+	select  @Arquivo,'0'+substring(@Arquivo+space(255),1,255) 
+	
+	
+	insert  #tmpRetorno					----inserindo o   r
+	select  @Arquivo as Arquivo,'9' + substring (substring(convert(char(09),@QtdeRegistros+100000000),2,8)+space(255),1,255) as p1
+	
+	
+	
+	select 	ltrim(rtrim(@Pasta))+#tmpRetorno.Arquivo,
+	convert(varchar(255),substring(#tmpRetorno.Registro+space(255),1,255)) as p1,
+	convert(varchar(255),substring(#tmpRetorno.Registro+space(1000),256,255)) as p2,  
+	convert(varchar(04),substring(#tmpRetorno.Registro+space(1000),511,4)) as p3 
+	from 	#tmpRetorno  
+	order by substring(Registro,1,1)
+				
+	
+end
+else -------------- processar arquivo retorno do sepro
+begin
+
+	declare @RegistroCompleto 	varchar(1000)
+	select 	@RegistroCompleto 	= convert(varchar(514),substring(@Registro1+space(514),1,514)) 
+--	select 	@RegistroCompleto		='20000004131117100ED18528537691211106051195467   LUIZ ALEXANDRE LIMA GOMES DOS SANTOS    RUA JORGE COUCEIRO DA COSTA EI534  APT 701             BOA VIAGEM          2531PE51021300220191214015801                                                                                                                                                                                                                                                                                                                               000'
+
+                                                                                                                                                                
+-- 1 30012019                                        1214 ED18528537  117100  K3244.P33210PE.D200612.V1243.T413.R0000       				
+					
+	if	substring(@ArquivoRetorno,1,5)!='K3249'
+	begin
+		return
+	end
+	
+	
+------------------------------------inicio processar arquivo retorno 421
+	if	substring(@RegistroCompleto,1,1)		IN	('1','2')
+		begin
+		if 	convert(numeric(03),substring(@RegistroCompleto,8,3))	=421
+		begin		
+		begin	tran
+			update 	dbinfracao..zajstmpPandemiaPen 			set 	CodigoRetorno = substring(@RegistroCompleto,512,3)
+			FROM    dbinfracao..zajstmpPandemiaPen b
+			,	dbinfracao..Auto a(index Auto_OrgaoCompAutoRENAINF)
+			where 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+			and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+			and 	a.AutoRENAINF					=	substring(@RegistroCompleto,18,10)
+			and	b.OrgaoAutuante				=	a.OrgaoAutuante
+			and 	b.Serie						=	a.Serie
+			and 	b.Auto						=	a.Cod
+			and 	(ltrim(rtrim(b.CodigoRetorno))			= null or ltrim(rtrim(b.CodigoRetorno))			!= '000' )			
+
+			if	@@rowcount					=	0 --------atualizar pelo AutoINFRAEST
+				update 	dbinfracao..zajstmpPandemiaPen 			set 	CodigoRetorno = substring(@RegistroCompleto,512,3)
+				FROM    dbinfracao..zajstmpPandemiaPen b
+				,	dbinfracao..Auto a(index Auto_OrgaoCompAutoINFRAEST)
+				where 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+				and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+				and 	a.AutoINFRAEST					=	substring(@RegistroCompleto,18,10)
+				and	b.OrgaoAutuante				=	a.OrgaoAutuante
+				and 	b.Serie						=	a.Serie
+				and 	b.Auto						=	a.Cod
+				and 	(ltrim(rtrim(b.CodigoRetorno))			= null or ltrim(rtrim(b.CodigoRetorno))			!= '000' )
+
+			update 	dbinfracao..zajstmpPandemiaPagoPen 			set 	CodigoRetorno = substring(@RegistroCompleto,512,3)
+			FROM    dbinfracao..zajstmpPandemiaPagoPen b
+			,	dbinfracao..Auto a(index Auto_OrgaoCompAutoRENAINF)
+			where 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+			and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+			and 	a.AutoRENAINF					=	substring(@RegistroCompleto,18,10)
+			and	b.OrgaoAutuante				=	a.OrgaoAutuante
+			and 	b.Serie						=	a.Serie
+			and 	b.Auto						=	a.Cod
+			and 	(ltrim(rtrim(b.CodigoRetorno))			= null or ltrim(rtrim(b.CodigoRetorno))			!= '000' )			
+			if	@@rowcount					=	0 --------atualizar pelo AutoINFRAEST
+				update 	dbinfracao..zajstmpPandemiaPagoPen 			set 	CodigoRetorno = substring(@RegistroCompleto,512,3)
+				FROM    dbinfracao..zajstmpPandemiaPagoPen b
+				,	dbinfracao..Auto a(index Auto_OrgaoCompAutoINFRAEST)
+				where 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+				and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+				and 	a.AutoINFRAEST					=	substring(@RegistroCompleto,18,10)
+				and	b.OrgaoAutuante				=	a.OrgaoAutuante
+				and 	b.Serie						=	a.Serie
+				and 	b.Auto						=	a.Cod
+				and 	(ltrim(rtrim(b.CodigoRetorno))			= null or ltrim(rtrim(b.CodigoRetorno))			!= '000' )
+
+
+------------------------autuações
+
+			update 	dbinfracao..zajstmpPandemiaAut 			set 	CodigoRetorno = substring(@RegistroCompleto,512,3)
+			FROM    dbinfracao..zajstmpPandemiaAut b
+			,	dbinfracao..Auto a(index Auto_OrgaoCompAutoRENAINF)
+			where 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+			and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+			and 	a.AutoRENAINF					=	substring(@RegistroCompleto,18,10)
+			and	b.OrgaoAutuante				=	a.OrgaoAutuante
+			and 	b.Serie						=	a.Serie
+			and 	b.Auto						=	a.Cod
+			and 	(ltrim(rtrim(b.CodigoRetorno))			= null or ltrim(rtrim(b.CodigoRetorno))			!= '000' )			
+
+			if	@@rowcount					=	0 --------atualizar pelo AutoINFRAEST
+				update 	dbinfracao..zajstmpPandemiaAut 			set 	CodigoRetorno = substring(@RegistroCompleto,512,3)
+				FROM    dbinfracao..zajstmpPandemiaAut b
+				,	dbinfracao..Auto a(index Auto_OrgaoCompAutoINFRAEST)
+				where 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+				and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+				and 	a.AutoINFRAEST					=	substring(@RegistroCompleto,18,10)
+				and	b.OrgaoAutuante				=	a.OrgaoAutuante
+				and 	b.Serie						=	a.Serie
+				and 	b.Auto						=	a.Cod
+				and 	(ltrim(rtrim(b.CodigoRetorno))			= null or ltrim(rtrim(b.CodigoRetorno))			!= '000' )
+
+			update 	dbinfracao..zajstmpPandemiaPagoAut 			set 	CodigoRetorno = substring(@RegistroCompleto,512,3)
+			FROM    dbinfracao..zajstmpPandemiaPagoAut b
+			,	dbinfracao..Auto a(index Auto_OrgaoCompAutoRENAINF)
+			where 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+			and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+			and 	a.AutoRENAINF					=	substring(@RegistroCompleto,18,10)
+			and	b.OrgaoAutuante				=	a.OrgaoAutuante
+			and 	b.Serie						=	a.Serie
+			and 	b.Auto						=	a.Cod
+			and 	(ltrim(rtrim(b.CodigoRetorno))			= null or ltrim(rtrim(b.CodigoRetorno))			!= '000' )			
+			if	@@rowcount					=	0 --------atualizar pelo AutoINFRAEST
+				update 	dbinfracao..zajstmpPandemiaPagoAut 			set 	CodigoRetorno = substring(@RegistroCompleto,512,3)
+				FROM    dbinfracao..zajstmpPandemiaPagoAut b
+				,	dbinfracao..Auto a(index Auto_OrgaoCompAutoINFRAEST)
+				where 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+				and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+				and 	a.AutoINFRAEST					=	substring(@RegistroCompleto,18,10)
+				and	b.OrgaoAutuante				=	a.OrgaoAutuante
+				and 	b.Serie						=	a.Serie
+				and 	b.Auto						=	a.Cod
+				and 	(ltrim(rtrim(b.CodigoRetorno))			= null or ltrim(rtrim(b.CodigoRetorno))			!= '000' )
+
+								
+								
+			commit tran
+			return						
+----------------------fim autuações
+								
+		end			
+				
+	
+	end
+	-----------------fim rotina atualiza transacao 421
+	
+	select @Arquivo	=	'K3244.'+substring(@ArquivoRetorno,7,33)
+	if (select count(*) from RNFArquivoTranBatch
+		where 	Arquivo 				= 	@Arquivo
+		and 	ltrim(rtrim(CodRetorno))				=	null) = 0
+		BEGIN
+		
+			return ---- todas as linhas já foram atualizadas --- 
+			       ---- Esse if foi inserido para não ter que desenvolver 3 procedures que o BBONLINE exige, 
+			       ---- Dessa forma quando o BBONLINE chamar essa procedure para fazer a função de criticar e inserir não fará a atualização novamente.
+			       ---- vide cadastro do tipo de arquivo 63 no BBONLINE
+		END
+	
+	if	substring(@RegistroCompleto,1,1)	=	'0' and ltrim(rtrim(substring(@RegistroCompleto,512,3)))!=null and ltrim(rtrim(substring(@RegistroCompleto,512,3)))!='000'
+	begin  ------Atualiza todos os registros com o codigo de retorno de rejeição do arquivo
+		update 	RNFArquivoTranBatch 			set 	DataRetorno = getdate(), CodRetorno = ltrim(rtrim(substring(@RegistroCompleto,512,3)))
+		where 	Arquivo 				= 	@Arquivo
+		and 	CodRetorno				=	null
+	
+		
+	end	
+	
+
+	
+	
+	if	substring(@RegistroCompleto,1,1)		IN	('1','2')
+	begin
+		select 	@Transacao				= 	convert(numeric(03),substring(@RegistroCompleto,8,3))
+	
+		begin	tran
+		     
+		update 	RNFArquivoTranBatch 			set 	CodRetorno = substring(@RegistroCompleto,512,3), DataRetorno = getdate()
+		FROM    RNFArquivoTranBatch b
+		,	dbinfracao..Auto a 
+		where 	Arquivo 					=@Arquivo
+		and 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+		and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+		and  	substring(@RegistroCompleto,18,10) 		in 	(a.AutoRENAINF	, AutoINFRAEST)
+		and	b.OrgaoCompetencia				=	a.OrgaoCompetencia
+		and 	b.Serie						=	a.Serie
+		and 	b.Auto						=	a.Cod
+		and 	b.Transacao					= 	convert(numeric(03),substring(@RegistroCompleto,08,03))
+	--	and 	b.CodRetorno					in	(null ,'999')
+		
+		if	@Transacao	=	414 ---------05/06/2023 - atualização específica para a 414 baseado no número da autorização
+		begin
+			set forceplan on  
+			-----------------OBTEM O NÚMERO DA AUTORIZAÇÃO E NÚMERO BANCÁRIO
+			select  @NumeroAutorizacao 	=  convert(numeric(10), substring(Registro,73,10)) , 
+				@NumeroBancario 	= substring(Registro,34,16)
+			
+			FROM    dbinfracao..RNFArquivoTranBatch b, 
+				dbinfracao..Auto a (index Auto_OrgaoCompetencia )
+			
+			where 	Arquivo 					=@Arquivo
+			and 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+			and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+			and  	substring(@RegistroCompleto,18,10) 		in 	(a.AutoRENAINF	, AutoINFRAEST)
+			and	b.OrgaoCompetencia				=	a.OrgaoCompetencia
+			and 	b.Serie						=	a.Serie
+			and 	b.Auto						=	a.Cod
+			and 	b.Transacao					= 	414
+			
+			---------------FIM OTEM O NÚMERO DA AUTORIZAÇÃO E NÚMERO BANCÁRIO
+			
+			if	@NumeroAutorizacao		=	0	
+			begin
+				select @NumeroAutorizacao = null
+			end
+					
+			set 	rowcount					1
+			update 	dbinfracao..MovimentoAuto 			set 	CodRetorno 			= convert(numeric(03),b.CodRetorno)
+											,iEnviadoRENAINF 		= 'S' 
+											,DataTransmissaoRENAINF 	= b.DataRetorno
+			from 	dbinfracao..RNFArquivoTranBatch b
+			,	dbinfracao..Auto a(index Auto_OrgaoCompetencia ) 
+			,	dbinfracao..MovimentoAuto ma(index OrgaoCompetencia)
+			
+			where 	b.Arquivo 					= 	@Arquivo
+			and 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+			and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+			and  	substring(@RegistroCompleto,18,10) 		in 	(a.AutoRENAINF	, AutoINFRAEST)
+			and	b.OrgaoCompetencia				=	a.OrgaoCompetencia
+			and 	b.Serie						=	a.Serie
+			and 	b.Auto						=	a.Cod
+			and 	b.Transacao					= 	414
+			and	b.OrgaoCompetencia				=	ma.OrgaoCompetencia
+			and 	b.Serie						=	ma.Serie
+			and 	b.Auto						=	ma.Auto
+			and	ma.TipoMovimento				=	'O'
+			and 	ma.TipoMovDebito				!=	16
+			and 	(ma.NumAutorizacao				= 	@NumeroAutorizacao or @NumeroAutorizacao is null)
+			and 	substring(ma.NumeroBancario,1,16) 		=	substring(@NumeroBancario,1,16)
+		
+				
+		end -------fim 414
+	
+		else ---!= 414
+		
+		begin
+			update 	dbinfracao..MovimentoAuto 			set 	CodRetorno 			= convert(numeric(03),b.CodRetorno)
+											,iEnviadoRENAINF 		= 'S' 
+											,DataTransmissaoRENAINF 	= b.DataRetorno
+			from 	dbinfracao..RNFArquivoTranBatch b
+			,	dbinfracao..Auto a (index Auto_OrgaoCompetencia )
+			,	dbinfracao..MovimentoAuto ma(index OrgaoCompetencia)
+			
+			where 	b.Arquivo 					= 	@Arquivo
+			and 	substring(@RegistroCompleto,1,1)		IN	('1','2')
+			and 	a.OrgaoCompetencia				=	convert(numeric(06),substring(@RegistroCompleto,12,06))
+			and  	substring(@RegistroCompleto,18,10) 		in 	(a.AutoRENAINF	, AutoINFRAEST)
+			and	b.OrgaoCompetencia				=	a.OrgaoCompetencia
+			and 	b.Serie						=	a.Serie
+			and 	b.Auto						=	a.Cod
+			and 	b.Transacao					= 	convert(numeric(03),substring(@RegistroCompleto,08,03))
+			and	b.OrgaoCompetencia				=	ma.OrgaoCompetencia
+			and 	b.Serie						=	ma.Serie
+			and 	b.Auto						=	ma.Auto
+			and	ma.TipoMovimento				=	(case when @Transacao = 412 then 'D' else (case when @Transacao = 413 then 'N' else 'O' end) end)
+
+		end -----------!=414		
+				
+		if	@Transacao	=	413  -- na 412 eu já obtive a adesão pela 411 implantação 
+		begin	 
+		
+			select @sDataAdesaoSNE		=ltrim(rtrim(substring(@RegistroCompleto,197,08)))
+
+						
+				
+			select 	@Data = null 
+			if	@sDataAdesaoSNE	!=null and @sDataAdesaoSNE !='00000000' AND substring(@RegistroCompleto,1,1) = '2' --rt02
+			begin	
+
+				select 	@CodigoOrgaoAut		=	convert(numeric(06),substring(@RegistroCompleto,12,06)),
+					@NumAutoInfracao	=	substring(@RegistroCompleto,18,10),
+					@IndicadorAdesaoOASNE 	=	convert(numeric(4),substring(@RegistroCompleto, 178,1)),   -- asf
+		 			@IndicadorAdesaoSNE	= 	convert(numeric(01),substring(@RegistroCompleto,196,1)),   -- antes  convert(numeric(01),substring(@RegistroCompleto,178,1)),
+					@sDataAdesaoSNE		=	ltrim(rtrim(substring(@RegistroCompleto,197,08))), 	   -- antes  ltrim(rtrim(substring(@RegistroCompleto,179,08))),
+					@DataAdesaoSNE		=	substring(@RegistroCompleto,197,08),                       -- antes  substring(@RegistroCompleto,179,08), 
+					@HoraAdesaoSNE		=	convert(numeric(04),substring(@RegistroCompleto,205,4))    -- antes  convert(numeric(04),substring(@RegistroCompleto,187,4)),		
+
+				-- novos campos do SNE  afs 03-07-2023
+				select	@IndAdesaoPossuidorEpocaSNE	=	convert(numeric(1),substring(@RegistroCompleto, 209,1))
+				if substring(@RegistroCompleto, 210,8) 			= 	'00000000'
+					select	@DataAdesaoPossuidorEpocaSNE 	=	null
+				else
+					select	@DataAdesaoPossuidorEpocaSNE 	=	convert(datetime,substring(@RegistroCompleto, 210,8))
+
+
+				select	@HoraAdesaoPossuidorEpocaSNE 	=	convert(numeric(4),substring(@RegistroCompleto, 218,4)),
+					@IndicadorAdesaoPCSNE 		=	convert(numeric(1),substring(@RegistroCompleto, 222,1))
+
+				if substring(@RegistroCompleto, 223,8) 		= 	'00000000'
+					select	@DataAdesaoPCSNE 		=	null
+				else
+					select	@DataAdesaoPCSNE 		=	convert(datetime,substring(@RegistroCompleto, 223,8))
+		
+				select	@HoraAdesaoPCSNE 			=	convert(numeric(4),substring(@RegistroCompleto, 231,4)),
+					@IndAdesaoCondAbordadoIndSNE 	=	convert(numeric(1),substring(@RegistroCompleto, 235,1))
+		
+				if substring(@RegistroCompleto, 236,8) = '00000000'
+					select	@DataAdesaoCondAbordadoIndSNE 	=	null
+				else
+					select	@DataAdesaoCondAbordadoIndSNE 	=	convert(datetime,substring(@RegistroCompleto, 236,8))
+		
+				select	@HoraAdesaoCondAbordadoIndSNE 		=	convert(numeric(4),substring(@RegistroCompleto, 244,4))
+
+				-- novos campos afs 16-06-2023
+
+
+				
+							 
+				if	@HoraAdesaoSNE>2459  ---- o SERPRO Estava enviando uma hora erra 83:25 com isso poderiamos perder o prazo para notificar. 
+					select @HoraAdesaoSNE	=0 
+					
+				if @HoraAdesaoSNE != 2400     ---- essa hora é a hora de adesão no SNE 
+				begin     
+					if 	@HoraAdesaoSNE	< 100    
+						select	@Data = convert( datetime, convert(char(08),@DataAdesaoSNE,112) + ' '       
+						+ '00'     
+						+ ':' + right(convert(char(05),@HoraAdesaoSNE+10000), 2) )      
+					else    
+						select	@Data = convert( datetime, convert(char(08),@DataAdesaoSNE,112) + ' '       
+						+ substring(convert(char(05),@HoraAdesaoSNE+10000), 2, 2)     
+						+ ':' + right(convert(char(05),@HoraAdesaoSNE+10000), 2) )      
+				end		    
+				else    
+				begin  
+					select	@Data = convert( datetime, (convert(char(08),@DataAdesaoSNE,112) + ' 00:00'))  
+				end
+					 
+				if	convert(char(08),@Data,112)	<='20160101'	  
+					select 	@Data			=	null	 
+				 
+				SELECT   @DataAdesaoSNE		 = @Data 
+			
+				IF	@IndicadorAdesaoSNE	IN	(1,2) 
+				BEGIN 
+				
+					exec 			dbinfracao..MovimentoAutoI 
+					 @SNE			= 	'S' 
+					,@OrgaoAutuante		=	@CodigoOrgaoAut	 
+					,@IndicadorArgumento	=	@IndicadorAdesaoSNE 
+					,@NumAutoInfracao		=	@NumAutoInfracao 
+					,@Data			=	@DataAdesaoSNE 
+					,@Serie			=	'1' --- não utilizado na rotina que vai fazer o insert para o SNE 
+					,@Auto			=	1   --- não utilizado na rotina que vai fazer o insert para o SNE 
+					,@Infracao		=	1   --- não utilizado na rotina que vai fazer o insert para o SNE 
+					,@TipoMovimento		=	'1' --- não utilizado na rotina que vai fazer o insert para o SNE 
+					,@iIndAdesaoPossuidorEpocaSNE	=	@IndAdesaoPossuidorEpocaSNE
+					,@iDataAdesaoPossuidorEpocaSNE 	=	@DataAdesaoPossuidorEpocaSNE
+					,@iHoraAdesaoPossuidorEpocaSNE 	=	@HoraAdesaoPossuidorEpocaSNE
+					,@iIndicadorAdesaoPCSNE 	=	@IndicadorAdesaoPCSNE
+					,@iDataAdesaoPCSNE 		=	@DataAdesaoPCSNE
+					,@iHoraAdesaoPCSNE 		=	@HoraAdesaoPCSNE
+					,@iIndAdesaoInfAbordadoIndSNE 	=	@IndAdesaoCondAbordadoIndSNE
+					,@iDataAdesaoInfAbordadoIndSNE	=	@DataAdesaoCondAbordadoIndSNE
+					,@iHoraAdesaoInfAbordadoIndSNE	=	@HoraAdesaoCondAbordadoIndSNE
+					,@iIndicadorAdesaoOASNE		=	@IndicadorAdesaoOASNE
+					
+				END 
+			
+			end ---fim adesão sne
+		end --- fim transaçao 413
+		commit tran	
+	end  ---- fim if tipo registro 1,2				 
+end				 
+return  
+
+GO
+
+execute sp_procxmode 'dbo.RNFGeraArquivoTransacaoS', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.RNFGeraArquivoTransacaoS to public
+go
+Grant Execute on dbo.RNFGeraArquivoTransacaoS to desenvolvimento
+go
+Grant Execute on dbo.RNFGeraArquivoTransacaoS to veiculo
+GO
+
+

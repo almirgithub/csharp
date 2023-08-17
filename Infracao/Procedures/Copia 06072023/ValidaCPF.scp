@@ -1,0 +1,129 @@
+/*  Database 'dbvcen'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.MaquinaTalaoEletronicoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MaquinaTalaoEletronicoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MaquinaTalaoEletronicoS
+end
+
+GO
+
+create proc dbo.MaquinaTalaoEletronicoS
+-- Funcao : Selecionar as máquinas eletrônicas
+-- Autor  : afs - 13/01/2021
+(	
+	@nCpf	numeric(14,0)
+
+) 
+  
+as  
+
+	declare @sCpf		varchar(14),
+		@sInverso	varchar(14),
+		@nRetorno	int,
+		@nDigito		smallint,
+		@nIndice		smallint,
+		@Number		int,
+		@Digito     	numeric(1)
+
+
+	select	@nRetorno 	= 	0;
+
+	If nCpf = 0
+	begin
+		Select	'I'
+		Return 
+	end
+
+
+	select	@sCpf 	= 	substring(convert(varchar(11), 100000000000 + @nCpf), 1, 11)
+	  
+	-- O CPF deve ter obrigatoriamente 11 dígitos
+	If char_length( @sCpf ) != 11
+	begin
+		Return 'I'
+	end
+	
+	
+	Set @nIndice = 0
+	Set @sInverso = ''
+
+	-- Inverte o CPF para calcular o dígito
+	While @nIndice < 11
+		Set @sInverso 	= 	substring(@sCpf, @nIndice, 1 ) || @sInverso
+		Set @nIndice 	= 	@nIndice + 1
+		
+		
+	-- Calcula o segundo dígito verificador
+	Set @nDigito	= 0
+	Set @nIndice 	= 2
+	
+	While @nIndice < 11
+		Set @nDigito = @nDigito + ( convert(numeric( substring( @sInverso, @nIndice, 1 ) ) * @nIndice )
+		Set @nIndice = @nIndice + 1
+		
+	exec  dbvcen..DigitoModulo11 @Numero = @sCpf, @Digito = @Digito output 
+			
+	Set @nDigito = ( 11 - SalNumberMod( nDigito, 11 ) )
+
+	If @nDigito > 9
+	begin
+		Set @nDigito = 0
+	end
+	
+	If @nDigito != convert(smallint( substring( @sInverso, 1, 1 ) ))
+		Return nRetorno
+! Calcula o primeiro dígito verificador
+Set nDigito = 0
+Set nIndice = 1
+While nIndice < 11
+	Set nDigito = nDigito + ( SalStrToNumber( SalStrMidX( sInverso, nIndice, 1 ) ) * ( nIndice + 1 ) )
+	Set nIndice = nIndice + 1
+Set nDigito = ( 11 - SalNumberMod( nDigito, 11 ) )
+If nDigito > 9
+	Set nDigito = 0
+If nDigito != SalStrToNumber( SalStrMidX( sInverso, 0, 1 ) )
+	Return nRetorno
+! O CPF é válido, retorna 1
+Set nRetorno = 1
+Return nRetorno
+
+
+
+
+
+
+
+	select	t.OrgaoAutuante,
+		(select Descricao   from 	
+		dbinfracao..OrgaoAutuante  where Cod = t.OrgaoAutuante) as DescOrgao,
+		t.Maquina,
+		t.Serie, 
+		t.PrimeiroAuto,
+		t.UltimoAuto
+	from	dbinfracao..MaquinaTalaoEletronico t
+	order 	by	t.OrgaoAutuante, t.PrimeiroAuto
+
+
+return  
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.MaquinaTalaoEletronicoS to desenvolvimento
+GO
+
+Grant Execute on dbo.MaquinaTalaoEletronicoS to veiculo
+GO

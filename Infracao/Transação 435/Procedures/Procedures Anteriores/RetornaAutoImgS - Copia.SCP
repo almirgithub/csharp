@@ -1,0 +1,148 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 28469 SMP SP141 /P/Sun_svr4/OS 5.10/ase157sp141x/4331/64-bit/FBO/Wed Aug 14 04:23:38 2019) on sun_svr4
+*/
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.RetornaAutoImgS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.RetornaAutoImgS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.RetornaAutoImgS
+end
+
+GO
+
+create proc dbo.RetornaAutoImgS 
+(
+	@DataInicial 	datetime 	= 	null,
+	@ChamadaTela	char(01)	=	'N'  -- null
+)
+
+/*	Enter the parameters for the procedure in
+	the brackets above.  If this procedure has
+	no parameters then delete the line */
+
+/**************************************************************************************************************************/
+/*	                                                								  */
+/* Author                               										  */
+/* Creation Date                       	         									  */
+/* Comments                                                           	           					  */
+/* Alteração: afs 25-07-2022 	                                                                         		  */
+/*	      foi colocado um novo parâmetro para indicar que essa procedure foi chamada da nova tela consulta de imagem. */
+/*	                                                								  */
+/**************************************************************************************************************************/
+
+AS 
+
+begin
+
+	if 	@DataInicial 	=	null
+	begin
+		select  	@DataInicial = dateadd(dd,-10,getdate())
+	end 
+	--
+	--"codigoOrgaoAutuador":"000100",
+	-- "numeroAutoInfracao":"RBT0000001",
+	-- "codigoInfracao":"5177",
+	-- "renainf":"00290792410",
+
+	if 	@ChamadaTela	=	'N'
+	begin
+		SELECT distinct ta.OrgaoCompetencia as OrgaoAutuante,
+		 	ar.Arquivo, 
+		 	substring(Registro3,1,2)+substring(nc.Registro3,4,8) as Auto, substring(nc.Registro4,78,11) AS renainf, 
+		 	substring(nc.Registro3,214,4) as  Infracao, 
+		 	ar.TipoArquivo, 
+		 	ar.Sequencial, 
+		 	ar.DataCriacao into #tmp
+		 FROM   dbinfracao..NotMultaNC nc, 
+		 	dbinfracao..ArqNotMultaNC ar, 
+		 	dbinfracao..TipoArqNot ta,
+		 	dbinfracao..Auto a
+		 WHERE 	ar.DataCriacao > = @DataInicial
+		 and   	ar.TipoArquivo = nc.TipoArquivo
+		 and 	ar.TipoNotificacao = 02 -----notificacao autuacao
+		 and   	ar.Sequencial = nc.SeqArquivo
+		 and   	ar.DataCriacao = nc.DataCriacao
+		 and   	ar.TipoArquivo = ta.Cod
+		 and   	a.OrgaoCompetencia = ta.OrgaoCompetencia
+		 and   	a.Serie = substring(Registro3,1,2)
+		 and   	a.Cod   = convert(numeric(10),substring(Registro3,3,8))   
+		 and not exists(	select 1 from 
+		 		dbinfracao..MovimentoAuto ma 
+		 		where  a.Serie	=	ma.Serie
+		  		and   a.OrgaoAutuante  = ma.OrgaoAutuante
+		  		and   a.Cod = ma.Auto
+				and   ma.TipoMovimento in ('I','D')
+				and   ma.CodRetornoImg =0)
+		 and   convert(char(08),ar.DataEnvioImagem,112) != convert(char(08),getdate(),112)
+		 and   a.TipoAuto = 3
+	
+	
+		update 	dbinfracao..ArqNotMultaNC set DataEnvioImagem = getdate(), UsuarioEnvioImg = suser_name()
+		FROM   	#tmp t,
+			dbinfracao..ArqNotMultaNC nc
+		where   t.DataCriacao = nc.DataCriacao
+		and 	t.TipoArquivo = nc.TipoArquivo
+		and     t.Sequencial  = nc.Sequencial	
+		 
+		
+		SELECT	distinct OrgaoAutuante,
+		 	Arquivo, 
+		 	Auto, 
+		 	renainf, 
+		 	Infracao
+		from #tmp	
+	end
+	else
+	begin
+
+		select	distinct ar.Arquivo, ar.DataCriacao, count(ar.Arquivo) as total
+		from	dbinfracao..NotMultaNC nc, 
+		 	dbinfracao..ArqNotMultaNC ar, 
+		 	dbinfracao..TipoArqNot ta,
+		 	dbinfracao..Auto a
+		where 	ar.DataCriacao >= @DataInicial
+		and  	ar.TipoArquivo = nc.TipoArquivo
+		and 	ar.TipoNotificacao = 02 -----notificacao autuacao
+		and  	ar.Sequencial = nc.SeqArquivo
+		and  	ar.DataCriacao = nc.DataCriacao
+		and  	ar.TipoArquivo = ta.Cod
+		and  	a.OrgaoCompetencia = ta.OrgaoCompetencia
+		and  	a.Serie = substring(Registro3,1,2)
+		and  	a.Cod   = convert(numeric(10),substring(Registro3,3,8))   
+		and 	not exists(select 1 from dbinfracao..MovimentoAuto ma 
+		 		where  	a.Serie	=	ma.Serie
+		  		and	a.OrgaoAutuante  = ma.OrgaoAutuante
+		  		and   	a.Cod = ma.Auto
+				and   	ma.TipoMovimento in ('I','D')
+				and   	ma.CodRetornoImg =0)
+		and   	convert(char(08),ar.DataEnvioImagem,112) != convert(char(08),getdate(),112)
+		and   	a.TipoAuto = 3
+		group	by	ar.Arquivo, ar.DataCriacao			
+	end		
+end
+return
+GO
+
+execute sp_procxmode 'dbo.RetornaAutoImgS', 'unchained'
+GO
+
+grant exec on RetornaAutoImgS to desenvolvimento
+go
+
+grant exec on RetornaAutoImgS to veiculo
+go

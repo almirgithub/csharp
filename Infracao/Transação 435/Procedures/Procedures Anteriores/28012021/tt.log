@@ -1,0 +1,2 @@
+executando uma procedure
+isql -U almirfs -P RpcNotificacaoAutuacao07022020.scp -o tt.log

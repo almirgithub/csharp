@@ -1,0 +1,77 @@
+
+/*
+
+ Exec dbvcen..ConsultaDocumentosCrlvS   
+@nSetor  =  100005,       @dDataInic =  '20190101',    
+@dDataFim  =  '20190109',       @Sintetico  =  'A',       
+@Todos    =   'N',       @TipoDocumento =  2
+
+
+select  * from dbinfracao..IndicacaoCondutor
+where OrgaoAutuante = 117100  and  Serie = 'D'
+and Auto = 8768063
+and Infracao = 6050
+select  * from dbinfracao..IndicacaoCondutor
+where OrgaoAutuante = 117100  and  Serie = 'D'
+
+Results :
+OrgaoAutuante                             Serie Auto                                      Infracao                                  Desdobramento Setor                 Processo     DataIndicacao                CpfCondutor                               CnhCondutor                               UfCnh NomeCondutor                                                                      Situacao DataAceitacao               
+117100                                    D     876905                                    501                                       0             09010000000000        2260147      Nov 11 2019  2:43PM          40038963434                               2348399485                                PE    ADILSON JOSE DOS SANTOS                                                           C        NULL                        
+117100                                    D     876906                                    6050                                      1             09010000000000        2260148      Nov 11 2019  2:44PM          40038963434                               2348399485                                PE    ADILSON JOSE DOS SANTOS                                                           A        NULL                        
+117100                                    D     876915                                    6050                                      1             09010000000000        2260151      Nov 11 2019  3:53PM          40038963434                               2348399485                                PE    ADILSON JOSE DOS SANTOS                                                           C        NULL                        
+117100                                    D     876904                                    501                                       0             09010000000000        2260157      Nov 12 2019  9:04AM          40038963434                               2348399485                                PE    ADILSON JOSE DOS SANTOS                                                           C        NULL                        
+117100                                    D     876908                                    6050                          
+
+select top 10 * from 	dbinfracao..Auto where Cod = 876908
+
+select top 10 * from dbinfracao..OrgaoAutuante where Cod = 117100
+
+select top 10 * from dbvcen..CadastroDesvinculacao
+
+sp_w
+
+kill 176
+
+
+
+select top 10 * from dbarrecadacao..Debito d
+
+select top 10 * from 	dbvcen..DocVeiculo
+
+
+select top 20 *	from dbvcen..Vistoria v
+
+exec dbvcen..RelVistoriaRealizadaVetR   
+@dDataInicial =  '20080101',   @dDataFinal =  '20191031', 
+@Maquina =  'HPD-050'
+
+declare @dDataInicial datetime, @dDataFinal datetime
+select @dDataInicial =  '20080101'
+select  @dDataFinal =  '20191031'
+
+	select s.Descricao,
+	       count(*) as TotalVistoria
+	from dbvcen..Vistoria v,
+	     dbvcen..Setor s
+	where v.DataCad between @dDataInicial and @dDataFinal
+	and v.Situacao='F'
+	and v.iVistoriaComOcr is not null
+	and s.Cod = v.Setor
+	and s.Tipo != 'U'
+	group by  s.Descricao
+	order by 1,2
+	
+
+exec dbvcen..RelVistoriaRealizadaVetR   
+@DataIni =  '20190101',   @DataFim =  '20081231', @Maquina =  'HPD-050'
+*/
+
+select top 20 * from dbvcen..DocVeiculo 
+where SetorEntrega is not null
+
+select top 10 * from 	dbvcen..Setor
+where Cod = '00040100000000'
+
+select * from MPS..Sistema
+
+select * from dbvcen..SetorMaquinas

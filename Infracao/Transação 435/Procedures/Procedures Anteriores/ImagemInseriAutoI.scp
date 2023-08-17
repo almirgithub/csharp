@@ -1,0 +1,104 @@
+use master
+GO
+
+
+/*  Database 'dbinfracao'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.ImagemInseriAutoI'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.ImagemInseriAutoI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.ImagemInseriAutoI
+end
+
+GO
+
+create proc dbo.ImagemInseriAutoI
+/*********************************************************************** 
+ Autor : Almir
+ Data  : 20-07-2022
+ Funcao: Envioo das imagens dos autos eletrônicos para o renainf
+ Observacao:                 
+*********************************************************************/ 
+
+(
+
+	@CodArquivo	     int,
+	@Arquivo             varchar(250),
+	@Registro1           varchar(255),
+	@Registro2           varchar(19) = null
+
+)
+
+as
+
+                      
+
+	declare	@CodigoOrgaoAutuador	int,
+		@Serie			char(02),
+		@Auto			int,
+		@CodigoInfracao		int,
+		@Renainf		varchar(15),
+		@CodigoRetorno		int
+		
+
+       
+	begin
+	
+	       	if (substring(@Registro1 ,1, 1) = 'K')
+	        begin
+	        	return 
+	        end 
+ 
+	
+		select	@CodigoOrgaoAutuador	=	convert(numeric(06),substring(@Registro1,1,6)),
+			@Serie			=	substring(@Registro1,8,2),
+			@Auto			=	convert(numeric(10),substring(@Registro1,10,8)),
+			@CodigoInfracao		=	convert(int, substring(	@Registro1,19, 4)),
+			@Renainf		=	substring(@Registro1,24, 10),
+			@CodigoRetorno		=	convert(int, substring(	@Registro1,36, 3))
+        
+       
+
+
+		begin tran 
+		
+			insert 	dbinfracao..RetornoImagemAuto
+			values (rtrim(ltrim(@Arquivo)), @CodigoOrgaoAutuador, @Serie, @Auto, @CodigoInfracao, @Renainf, @CodigoRetorno) 
+			 
+			
+			if @@transtate=2 OR @@transtate=3  
+			begin  
+				if @@transtate=2 rollback tran       
+				raiserror 55000  
+				return -900  
+			end 
+		
+		
+		commit tran
+	end 
+return 
+GO
+
+execute sp_procxmode 'dbo.ImagemInseriAutoI', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.ImagemInseriAutoI to desenvolvimento
+GO
+
+Grant Execute on dbo.ImagemInseriAutoI to veiculo
+GO
+

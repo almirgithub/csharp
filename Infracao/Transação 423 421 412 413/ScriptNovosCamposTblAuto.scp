@@ -1,0 +1,44 @@
+-- Inserindo novos campos na tabela dbinfracao..Auto
+-- afs - 16-06-202322-07-2022
+
+ 
+-- OS CMAPOS sTextoAbordagem, sTextoAbordagem e sTextoAbordagem JÁ ESTÃO 
+-- EM HOMOLOGAÇÃO
+alter table dbinfracao..HisMulta
+ 	add   	sTextoAbordagem 		char(100) 	null 
+ 
+alter table dbinfracao..AutosIncompletos
+ 	add   	sTextoAbordagem 		char(100) 	null 
+ 
+alter table dbinfracao..Auto
+ 	add   	sTextoAbordagem 		char(100) 	null
+--------------------------------------------------------------------
+
+
+alter table  dbinfracao..Auto
+	add	iIndAdesaoPossuidorEpocaSNE 	numeric(1,0)	null
+
+alter table  dbinfracao..Auto
+	add	DataAdesaoPossuidorEpocaSNE 	datetime	null
+
+alter table  dbinfracao..Auto
+	add	HoraAdesaoPossuidorEpocaSNE 	numeric(4,0)	null
+
+alter table  dbinfracao..Auto
+	add	iIndicadorAdesaoPCSNE 		numeric(1,0)	null
+
+alter table  dbinfracao..Auto
+	add	DataAdesaoPCSNE 		datetime	null
+
+alter table  dbinfracao..Auto
+	add	HoraAdesaoPCSNE 		numeric(4,0)	null
+
+alter table  dbinfracao..Auto
+	add	iIndAdesaoInfAbordadoIndSNE 	numeric(1,0)	null
+
+alter table  dbinfracao..Auto
+	add	DataAdesaoInfAbordadoIndSNE 	datetime	null
+
+alter table  dbinfracao..Auto
+	add	HoraAdesaoInfAbordadoIndSNE 	numeric(4,0)	null
+

@@ -1,0 +1,8 @@
+------------------------------------------------------------
+-- Alterar o tamanho do campo Descrição da tabela infração
+-- afs - 15/04/2021
+------------------------------------------------------------
+
+alter table dbinfracao..Infracao
+	modify	Descricao	varchar(150)	not null
+------------------------------------------------------------

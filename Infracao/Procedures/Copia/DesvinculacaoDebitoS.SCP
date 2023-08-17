@@ -1,0 +1,580 @@
+use master
+GO
+
+/*
+  Script for Server DESENV_DS (Adaptive Server Enterprise/15.7/EBF 26390 SMP SP138 /P/Sun_svr4/OS 5.10/ase157sp138x/4002/64-bit/FBO/Mon Aug 29 09:09:29 2016) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.DesvinculacaoDebitoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.DesvinculacaoDebitoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.DesvinculacaoDebitoS
+end
+
+GO
+
+/*	Enter the parameters for the procedure in
+	the brackets above.  If this procedure has
+	no parameters then delete the line */
+
+/*
+Author        	:Adilson 22/12/2017                        
+Creation Date 	:22/12/2017                                
+Comments      	:Retornar os debitos desvinculados         
+
+Alteração	:02/10/2018 - Adilson Santos - outer join   com tabela de veiculo - para veiculos de outras UF 
+		:08/11/2018 - Almir - Foi colocado a verificação para saber se a chamada veio pela tela de relat¢rio     
+		:12/04/2019 - Adilson Santos - Exibir proprietario da comunicação venda de outra UF caso a desvinculação tenha sido realizada para esse proprietário
+		:25/04/2019 - Adilson Santos - Exibir e imprimir o auto renainf ou infraest
+		:18/10/2020 - afs - 	foi colocado um novo parâmetro @SetorDesv e @RelSintetico 
+					que permitirá pegar os dados para impressão do sintético.
+*/
+
+
+
+
+
+create proc dbo.DesvinculacaoDebitoS 
+(
+        	@CodigoDesvinculacao		numeric(10) = null,
+        	@TelaConsulta			char(01)    = 'N', ----------- Passar 'S' quando for chamada pela tela de consulta de desvinculação
+        	@OrgaoCompetencia               	numeric(6)  = null,
+        	@DataInicial                    	datetime    = null,
+        	@DataFinal                      	datetime    = null,
+        	@MotivoDesvinculacao	    	int         = null,
+        	@SituacaoDesvinculacao		char(01)    = 'A',
+        	@SetorDesv			int	    = null,
+        	@RelSintetico			char(01) = 'N'
+
+)
+
+AS 
+
+
+	 
+	declare @pvincNome char(100), @pdesvNome char(100)	
+
+	declare @SetorDesvinculacao	varchar(20)
+
+	if @SetorDesv is not null
+	begin
+		select	@SetorDesvinculacao	=	rtrim(ltrim(st.Cod))
+		from 	dbvcen..Setor st
+		where 	st.CodReduzido  		=	@SetorDesv/10 --Digito
+	end
+	else
+	begin
+		select	@SetorDesvinculacao	=	null
+	end
+
+	
+	begin tran
+	create table #Situacao 	  
+		(Cod char(1),   
+		Descricao varchar(15))     
+     
+	commit tran   
+  
+   
+	insert	#Situacao select 'A', 'ABERTO'     
+	insert	#Situacao select 'P', 'BAIXADO PARCIAL'     
+	insert	#Situacao select 'T', 'BAIXADO TOTAL'     
+	insert	#Situacao select 'P', 'BAIXADO PARCIAL'     
+	insert	#Situacao select 'S', 'ISENTO'     
+	insert	#Situacao select 'V', 'AVERBADO'     
+	insert	#Situacao select 'M', 'IMUNE'     
+	insert	#Situacao select 'C', 'CANCELADO'     
+	insert	#Situacao select 'E', 'SUSPENSO'     
+	insert	#Situacao select 'D', 'EM TRAMITE'     
+	
+
+	select @DataInicial  =  convert(char(08),@DataInicial,112) + ' 00:01'         
+	select @DataFinal  =  convert(char(08),@DataFinal,112) + ' 23:59'         
+	
+	-- Comunicação de venda quando o comprador é de outra UF  
+
+	--Prop 	de outra UF Vinc 
+	select   @pvincNome = null
+	select 	 @pvincNome = p.Nome   --isnull(cd.NomeProprietarioVinculado,p.Nome) --afs foi nodificado para pegar o noe no cadastro de desviculaçãose tiver
+	from 	 dbvcen..CadastroDesvinculacao 	cd
+		,dbvcen..Veiculo v
+		,dbvcen..ComunicacaoVenda cv  
+		,dbvcen..ProprietarioOutraUf p  
+	where	cd.CodigoDesvinculacao =@CodigoDesvinculacao--@CodigoDesvinculacao 
+	and     v.Placa=cd.PlacaDesvinculada
+	and 	v.Cod			= cv.Veiculo  
+	and 	cv.Situacao		= 'A'  
+	and     cv.ProprietarioOutraUf is not null  
+	and     cv.ProprietarioOutraUf = p.ProprietarioOutraUf	
+	and     cd.CodigoPropVinculado = p.ProprietarioOutraUf
+	and     convert(numeric(14), p.NumDoc)	 = cd.CPFCNPJDesvinculado 	 	    
+
+	--Prop 	de outra UF Desvinc 
+	select   @pdesvNome = null
+	select 	 @pdesvNome = p.Nome   --isnull(cd.NomeProprietarioDesvinculado,p.Nome) --afs 30/08
+	from 	 dbvcen..CadastroDesvinculacao 	cd
+		,dbvcen..Veiculo v
+		,dbvcen..ComunicacaoVenda cv  
+		,dbvcen..ProprietarioOutraUf p  
+	where	cd.CodigoDesvinculacao =@CodigoDesvinculacao--@CodigoDesvinculacao 
+	and     v.Placa=cd.PlacaDesvinculada
+	and 	v.Cod				= cv.Veiculo  
+	and 	cv.Situacao			= 'A'  
+	and     cv.ProprietarioOutraUf 		is not null  
+	and     cv.ProprietarioOutraUf 		= p.ProprietarioOutraUf	
+	and     cd.CodigoPropDesvinculado 	= p.ProprietarioOutraUf
+	and     convert(numeric(14), p.NumDoc)	= cd.CPFCNPJVinculado 	 	    
+
+	--Retorna os dados para o relatório sitético
+	if @RelSintetico = 'S'
+	begin
+		select 
+			cd.CodigoDesvinculacao, 
+			convert(varchar(20), cd.DataInclusaoDesvinculacao,103) as DataDesvinc,
+		       	cd.PlacaDesvinculada + '/' + v.UFAnterior as PlacaUf,
+	           	md.Descricao as 'Motido Desvinculação',
+			cd.Protocolo,
+			cd.NumeroProcessoJudicial as processo,
+			convert(varchar(15), u.Nome) as Usuario,
+			s.Descricao as Setor,
+	           	convert(varchar(15), (select Nome from dbvcen..Usuario where Cod = cd.UsuarioInativou)) as UsuarioInativo,
+			(select t.Descricao  from dbvcen..Setor t 
+			 	where t.Cod = cd.SetorUsuarioInativou
+		        ) as 'Setor Usuario Inativo'
+			from 	dbvcen..DesvinculacaoDebito    	dd
+		  	        ,dbvcen..CadastroDesvinculacao 	cd
+		                ,dbinfracao..Auto              	a
+		                ,dbvcen..Setor                 	s 
+		                ,dbinfracao..Infracao          	i   
+		                ,MotivoDesvinculacao	       	md
+		                ,Prot..Protocolo 	       	prot
+		                ,dbvcen..Usuario	       	u
+		                ,dbvcen..Proprietario  	       	pvinc
+		                ,dbvcen..Proprietario  	       	pdesv 
+		                ,dbinfracao..OrgaoAutuante     	o  
+		                ,dbvcen..Veiculo		v           	                  
+			where 	(dd.CodigoDesvinculacao 		=  	@CodigoDesvinculacao or @CodigoDesvinculacao is null)
+		        	and    	dd.Setor			=	s.Cod
+				and    	cd.CodigoDesvinculacao	        = 	dd.CodigoDesvinculacao
+		        	and    	dd.Serie                        =       a.Serie  
+		        	and    	dd.Auto                         =       a.Cod
+		        	and    	dd.OrgaoAutuante                =       a.OrgaoAutuante
+		        	and    	i.Cod                           =       dd.Infracao
+		        	and    	i.Desdobramento                 =       dd.Desdobramento
+		        	and    	cd.MotivoDesvinculacao		=	md.Codigo
+		        	and    	cd.Protocolo                   *=	prot.Cod
+		        	and    	cd.Usuario			=	u.Cod
+		        	and    	cd.CodigoPropDesvinculado	=       pdesv.Cod
+		        	and    	cd.CodigoPropVinculado         *=	pvinc.Cod
+		        	and    	cd.PlacaDesvinculada	       *=	v.Placa
+		        	and    	a.OrgaoCompetencia              =       o.Cod
+		        	and    	(cd.MotivoDesvinculacao	   	=	@MotivoDesvinculacao or @MotivoDesvinculacao is null) 
+		        	and    	(a.OrgaoCompetencia 		= 	@OrgaoCompetencia or @OrgaoCompetencia is null)
+		        	and    	cd.DataInclusaoDesvinculacao  between @DataInicial and @DataFinal
+				and 	cd.Situacao			= 	@SituacaoDesvinculacao  
+				and	(dd.Setor	 		=	ltrim(rtrim(@SetorDesvinculacao)) or  @SetorDesvinculacao is null)  --afs nova condição))
+		        	Order By 1
+	
+	end
+	else
+	begin
+
+		if	@TelaConsulta	 = 'N'
+		begin
+			select      
+		-----------dados do cadastrp de desvinculação------	 
+				cd.CodigoDesvinculacao       
+				,cd.CPFCNPJDesvinculado       
+				,cd.CodigoPropDesvinculado 
+				,(case 	when cd.NomeProprietarioDesvinculado != null  then cd.NomeProprietarioDesvinculado 
+					when @pdesvNome != null then @pdesvNome 
+					else pdesv.Nome end )  as NomeDesVinculado 
+		--		,isnull(@pdesvNome,pdesv.Nome)  as NomeDesVinculado
+				,cd.PlacaDesvinculada                     
+				,cd.ChassiDesvinculado  
+				,v.Renavam                   
+				,cd.Protocolo 
+				,ass.DescrAss                 
+				,cd.NumeroProcessoJudicial    
+				,cd.OrgaoResponsavelLeilao    
+				,o.Descricao 
+				,cd.DataLeilao                
+				,cd.CPFCNPJVinculado  
+				,cd.CodigoPropVinculado           
+				,(case 	when cd.NomeProprietarioVinculado != null  then cd.NomeProprietarioVinculado 
+					when @pvincNome != null then @pvincNome 
+					else pdesv.Nome end )  as NomeVinculado 
+		--		,isnull(@pvincNome,pvinc.Nome) as NomeVinculado
+				,cd.PlacaVinculada            
+				,cd.ChassiVinculado        
+				,cd.MotivoDesvinculacao    
+				,md.Descricao    
+				,cd.Observacao                
+				,cd.Usuario   
+				,u.Nome   
+				,cd.Situacao               
+				,(case when cd.Situacao = 'A' then 'ATIVO' else 'INATIVO' end) as 'DescriçãoSituação' 
+		--		,cd.NomeProprietarioDesvinculado -- nome da tabela de desvinculação afs 30/08
+		--		,cd.NomeProprietarioVinculado -- nome da tabela de desvinculação afs 30/08                                                   
+			 
+		---------dados da table 
+				 ,s.CodReduzido*10+s.Digito as Setor 
+				 ,Debito     
+				 ,Parcela                           
+				 ,td.Descricao as DescTipoDeb                        
+				 ,Exercicio                            
+				 ,sit.Descricao                             
+				 ,dd.OrgaoAutuante                        
+				 ,Serie                                
+				 ,(select 	Cod*10+DigitoVerificador 
+				 		from dbinfracao..Auto  
+				 		where OrgaoAutuante = dd.OrgaoAutuante 
+				 		and   Serie	  = dd.Serie 
+				 		and   Cod	  = dd.Auto	 
+				 		)        as Auto                          
+				 ,Infracao                             
+				 ,Desdobramento  
+				 ,(select 	DataInfracao  
+				 		from dbinfracao..Auto  
+				 		where OrgaoAutuante = dd.OrgaoAutuante 
+				 		and   Serie	  = dd.Serie 
+				 		and   Cod	  = dd.Auto	 
+				 		) as DataCometimento                      
+				 ,ValorMoeda                    
+				 from 	 dbvcen..DesvinculacaoDebito dd
+				 ,dbarrecadacao..TipoDebito td
+				 ,dbvcen..Setor s
+				 ,#Situacao sit
+				 ,dbvcen..CadastroDesvinculacao 	cd
+				 ,dbvcen..Proprietario   		pdesv  
+				 ,dbvcen..Proprietario   		pvinc
+				 ,Prot..Protocolo 		prot
+				 ,Prot..Assunto 			ass
+				 ,dbvcen..Veiculo			v
+				 ,dbinfracao..OrgaoAutuante	o
+				 ,MotivoDesvinculacao		md
+				 ,dbvcen..Usuario			u
+			where	 dd.CodigoDesvinculacao 			= 	@CodigoDesvinculacao
+			and 	 dd.TipoDebito 				=	td.Cod
+			and 	 dd.Situacao				=	sit.Cod
+			and   	 dd.Setor				=	s.Cod
+			and	 cd.CodigoDesvinculacao 	  	= 	dd.CodigoDesvinculacao
+			and 	 cd.CodigoPropDesvinculado		*=	pdesv.Cod 	
+			and 	 cd.CodigoPropVinculado			*=	pvinc.Cod 	
+			and 	 cd.Protocolo				*=	prot.Cod
+			and 	 prot.CodDoAss				*=	ass.Cod
+			and 	 cd.PlacaDesvinculada			*=	v.Placa
+			and 	 cd.OrgaoResponsavelLeilao   		*=	o.Cod
+			and 	 cd.MotivoDesvinculacao			=	md.Codigo
+			and 	 cd.Usuario				=	u.Cod
+			
+			and 	exists	(select 1 from dbvcen..MotDesvTipoDebSetor mds, dbvcen..Usuario us -----verifica se o usuário que está logado deve ter acesso a inativar a desvinculação
+					 where  dd.TipoDebito 	= mds.TipoDebito
+					 and 	suser_name()		= us.Cod
+					 and 	us.Setor		= mds.Setor)
+		
+		end
+		else if @TelaConsulta = 'S'
+		begin
+			select     
+		-----------dados do cadastro de desvinculação------	
+				cd.CodigoDesvinculacao      
+				,cd.CPFCNPJDesvinculado      
+				,cd.CodigoPropDesvinculado  
+				,isnull(@pdesvNome,pdesv.Nome)
+				,cd.PlacaDesvinculada                    
+				,cd.ChassiDesvinculado 
+				,v.Renavam                  
+				,cd.Protocolo
+				,ass.DescrAss                
+				,cd.NumeroProcessoJudicial   
+				,cd.OrgaoResponsavelLeilao   
+				,o.Descricao
+				,cd.DataLeilao               
+				,cd.CPFCNPJVinculado 
+				,cd.CodigoPropVinculado          
+				,isnull(@pvincNome,pvinc.Nome)
+				,cd.PlacaVinculada           
+				,cd.ChassiVinculado       
+				,cd.MotivoDesvinculacao   
+				,md.Descricao   
+				,cd.Observacao               
+				,cd.Usuario  
+				,u.Nome  
+				,cd.Situacao              
+				,(case when cd.Situacao = 'A' then 'ATIVO' else 'INATIVO' end) as 'DescriçãoSituação'
+			
+		---------dados da table
+				 ,s.CodReduzido*10+s.Digito as Setor
+				 ,Debito    
+				 ,Parcela                          
+				 ,td.Descricao as DescTipoDeb                       
+				 ,Exercicio                           
+				 ,sit.Descricao                            
+				 ,dd.OrgaoAutuante                       
+				 ,Serie                               
+				 ,(select 	Cod*10+DigitoVerificador
+				 		from dbinfracao..Auto 
+				 		where OrgaoAutuante = dd.OrgaoAutuante
+				 		and   Serie	  = dd.Serie
+				 		and   Cod	  = dd.Auto	
+				 		)        as Auto                         
+				 ,Infracao                            
+				 ,Desdobramento 
+				 ,(select 	DataInfracao 
+				 		from dbinfracao..Auto 
+				 		where OrgaoAutuante = dd.OrgaoAutuante
+				 		and   Serie	  = dd.Serie
+				 		and   Cod	  = dd.Auto	
+				 		) as DataCometimento                     
+				 ,ValorMoeda                          
+			from 	 dbvcen..DesvinculacaoDebito dd
+				 ,dbarrecadacao..TipoDebito td
+				 ,dbvcen..Setor s
+				 ,#Situacao sit
+				 ,dbvcen..CadastroDesvinculacao 	cd
+				 ,dbvcen..Proprietario   		pdesv  
+				 ,dbvcen..Proprietario   		pvinc
+				 ,Prot..Protocolo 		prot
+				 ,Prot..Assunto 			ass
+				 ,dbvcen..Veiculo			v
+				 ,dbinfracao..OrgaoAutuante	o
+				 ,MotivoDesvinculacao		md
+				 ,dbvcen..Usuario			u
+			where	 dd.CodigoDesvinculacao 			= 	@CodigoDesvinculacao
+			and 	 dd.TipoDebito 				=	td.Cod
+			and 	 dd.Situacao				=	sit.Cod
+			and   	 dd.Setor				=	s.Cod
+			and	 cd.CodigoDesvinculacao 	  	= 	dd.CodigoDesvinculacao
+			and 	 cd.CodigoPropDesvinculado		=	pdesv.Cod 	
+			and 	 cd.CodigoPropVinculado			*=	pvinc.Cod 	
+			and 	 cd.Protocolo				*=	prot.Cod
+			and 	 prot.CodDoAss				*=	ass.Cod
+			and 	 cd.PlacaDesvinculada			*=	v.Placa
+			and 	 cd.OrgaoResponsavelLeilao   		*=	o.Cod
+			and 	 cd.MotivoDesvinculacao			=	md.Codigo
+			and 	 cd.Usuario				=	u.Cod
+			
+		
+		end
+		else if @TelaConsulta = 'R'
+		begin
+		
+				select 
+			            cd.CodigoDesvinculacao, convert(varchar(20), cd.DataInclusaoDesvinculacao,103) as DataDesvinc
+			           ,cd.PlacaDesvinculada + '/' + v.UFAnterior as PlacaUf
+			           ,convert(char(06),a.OrgaoCompetencia) + ' ' + a.Serie + ' ' + ltrim(rtrim(convert(char(12),a.Cod))) + '-' + convert(char(01),a.DigitoVerificador) as AIT
+			           ,convert(varchar(20), (select DataInfracao from dbinfracao..Auto 
+					 		         where OrgaoAutuante = dd.OrgaoAutuante
+					 		         and   Serie	  = dd.Serie
+					 		         and   Cod	  = dd.Auto	
+					 		  ),103) + ' ' + convert(varchar(20), (select DataInfracao from dbinfracao..Auto 
+					 		         where OrgaoAutuante = dd.OrgaoAutuante
+					 		         and   Serie	  = dd.Serie
+					 		         and   Cod	  = dd.Auto	
+					 		  ),118) as DataCometimento 
+			           ,convert(varchar(04), isnull(i.Cod*10+i.Digito,i.Cod))+'-'+convert(char(01),i.Desdobramento) as 'Código Infração'
+			           ,md.Descricao as 'Motido Desvinculação'
+			           ,cd.Protocolo
+			           ,cd.NumeroProcessoJudicial as processo
+			           ,convert(varchar(15), u.Nome) as Usuario
+			           ,s.Descricao as Setor
+			           ,convert(varchar(15), (select Nome from dbvcen..Usuario where Cod = cd.UsuarioInativou)) as UsuarioInativo
+			           ,(select t.Descricao  from dbvcen..Setor t 
+					  where t.Cod = cd.SetorUsuarioInativou
+			            ) as 'Setor Usuario Inativo'
+			           ,convert(varchar(20), cd.DataInativacao,103) as 'Data Inativação'
+			           ,(case when cd.CodigoPropVinculado is null then  isnull(@pdesvNome,pdesv.Nome)
+			             else isnull(@pvincNome,pvinc.Nome) 
+			             end) as 'Proprietario Vinculado'
+			           ,cd.Situacao
+			           ,(case when cd.Situacao = 'I' then 'INATIVO' else 'ATIVO' end) as 'Descrição Situação'
+			           ,ValorMoeda
+			           ,isnull(a.AutoRENAINF,a.AutoINFRAEST) AS AutoRENAINF
+				   ,(case when @SituacaoDesvinculacao = 'A' then 'ATIVA' else 'INATIVA' end)	
+				from 	 
+			                dbvcen..DesvinculacaoDebito    dd
+			  	        ,dbvcen..CadastroDesvinculacao cd
+			                ,dbinfracao..Auto              a
+			                ,dbvcen..Setor                 s 
+			                ,dbinfracao..Infracao          i   
+			                ,MotivoDesvinculacao	       md
+			                ,Prot..Protocolo 	       prot
+			                ,dbvcen..Usuario	       u
+			                ,dbvcen..Proprietario  	       pvinc
+			                ,dbvcen..Proprietario  	       pdesv 
+			                ,dbinfracao..OrgaoAutuante     o  
+			                ,dbvcen..Veiculo	           v           
+			                  
+				where 	(dd.CodigoDesvinculacao 	=  @CodigoDesvinculacao or @CodigoDesvinculacao is null)
+			        	and    	dd.Setor				=	s.Cod
+				and    	cd.CodigoDesvinculacao	        = 	dd.CodigoDesvinculacao
+			        	and    	dd.Serie                         =       a.Serie  
+			        	and    	dd.Auto                          =       a.Cod
+			        	and    	dd.OrgaoAutuante                 =       a.OrgaoAutuante
+			        	and    	i.Cod                            =       dd.Infracao
+			        	and    	i.Desdobramento                  =       dd.Desdobramento
+			        	and    	cd.MotivoDesvinculacao		=	md.Codigo
+			        	and    	cd.Protocolo                    *=	prot.Cod
+			        	and    	cd.Usuario			=	u.Cod
+			        	and    	cd.CodigoPropDesvinculado	=       pdesv.Cod
+			        	and    	cd.CodigoPropVinculado  	       *=	pvinc.Cod
+			        	and    	cd.PlacaDesvinculada	       *=	v.Placa
+			        	and    	a.OrgaoCompetencia               =       o.Cod
+			        	and    	(cd.MotivoDesvinculacao	   =	@MotivoDesvinculacao or @MotivoDesvinculacao is null) 
+			        	and    	(a.OrgaoCompetencia = @OrgaoCompetencia or @OrgaoCompetencia is null)
+			        	and    	cd.DataInclusaoDesvinculacao  between @DataInicial and @DataFinal
+				and 	cd.Situacao			        = 	@SituacaoDesvinculacao  
+				and	(dd.Setor	 =	ltrim(rtrim(@SetorDesvinculacao)) or  @SetorDesvinculacao is null)  --afs nova condição))
+			        	Order By 1
+		
+		end
+		else if @TelaConsulta = 'T'
+		begin
+		
+				select         
+			            cd.CodigoDesvinculacao, convert(varchar(20), cd.DataInclusaoDesvinculacao,103) as DataDesvinc
+			           ,cd.PlacaDesvinculada + '/' + v.UFAnterior as PlacaUf
+			           ,convert(char(06),a.OrgaoCompetencia) + ' ' + a.Serie + ' ' + ltrim(rtrim(convert(char(12),a.Cod))) + '-' + convert(char(01),a.DigitoVerificador) as AIT
+			           ,convert(varchar(04), isnull(i.Cod*10+i.Digito,i.Cod))+'-'+convert(char(01),i.Desdobramento) as 'Código Infração'
+			           ,convert(varchar(20), (select DataInfracao from dbinfracao..Auto 
+					 		         where OrgaoAutuante = dd.OrgaoAutuante
+					 		         and   Serie	  = dd.Serie
+					 		         and   Cod	  = dd.Auto	
+					 		  ),103) + ' ' + convert(varchar(20), (select DataInfracao from dbinfracao..Auto 
+					 		         where OrgaoAutuante = dd.OrgaoAutuante
+					 		         and   Serie	  = dd.Serie
+					 		         and   Cod	  = dd.Auto	
+					 		  ),118) as DataCometimento 
+			           ,md.Descricao as 'Motido Desvinculação'   
+			           ,td.Descricao as DescTipoDeb       
+			           ,cd.Protocolo
+			           ,cd.NumeroProcessoJudicial as processo
+			           ,convert(varchar(15), u.Nome) as Usuario
+			           ,s.Descricao as Setor
+			           ,convert(varchar(15), (select Nome from dbvcen..Usuario where Cod = cd.UsuarioInativou)) as UsuarioInativo
+			           ,(select t.Descricao  from dbvcen..Setor t 
+					  where t.Cod = cd.SetorUsuarioInativou
+			            ) as 'Setor Usuario Inativo'
+			           ,convert(varchar(20), cd.DataInativacao,103) as 'Data Inativação'
+			           ,ValorMoeda
+			           ,isnull(a.AutoRENAINF,a.AutoINFRAEST) AS AutoRENAINF
+				   ,(case when @SituacaoDesvinculacao = 'A' then 'ATIVA' else 'INATIVA' end)
+			
+				
+				from 	 
+			                dbvcen..DesvinculacaoDebito    dd
+			  	        ,dbvcen..CadastroDesvinculacao cd
+			                ,dbinfracao..Auto              a
+			                ,dbvcen..Setor                 s 
+			                ,dbinfracao..Infracao          i   
+			                ,MotivoDesvinculacao	       md
+			                ,Prot..Protocolo 	       prot
+			                ,dbvcen..Usuario	       u
+			                ,dbvcen..Proprietario  	       pvinc
+			                ,dbvcen..Proprietario  	       pdesv 
+			                ,dbinfracao..OrgaoAutuante     o  
+			                ,dbvcen..Veiculo	           v
+			                ,dbarrecadacao..TipoDebito td           
+			                  
+				where 	(dd.CodigoDesvinculacao 	=  @CodigoDesvinculacao or @CodigoDesvinculacao is null)
+			
+			        	and    	dd.TipoDebito 			=	td.Cod  --nova linha
+			        	and    	dd.Setor				=	s.Cod
+				and    	cd.CodigoDesvinculacao	        = 	dd.CodigoDesvinculacao
+			        	and    	dd.Serie                         =       a.Serie  
+			        	and    	dd.Auto                          =       a.Cod
+			        	and    	dd.OrgaoAutuante                 =       a.OrgaoAutuante
+			        	and    	i.Cod                            =       dd.Infracao
+			        	and    	i.Desdobramento                  =       dd.Desdobramento
+			        	and    	cd.MotivoDesvinculacao		=	md.Codigo
+			        	and    	cd.Protocolo                    *=	prot.Cod
+			        	and    	cd.Usuario			=	u.Cod
+			        	and    	cd.CodigoPropDesvinculado	=       pdesv.Cod
+			        	and    	cd.CodigoPropVinculado  	       *=	pvinc.Cod
+			        	and    	cd.PlacaDesvinculada	       *=	v.Placa
+			        	and    	a.OrgaoCompetencia               =       o.Cod
+			        	and    	(cd.MotivoDesvinculacao	   	=	@MotivoDesvinculacao or @MotivoDesvinculacao is null) 
+			        	and    	(a.OrgaoCompetencia = @OrgaoCompetencia or @OrgaoCompetencia is null)
+			        	and    	cd.DataInclusaoDesvinculacao  between @DataInicial and @DataFinal  
+			       	and    	cd.Situacao		        = 	@SituacaoDesvinculacao
+			       	and 	dd.Setor			=	ltrim(rtrim(@SetorDesvinculacao))	--afs nova condição))
+			       	
+			    	union 
+			
+				select       
+			            cd.CodigoDesvinculacao, convert(varchar(20), cd.DataInclusaoDesvinculacao,103) as DataDesvinc
+			           ,cd.PlacaDesvinculada + '/' + v.UFAnterior as PlacaUf
+			           ,'' as AIT
+			           ,'' as 'Código Infração'
+			           ,'' as DataCometimento 
+			           ,md.Descricao as 'Motido Desvinculação'   
+			           ,td.Descricao as DescTipoDeb       
+			           ,cd.Protocolo
+			           ,cd.NumeroProcessoJudicial as processo
+			           ,convert(varchar(15), u.Nome) as Usuario
+			           ,s.Descricao as Setor
+			           ,convert(varchar(15), (select Nome from dbvcen..Usuario where Cod = cd.UsuarioInativou)) as UsuarioInativo
+			           ,(select t.Descricao  from dbvcen..Setor t 
+					  where t.Cod = cd.SetorUsuarioInativou
+			            ) as 'Setor Usuario Inativo'
+			           ,convert(varchar(20), cd.DataInativacao,103) as 'Data Inativação'
+			           ,ValorMoeda
+			           ,'' AS AutoRENAINF
+				   ,(case when @SituacaoDesvinculacao = 'A' then 'ATIVA' else 'INATIVA' end)
+				
+				from 	 
+			                 dbvcen..DesvinculacaoDebito    dd
+			  	        ,dbvcen..CadastroDesvinculacao cd
+			                ,dbvcen..Setor                 s 
+			                ,MotivoDesvinculacao	       md
+			                ,Prot..Protocolo 	       prot
+			                ,dbvcen..Usuario	       u
+			                ,dbvcen..Proprietario  	       pvinc
+			                ,dbvcen..Proprietario  	       pdesv 
+			                ,dbvcen..Veiculo	           v
+			                ,dbarrecadacao..TipoDebito td           
+			                  
+				where 	(dd.CodigoDesvinculacao 	=  @CodigoDesvinculacao or @CodigoDesvinculacao is null)
+			
+			        	and    	dd.TipoDebito 			=	td.Cod  --nova linha
+			        	and    	dd.Setor				=	s.Cod
+				and    	cd.CodigoDesvinculacao	        = 	dd.CodigoDesvinculacao
+			        	and    	cd.MotivoDesvinculacao		=	md.Codigo
+			        	and    	cd.Protocolo                    *=	prot.Cod
+			        	and    	cd.Usuario			=	u.Cod
+			        	and    	cd.CodigoPropDesvinculado	=       pdesv.Cod
+			        	and    	cd.CodigoPropVinculado  	       *=	pvinc.Cod
+			        	and    	cd.PlacaDesvinculada	       *=	v.Placa
+			        	and    	(cd.MotivoDesvinculacao	   =	@MotivoDesvinculacao or @MotivoDesvinculacao is null) 
+			        	and    	cd.DataInclusaoDesvinculacao  between @DataInicial and @DataFinal  
+				and    	td.OrigemDebito			!='I'
+				and 	cd.Situacao			        = 	@SituacaoDesvinculacao
+				and 	(dd.Setor	 =	ltrim(rtrim(@SetorDesvinculacao)) or  @SetorDesvinculacao is null) -- afs	--afs nova condição))
+			        	Order By 1
+		
+		end
+	end
+go
+
+execute sp_procxmode 'dbo.DesvinculacaoDebitoS', 'unchained'
+GO
+
+grant exec on dbo.DesvinculacaoDebitoS to desenvolvimento
+go
+grant exec on dbo.DesvinculacaoDebitoS to veiculo
+go
+
+

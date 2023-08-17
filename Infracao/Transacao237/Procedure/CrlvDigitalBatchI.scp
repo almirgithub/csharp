@@ -1,0 +1,77 @@
+use dbvcen
+GO
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.CrlvDigitalBatchI') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.CrlvDigitalBatchI
+end
+
+GO
+
+create proc dbo.CrlvDigitalBatchI
+/* 
+   Funcao	: Inclusao do registro. 					
+   Autor	: Almir
+   Data		: 25-01-2022
+*/
+
+(
+	
+	@CodSetor		int,
+        @Processo   		int,
+        @Transacao  		int,
+        @Placa      		char(7)		=	null, 
+        @UFPlaca    		char(02)	=	null, 	
+        @Veiculo    		int		=	null, 
+        @TipoDocumento 		int		=	null, 
+        @NumeroDoc  		numeric(12)	=	null, 
+        @NroVia  		int		=	null, 
+        @Exercicio 		numeric(4)	=	null,
+        @DataRetorno		datetime	=	null,
+        @DataEnvio		datetime	=	null,
+        @CodRetorno		int		=	null, 	
+        @RegistroBatch		text		=	null	
+	
+	
+)
+
+as
+
+	begin tran
+	
+		insert	into	dbvcen..CrlvDigitalBatch(
+			CodSetor, Processo, Transacao, Placa, UFPlaca,
+        		Veiculo , TipoDocumento, NumeroDoc, NroVia,
+        		Exercicio, DataRetorno, DataEnvio, CodRetorno, RegistroBatch)
+		values ( @CodSetor, @Processo, @Transacao, @Placa, @UFPlaca,
+        		 @Veiculo,  @TipoDocumento, @NumeroDoc, @NroVia,
+        		 @Exercicio, @DataRetorno, @DataEnvio, @CodRetorno, @RegistroBatch )
+	
+		if @@transtate=2
+		begin
+			rollback tran
+			raiserror 55000
+		  	return
+		end
+		else if @@transtate=3
+		begin
+			raiserror 55000 
+			return
+		end
+	
+	commit tran
+
+return
+GO
+
+execute sp_procxmode 'dbo.CrlvDigitalBatchI', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.CrlvDigitalBatchI to desenvolvimento
+GO
+
+Grant Execute on dbo.CrlvDigitalBatchI to veiculo
+GO

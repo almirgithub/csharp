@@ -1,0 +1,48 @@
+SQL-Programmer SPDW File V15
+
+[Begin] SPDWInfo
+  ObjectName          = almirfs.NEW_BatchObject
+  SchemaDatabaseName  = dbinfracao
+  ObjectTypeName      = BatchObject
+  ObjectTypeCode      = 88
+  ServerName          = HOMVEIC_DS
+  ServerType          = 1
+[End] SPDWInfo
+
+[Begin] EditTab
+
+select * from   RENAVAM..RetRenavam 
+where AnoJuliano = 2023
+and DiaJuliano = 171
+and NumSeqTransacao = 1
+and CodTransacao = 412
+
+
+
+select    a.*
+from     dbinfracao..Auto a, dbarrecadacao..Debito d, dbarrecadacao..ParcelaDebito pd , dbinfracao..InfracaoAuto ia
+where      a.OrgaoCompetencia     = 117100   
+and      a.AutoRENAINF         !=null
+and      a.OrgaoAutuante        = d.OrgaoAutuante 
+and      a.Serie            = d.Serie 
+and      a.Cod            = d.Auto 
+and      d.Setor            = pd.Setor 
+and      d.Cod            = pd.Debito 
+and      pd.Situacao           in  ('A','D','E') --- aberto ou em tramite 
+and      a.OrgaoAutuante        = ia.OrgaoAutuante 
+and      a.Serie            = ia.Serie 
+and      a.Cod            = ia.Auto 
+and      a.Cod  =     2789513
+
+
+         1         2         3         4         5	   6         7	       8	 9        10        11        12        13        14        15        16        17
+1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+000074412417010000000PEBRPE10172000020001171000D2789513374551102090198294PEAlmir Felipe dos Santos                     12023061910301202306191035120230619103612023061910401
+
+@IndicadorArgumento = 1
+@IndAdesaoPossuidorEpocaSNE = 1
+
+
+[End] EditTab
+

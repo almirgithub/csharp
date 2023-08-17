@@ -1,0 +1,278 @@
+
+update	dbinfracao..RNFTipoRegistrosTransacao 
+set 	Tamanho = 132   
+where   Transacao = 423  
+and 	Cod = 'EV01'
+
+
+update	dbinfracao..RNFTipoRegistrosTransacao 
+set 	Tamanho = 172   
+where   Transacao = 412  
+and 	Cod = 'RT02'
+
+
+update	dbinfracao..RNFTipoRegistrosTransacao 
+set 	Tamanho = 276   
+where   Transacao = 413  
+and 	Cod = 'RT02'
+
+
+
+DELETE dbo.RNFTransacaoTipoRegistro
+WHERE Transacao = 412 and TipoRegistroTransacao = 'RT02'
+
+
+DELETE dbo.RNFTransacaoTipoRegistro
+WHERE Transacao = 413 and TipoRegistroTransacao = 'RT02'
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 1, 'PFIXA', 1, 37, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 2, 'P1', 38, 40, 0, 0, 0, 0)
+
+GO
+
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 3, 'P5', 41, 46, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 4, 'P8', 47, 56, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 5, 'P9', 57, 60, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 6, 'P114', 61, 61, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 7, 'P16', 62, 62, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 8, 'P17', 63, 73, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 9, 'P18', 74, 75, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 10, 'P54', 76, 119, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 11, 'P76', 120, 120, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 12, 'P70', 121, 128, 0, 0, 0, 0)
+
+GO
+
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 13, 'P21', 129, 132, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (412, 'RT02', 14, 'P78', 133, 133, 0, 0, 0, 0)
+
+GO
+
+
+
+---------------------------
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 1, 'PFIXA', 1, 37, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 2, 'P1', 38, 40, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 3, 'P5', 41, 46, 0, 0, 0, 0)
+
+GO
+
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 4, 'P8', 47, 56, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 5, 'P9', 57, 60, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 6, 'P114', 61, 61, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 7, 'P174', 62, 62, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 8, 'P33', 63, 63, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 9, 'P34', 64, 77, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 10, 'P35', 78, 117, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 11, 'P85', 118, 147, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 12, 'P89', 148, 152, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 13, 'P66', 153, 172, 0, 0, 0, 0)
+
+GO
+
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 14, 'P116', 173, 192, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 15, 'P164', 193, 196, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 16, 'P106', 197, 198, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 17, 'P61', 199, 206, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 18, 'P44', 207, 207, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 19, 'P102', 208, 209, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 20, 'P16', 210, 210, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 21, 'P17', 211, 221, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 22, 'P18', 222, 223, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 23, 'P76', 224, 224, 0, 0, 0, 0)
+
+GO
+
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 24, 'P70', 225, 232, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 25, 'P21', 233, 236, 0, 0, 0, 0)
+
+GO
+
+insert into dbo.RNFTransacaoTipoRegistro
+            (Transacao, TipoRegistroTransacao, Sequencial, RNFCampo, PosicaoInicialParam1, PosicaoFinalParam1, PosicaoInicialParam2, PosicaoFinalParam2, PosicaoInicialParam3, PosicaoFinalParam3)
+     VALUES (413, 'RT02', 26, 'P78', 237, 237, 0, 0, 0, 0)
+
+GO
+
+
+

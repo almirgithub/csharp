@@ -1,0 +1,46 @@
+use master
+go
+
+/*  Database 'dbvcen'  */
+use dbvcen
+go
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.EnvioCrlvDigitalBatchS'
+go
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.EnvioCrlvDigitalBatchS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.EnvioCrlvDigitalBatchS
+end
+GO
+
+
+create proc dbo.EnvioCrlvDigitalBatchS
+
+as
+begin
+
+end
+
+return 0   
+
+GO
+
+execute sp_procxmode 'dbo.EnvioCrlvDigitalBatchS', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.EnvioCrlvDigitalBatchS to desenvolvimento
+GO
+
+Grant Execute on dbo.EnvioCrlvDigitalBatchS to veiculo
+GO

@@ -1,0 +1,358 @@
+use master
+GO
+
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.PrevisaoArrecadacaoMultaS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.PrevisaoArrecadacaoMultaS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.PrevisaoArrecadacaoMultaS
+end
+GO
+
+/*    
+	Criado por: Adilson Santos/Almir 
+	Data	  : 22/01/2019
+	Objetivo  : Emissão do relatório de previsão de Arrecadação de Multas
+	Altera‡Æo : afs-24/05/2019 foi criada uma tabela tempor ria para guardar os
+		    dados que serÆo passados para tela tamb‚m acessando outra procedure
+		    para recupera‡Æo da data da primeira habilita‡Æo, sexo e a categoria
+		    afs - 15-08-2022 foram colocados dois novos campos para retorno 
+		    
+*/  
+ 
+create proc dbo.PrevisaoArrecadacaoMultaS
+      
+(             
+	
+	@nOrgao				numeric(06),
+	@dDataInicial			datetime,
+	@dDataFinal			datetime,
+	@sOrderBy			char(02),
+	@sHoraInicial			datetime = null,
+	@sHoraFinal			datetime = null
+	
+
+)    
+      
+as        
+
+	declare	@sHoraIni	char(05),
+	 	@sHoraFim	char(05)
+
+
+	if @sHoraInicial is not null
+	begin
+		select @sHoraIni = convert(char(5),@sHoraInicial,108) --  left(@sHoraInicial,5)  --+ ':' +  right(@sHoraInicial,2)	
+	end
+
+	if @sHoraFinal is not null
+	begin
+		select @sHoraFim =  convert(char(5),@sHoraFinal,108) --left(@sHoraFinal,5)  --+ ':' +  right(@sHoraFinal,2)	
+--		if @sHoraFim = '00:00'
+--		begin
+--		   select @sHoraFim = '23:59'
+--		end   	
+	end
+
+
+	if @nOrgao is null
+	begin
+		raiserror 60000 'O Órgão autuante dever  ser informado!'             
+		return -900   
+	end
+
+	if @dDataInicial is null or @dDataFinal is null
+	begin
+		raiserror 60000 'O período dever ser informado!'             
+		return -900   
+	end
+
+
+	if @sOrderBy is null
+	begin
+		raiserror 60000 'Um tipo de Ordenação dever ser informado!'             
+		return -900   
+	end
+
+	if @sHoraInicial is not null
+		select @dDataInicial = convert(datetime,convert(char(10),@dDataInicial,112)+' ' + @sHoraIni),
+		       @dDataFinal = convert(datetime,convert(char(10),@dDataFinal,112)+' ' + @sHoraFim)
+	else
+		select @dDataInicial = convert(datetime,convert(char(10),@dDataInicial,112)+' 00:00'),
+		       @dDataFinal = convert(datetime,convert(char(10),@dDataFinal,112)+' 23:59')
+	
+
+	declare	@sDescricao	varchar(100),
+		@sPlaca		char(7),
+		@sUf		char(2),
+		@sChassi	varchar(21),
+		@sDataInfracao	varchar(10),
+		@sHoraInfracao	varchar(05),
+		@nValorInfracao numeric(15,4),
+		@nCNH		numeric(12,0),
+		@sCondutor	varchar(50),
+		@nCPFCondutor	numeric(14,0),
+		@sDescricaoInf	varchar(100),
+		@slSexo		char(01),
+	    	@dlDataPrimeiraHab	datetime,
+	    	@slCategoria	char(03),
+    		@sTipoVeiculo	char(15),
+		@nIdadeCond	numeric(3,0),
+		@sSerie		char(2),
+		@nAuto		numeric(10,0),
+		@nDigito	numeric(1,0)
+		
+
+
+	-- Criando a tabela Temporaria.  
+	create	table #tmpArrecadacao 
+	(
+		Descricao	varchar(100) 	null,
+		Placa		char(7)		null,
+		Uf		char(2)		null,		
+		Chassi		varchar(21)	null,
+		DataInfracao	varchar(10)	null,
+		HoraInfracao	varchar(05)	null,
+		ValorInfracao 	numeric(15,4)	null,
+		CNH		numeric(12,0)	null,
+		Condutor	varchar(50)	null,
+		CPFCondutor	numeric(14,0)	null,
+		DescricaoInf	varchar(100)	null,
+		Sexo		char(01)	null,
+	    	DataPrimeiraHab	char(10)	null, --datetime	null,
+	    	Categoria	char(03)	null,
+	    	Idade		numeric(3,0)	null,
+	    	Serie		char(2)		null, 
+	    	Auto		numeric(10,0)	null
+	    	
+	)  
+
+
+
+
+	if @sOrderBy = 'DC' -- Data de Cometimento 
+	begin
+		declare cursorArrecadacao cursor for
+			select 	ag.Descricao,
+				a.Placa,
+				a.UFPlaca,
+				a.Chassi,
+				convert(char(10),a.DataInfracao,103) as DataInfracao,
+				convert(char(5),DataInfracao,118) as HoraInfracao ,
+				convert(numeric(10,2),round((vg.Valor*mc.Valor),2)) as ValorInfracao ,
+				a.CNH,
+				a.Condutor,
+				a.CPFCondutor,
+		    		i.Descricao as DescInf,
+		    		a.Serie, a.Cod * 10 + DigitoVerificador  -- novos campos #60131
+		    	from    dbinfracao..Auto a (index Auto_DataInfracao),
+		        	dbinfracao..InfracaoAuto ia ,      
+		        	dbinfracao..Infracao i ,
+		        	dbinfracao..ValorGrupo vg, 
+		        	dbarrecadacao..MoedaCotacao mc,
+		        	dbinfracao..AgenteEquip ag	
+        	   	where   a.DataInfracao between @dDataInicial and @dDataFinal
+		    	and     a.OrgaoAutuante = @nOrgao
+		    	and     a.Serie         = ia.Serie        
+		    	and     a.OrgaoAutuante = ia.OrgaoAutuante        
+		    	and    	a.Cod           = ia.Auto        
+		    	and     ia.Infracao     = i.Cod
+		    	and     ia.Desdobramento= i.Desdobramento
+		    	and     a.OrgaoAutuante = ag.OrgaoAutuante
+		    	and     a.AgenteEquip   = ag.Cod
+		    	and    	i.Grupo 	= vg.Grupo
+		    	and    	vg.Vigencia 	= (select max(Vigencia)	from dbinfracao..ValorGrupo vg1
+		            				where vg1.Grupo = vg.Grupo
+		            				and Vigencia <= a.DataInfracao)    
+		    	and     vg.Moeda    	= mc.Moeda            
+		   	and    mc.DataCad 	= (select max(DataCad) from dbarrecadacao..MoedaCotacao mc1
+		                			where mc1.Moeda = mc.Moeda
+		                			and   mc1.DataCad <= a.DataInfracao) 
+		        Order By ag.Descricao, a.DataInfracao    --1, 4
+	        for	read only   
+	end	         
+
+	if @sOrderBy = 'DV' -- Data de Cometimento e Valor
+	begin
+		declare cursorArrecadacao cursor for
+			select 	ag.Descricao,
+				a.Placa,
+				a.UFPlaca,
+				a.Chassi,
+				convert(char(10),a.DataInfracao,103) as DataInfracao,
+				convert(char(5),DataInfracao,118) as HoraInfracao,
+				convert(numeric(10,2),round((vg.Valor*mc.Valor),2)) as ValorInfracao ,
+				a.CNH,
+				a.Condutor,
+				a.CPFCondutor,
+		    		i.Descricao as DesInf,
+		    		a.Serie, a.Cod * 10 + DigitoVerificador  -- novos campos #60131
+		    	from    dbinfracao..Auto a (index Auto_DataInfracao),
+		        	dbinfracao..InfracaoAuto ia ,      
+		        	dbinfracao..Infracao i ,
+		        	dbinfracao..ValorGrupo vg, 
+		        	dbarrecadacao..MoedaCotacao mc,
+		        	dbinfracao..AgenteEquip ag
+		    	where   a.DataInfracao between @dDataInicial and @dDataFinal
+		    	and     a.OrgaoAutuante = @nOrgao
+		    	and     a.Serie         = ia.Serie        
+		    	and     a.OrgaoAutuante = ia.OrgaoAutuante        
+		    	and    	a.Cod           = ia.Auto        
+		    	and     ia.Infracao     = i.Cod
+		    	and     ia.Desdobramento= i.Desdobramento
+		    	and     a.OrgaoAutuante = ag.OrgaoAutuante
+		    	and     a.AgenteEquip   = ag.Cod
+		    	and    	i.Grupo 	= vg.Grupo
+		    	and    	vg.Vigencia 	= (select max(Vigencia)	from dbinfracao..ValorGrupo vg1
+		            				where vg1.Grupo = vg.Grupo
+		            				and Vigencia <= a.DataInfracao)    
+		    	and     vg.Moeda    	= mc.Moeda            
+		   	and    mc.DataCad 	= (select max(DataCad) from dbarrecadacao..MoedaCotacao mc1
+		                			where mc1.Moeda = mc.Moeda
+		                			and   mc1.DataCad <= a.DataInfracao) 
+		        Order By ag.Descricao, a.DataInfracao, ValorInfracao desc --1, 4, 5
+	        for	read only   
+
+	end	         
+
+	if @sOrderBy = 'VI' -- Valor da Infração
+	begin
+		declare cursorArrecadacao cursor for
+			select 	ag.Descricao,
+				a.Placa,
+				a.UFPlaca,
+				a.Chassi,
+				convert(char(10),a.DataInfracao,103) as DataInfracao,
+				convert(char(5),DataInfracao,118) as HoraInfracao,
+				convert(numeric(10,2),round((vg.Valor*mc.Valor),2)) as ValorInfracao ,
+				a.CNH,
+				a.Condutor,
+				a.CPFCondutor,
+		    		i.Descricao as DescInf,
+		    		a.Serie, a.Cod * 10 + DigitoVerificador  -- novos campos #60131
+		    	from    dbinfracao..Auto a (index Auto_DataInfracao),
+		        	dbinfracao..InfracaoAuto ia ,      
+		        	dbinfracao..Infracao i ,
+		        	dbinfracao..ValorGrupo vg, 
+		        	dbarrecadacao..MoedaCotacao mc,
+		        	dbinfracao..AgenteEquip ag
+		    	where   a.DataInfracao between @dDataInicial and @dDataFinal
+		    	and     a.OrgaoAutuante = @nOrgao
+		    	and     a.Serie         = ia.Serie        
+		    	and     a.OrgaoAutuante = ia.OrgaoAutuante        
+		    	and    	a.Cod           = ia.Auto        
+		    	and     ia.Infracao     = i.Cod
+		    	and     ia.Desdobramento= i.Desdobramento
+		    	and     a.OrgaoAutuante = ag.OrgaoAutuante
+		    	and     a.AgenteEquip   = ag.Cod
+		    	and    	i.Grupo 	= vg.Grupo
+		    	and    	vg.Vigencia 	= (select max(Vigencia)	from dbinfracao..ValorGrupo vg1
+		            				where vg1.Grupo = vg.Grupo
+		            				and Vigencia <= a.DataInfracao)    
+		    	and     vg.Moeda    	= mc.Moeda            
+		   	and    mc.DataCad 	= (select max(DataCad) from dbarrecadacao..MoedaCotacao mc1
+		                			where mc1.Moeda = mc.Moeda
+		                			and   mc1.DataCad <= a.DataInfracao) 
+	         	Order By ag.Descricao, ValorInfracao desc -- 1, 5
+		for	read only   
+	end	         
+
+	--abrindo o cursos
+	open cursorArrecadacao
+	fetch cursorArrecadacao into @sDescricao, @sPlaca, @sUf, @sChassi, 
+				  @sDataInfracao, @sHoraInfracao, @nValorInfracao, @nCNH, 
+				  @sCondutor, @nCPFCondutor, @sDescricaoInf,
+				  @sSerie, @nAuto	
+ 
+	while @@sqlstatus !=2 and @@sqlstatus !=1
+	begin 
+
+		select 	@slSexo	= null,
+		  	@dlDataPrimeiraHab = null,
+		  	@slCategoria = null,
+		  	@nIdadeCond = null
+
+		if @nCNH is not null
+		begin
+		
+			exec dbinfracao..RpcLerCondutorCnh 
+		        	@nRegistro = @nCNH, 
+		        	@sRelatorioMultas  = 'S',
+--		        	@iTipoRegistro = 1,
+		        	@sSexo = @slSexo  output,
+		        	@sCategoria = @slCategoria  output,
+			@dDataPrimHab = @dlDataPrimeiraHab output,
+			@nIdadeCondutor = @nIdadeCond output
+				                
+		                
+		end		
+	
+		insert into #tmpArrecadacao (Descricao,Placa,Uf,Chassi,DataInfracao,HoraInfracao,ValorInfracao,CNH,Condutor,CPFCondutor,DescricaoInf,Sexo,DataPrimeiraHab,Categoria,Idade, Serie , Auto)
+		values (@sDescricao, @sPlaca, @sUf, @sChassi, @sDataInfracao, @sHoraInfracao, @nValorInfracao, @nCNH, @sCondutor, @nCPFCondutor, @sDescricaoInf, @slSexo, convert(char(10),@dlDataPrimeiraHab,103), @slCategoria, @nIdadeCond,
+			@sSerie, @nAuto)
+		
+
+		fetch cursorArrecadacao into @sDescricao, @sPlaca, @sUf, @sChassi, 
+					  @sDataInfracao, @sHoraInfracao, @nValorInfracao, @nCNH, 
+					  @sCondutor, @nCPFCondutor, @sDescricaoInf,
+					  @sSerie, @nAuto
+
+	end
+
+	--Fechando o cursor
+	close cursorArrecadacao
+
+	select 	t.Descricao,
+		t.Placa,
+		t.Uf,
+		tv.Descricao as TipoVeiculo,
+		t.Chassi,
+		t.DataInfracao,
+		t.HoraInfracao,
+		t.ValorInfracao,
+		t.CNH,
+		t.Condutor,
+		t.CPFCondutor,
+		t.DescricaoInf,
+		t.Sexo,
+	    	t.DataPrimeiraHab,
+	    	t.Categoria,
+	    	t.Idade,
+	    	t.Serie,
+	    	t.Auto
+/*	    	(case when t.CNH is null then null
+	    	     else t.Idade
+	    	end) as Idade*/
+	from #tmpArrecadacao t, 
+		dbvcen..Veiculo v, 
+		dbvcen..TipoVeiculo tv
+	where t.Placa *= v.Placa
+	and v.Tipo *= tv.Cod
+
+
+
+return 0
+go
+
+
+execute sp_procxmode 'dbo.PrevisaoArrecadacaoMultaS', 'unchained'
+GO
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.PrevisaoArrecadacaoMultaS to desenvolvimento
+GO
+
+Grant Execute on dbo.PrevisaoArrecadacaoMultaS to veiculo
+GO  

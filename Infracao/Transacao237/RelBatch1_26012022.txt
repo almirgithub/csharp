@@ -1,0 +1,2 @@
+Setor;Processo;Transação;Placa;UF Placa;Veículo;Tipo Documento;Número Docto;Nro da Via;Exercício;Data Retorno;Data Envio;Código Retorno;Registro;
+;;237;PFE3682;PE;41547534;2;;;2021;2022-01-26-07.04.41.700000;2022-01-26-07.04.41.700000;237;;

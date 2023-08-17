@@ -1,0 +1,1169 @@
+use master
+GO
+
+/*
+  Script for Server VEICULO_DS (Adaptive Server Enterprise/15.7/EBF 28253 SMP SP140 /P/Sun_svr4/OS 5.10/ase157sp140x/4122/64-bit/FBO/Thu May 24 14:24:10 2018) on sun_svr4
+*/
+
+/*  Database 'dbvcen'  */
+use dbvcen
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.MovimentoAutoS_historico'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MovimentoAutoS_historico') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MovimentoAutoS_historico
+end
+
+GO
+
+create proc dbo.MovimentoAutoS_historico
+      
+/* Funcao : Selecionar o historico dos movimentos.	*/  
+/* Autor  : Celso - 16/01/1997 				*/  
+/* Alterado: Adilson - 11/07/2007 - Foi concatenado o codigo do retorno a descricao. */  
+/* Alterado: Adilson - 16/02/2011 - Retorno do numero da caixa nos processos de indica‡Æo de condutores*/  
+/* Alterado: Adilson - 19/05/2011 - Apresentar a situa‡Æo do processo aberto para o auto em questÆo*/  
+/* Alterado: Adilson - 30/01/2012 - Retirado o suser_name() do movimento de protocolo*/  
+/* Alterado: Maria Perez - 24/01/2013 - Colocado case para todas as decisões do AI na tabela comunicado*/  
+/* Alterado: Maria Perez - 17/06/2015 - Apresentar data do registro do protocolo ao inves da data do cadastro na tabela Comunicado */  
+/* Alterado: [faml] Flávio Lago - 20/04/2016 - Mostrar os dados do pagamento - SPRINT MAIO/2016 #360 */  
+/* Alterado: [faml] Flávio Lago - 03/05/2016 - Mostrar os dados do relatório de histórico de movimentação dos autos - SPRINT JUNHO/2016 # */  
+/* Alterado: [faml] Flávio Lago - 09/06/2016 - #1191 WALESKA e EDNALDO, ambos DER-PE, informam que o rel. do histórico está incorreto */ 
+/* Alterado: Adilson - 10/06/2016 - Distinct nas subquerys*/ 
+ 
+/* Alterado: Adilson - 22/06/2016 - add na query da movimento baixa >>> and     ar.ValPriReal 		= mb.ValPriReal */ 
+/* Alterado: Adilson - 30/06/2016 - Exibir quem foi ou será pontuado */ 
+/* Alterado: Adilson - 11/10/2016 - Multiplicar o valor moeda pela moeda cotação antes 1.0641*/ 
+/* Alterado: Adilson - 09/11/2016 - Melhoria na query para mostrar a data que foi registrada o pre-registro ou o registro da pontuação antes estava pegando a maxima data */ 
+/* Alterado: Adilson - 16/12/2016 - Melhoria na query para mostrar a data que foi registrada o pre-registro ou o registro da pontuação antes estava pegando a maxima data */ 
+/* Alterado: Adilson - 19/07/2017 - Incluir o movimento tramite para os autos assinados - possibilitar que possa ser transmitido para o RENAINF */ 
+/* Alterado: Fernando Veras - 27/09/2017 - Retornado dados referente a transmissão do movimento e para os movimentos de tramite e notificação retornar nomearquivo, datatransmissao e cod retorno*/ 
+/* Alterado: Adilson Santos - 22/11/2017 - Alterado para retornar apenas para os movimento Tramite e Penalidade -- referente a alteração acima*/ 
+/* Alterado: Adilson - 28/02/2018 - Incluir o movimento tramite para os autos assinados - possibilitar que possa ser transmitido para o RENAINF - mesmo auto estando pago */ 
+/* Alterado: Adilson - 05/07/2018 - Problema de subquery*/ 
+/* Alterado: Adilson - 27/11/2018 - Possibilitar exibir a autuação para auto assinado independentimente da situação do mesmo*/ 
+/* Alterado: Adilson - 16/01/2019 - Possibilitar exibir o movimento de desvinculação de autos da PRF e DNIT*/ 
+/* Alterado: Adilson - 08/02/2019 - Melhoria na exibição da descrição da decisão do protocolo */	  
+/* Alterado: Adilson - 21/02/2019 - Acrescentar o movimento de autuação para os veiculos que foram recolhidos e não estavam emplacados*/
+/* Alterado: João Queiroz - 19/03/2019 - Ajustar subquery 'SÓ ENVIO DESVINCULAÇ+O DE ÓRG+O DE PE' para realizar join com  dd.CodigoDesvinculacao - ocorreu erro de sub query redmine: 25512*/
+/* Alterado: Adilson Santos - 10/05/2019 - Apresentar o movimento de desvinculação recebida de outra UF*/
+/* Alterado: Adilson Santos - 20/06/2019 - O veiculo PCK7248 foi removido e auto foi implantado com retenção - sem está emplacado.*/
+/* Alterado: Adilson Santos - 05/08/2019 - Tratar Desvinculação que foi cancelada*/
+/* Alterado: Adilson Santos - 24/12/2019 - Apresentar os movimentos de desvinculação - estava ocorendo erro de subquery*/
+/* Alterado: Adilson Santos - 27/12/2019 - Exibir movimento de cancelamento de desvinculação mesmo que o auto tenha sido autuado por outras UF*/
+/* Alterado: Maria Perez    - 04/08/2020 - Apresenta em análise ou a decisão do protocolo quando existe protocolo com o auto*/
+-- Alteração: Almir 21-07-2022 - foi colocada uma nova coluna RetornoImg
+/* Alteração: João Queiroz - 22/09/2022 - aumentando o tamanho para descrição do retorno. */
+/* Adilson Santos 27/09/2022 - Desvinculação , considerar o cancelamento com a data igual a data do lancamento*/
+/* Adilson Santos: 22/11/2022 - Exibir que a indica‡Æo de condutor foi realizada pelo detran pessoal*/
+/* Adilson Santos: 23/01/2023 - Exibir a descri‡Æo da desvincula‡Æo a partir da tabela TipoMovimento*/
+/* Adilson Santos: 17/05/2023 - Na ultima query do movimento de baixa obter a descrição do movimento da tabela dbarrecadacao..TipoMovBixa*/
+/* Adilson Santos: 18/05/2023 - Melhoria na obtenção da data de vigencia*/
+/* Almir	: foram colocados nosvos campos na tabela #MovBaixa	NumeroBancario  varchar(40),	NumeroAutorizacao numeric(10,0) */
+
+(	@Serie			char(2),  
+	@Auto			numeric(10,0),  
+	@Infracao		numeric(6,0),  
+	@OrgaoAutuante	numeric(6,0), 
+	@Rel			char(1)= null	-- será 'S' quando a rotina for chamada do botão 'imprimir' da tela de consulta do histórico de movimentação dos autos 
+) 
+  
+as  
+declare  @NumBancario varchar(20), @Debito numeric(10), @Setor  varchar(21) 
+
+select	@Auto= floor( @Auto/10) 
+
+--------resolver problema consolie
+if suser_name()	IN ('fmoraes','rhvc') and exists(select 1
+	from dbinfracao..Auto a,
+			dbarrecadacao..MovimentoBaixa mb,       
+			dbarrecadacao..Debito deb
+ 			     
+		where	a.Serie 		=@Serie
+		and 	a.Cod			=@Auto
+		and     a.OrgaoAutuante 	= @OrgaoAutuante
+		and     a.Placa 		=	deb.Placa
+		and 	deb.Serie 		=a.Serie 
+		and 	deb.Auto 		= a.Cod
+		and 	deb.OrgaoAutuante 	= a.OrgaoAutuante
+		and	mb.Setor		= deb.Setor       
+		and	mb.Debito		= deb.Cod
+		and   	deb.Situacao 		= 'P'
+		and     mb.TipoMovimento 	= 4
+		and 	mb.Anulado		= 0 )
+begin		
+		
+	select 	@NumBancario = mb.NumBancario , @Debito = mb.Debito, @Setor = mb.Setor 
+		from dbinfracao..Auto a,
+				dbarrecadacao..MovimentoBaixa mb,       
+				dbarrecadacao..Debito deb
+	 			     
+			where	a.Serie 		=@Serie
+			and 	a.Cod			=@Auto
+			and     a.OrgaoAutuante 	= @OrgaoAutuante
+			and     a.Placa 		=	deb.Placa
+			and 	deb.Serie 		=a.Serie 
+			and 	deb.Auto 		= a.Cod
+			and 	deb.OrgaoAutuante 	= a.OrgaoAutuante
+			and	mb.Setor		= deb.Setor       
+			and	mb.Debito		= deb.Cod
+			and   	deb.Situacao 		= 'P'
+			and     mb.TipoMovimento 	= 4
+			
+	--6190350000532379		 
+	--select  @NumBancario
+	-- = 'AXA4198','619035000053237915'
+	
+	if	exists (select 1 from dbinfracao..Auto a,
+				dbarrecadacao..HisRetornoOnLine his,       
+				dbarrecadacao..Debito deb,
+				dbarrecadacao..ParcelaDebito pd      			     
+			where	a.Serie= @Serie
+			and 	a.Cod=@Auto
+			and     a.OrgaoAutuante = @OrgaoAutuante
+			and     a.Placa =	deb.Placa
+			and 	deb.Serie =a.Serie 
+			and 	deb.Auto = a.Cod
+			and 	deb.OrgaoAutuante = a.OrgaoAutuante
+			and	pd.Setor= deb.Setor       
+			and	pd.Debito= deb.Cod
+			and 	pd.Parcela = 99
+			and   	pd.Situacao = 'P'
+			and 	his.NumBancario = @NumBancario--his.Arquivo= @Arquivo        
+			and 	his.Situacao= 1        
+			and	his.Setor= deb.Setor       
+			and	his.Debito= deb.Cod
+			and      pd.DataLimDesconto > (	select mb.DataPagamento 
+							from dbarrecadacao..MovimentoBaixa mb 
+							where mb.Debito = deb.Cod
+							and   mb.Setor = deb.Setor
+							and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+							and   mb.Anulado = 0)
+			and      pd.DataLimDesconto > (	select mb.DataPagamento -------baixa estornada---estorno
+					from dbarrecadacao..MovimentoBaixa mb 
+					where mb.Debito = deb.Cod
+					and   mb.Setor = deb.Setor
+					and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+					and   mb.Anulado = 1)
+			and      exists  (select 1
+					from dbarrecadacao..MovimentoBaixa mb 
+					where mb.Debito = deb.Cod
+					and   mb.Setor = deb.Setor
+					and   mb.TipoMovimento =107 ----movimento de estorno por falta de confirmação
+					and   mb.Anulado = 0)
+			and        his.ValPago= (select mb.ValPriReal -------baixa online que foi estornada---estorno "indevidamente, pois, depois chegou a confirmação"
+					from dbarrecadacao..MovimentoBaixa mb 
+					where mb.Debito = deb.Cod
+					and   mb.Setor = deb.Setor
+					and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+					and   mb.Anulado = 1)
+			)
+			begin
+
+				declare  @ValPriMoeda numeric(12,6),@ValPriReal numeric(12,2),@ValJurRealDevido numeric(12,2)
+				select @ValPriMoeda=ValPriMoeda ,@ValPriReal=ValPriReal,@ValJurRealDevido=ValJurRealDevido -------baixa estornada---estorno
+								from dbarrecadacao..MovimentoBaixa mb 
+								where mb.Debito = @Debito
+								and   mb.Setor = @Setor
+								and   mb.TipoMovimento in (select tm.Cod from dbarrecadacao..TipoMovBaixa tm where Tipo = 'B')
+								and   mb.Anulado = 1
+								and   mb.NumBancario = @NumBancario
+								and   mb.TipoMovimento 	=1 
+								
+			
+				begin tran					
+				set rowcount 1
+			
+				update  dbarrecadacao..MovimentoBaixa set ValPriMoeda = @ValPriMoeda, ValPriReal = @ValPriReal, ValJurRealDevido=@ValJurRealDevido,Observacao = 'Reprocessamento autom. do consolid - consulta do auto'
+				where   NumBancario=@NumBancario and Debito = @Debito and Setor = @Setor and TipoMovimento = 4 and Anulado = 0
+					    
+				if @@transtate = 2 or @@transtate = 3      
+				begin      
+					if @@transtate = 2 rollback tran      
+					raiserror 55000 'Problemas ao corrigir a movimentação da baixa'      
+					return    
+				end    
+				
+				update dbarrecadacao..Debito  set  Situacao = 'T' 
+				where Setor=@Setor and Cod= @Debito
+					    
+				if @@transtate = 2 or @@transtate = 3      
+				begin      
+					if @@transtate = 2 rollback tran      
+					raiserror 55000 'Problemas ao atualizar o debito'      
+					return      
+				end    
+				
+				update dbarrecadacao..ParcelaDebito  set SaldoMoeda = 0.00, Situacao = 'T' 
+				where Setor=@Setor and Debito= @Debito
+				if @@transtate = 2 or @@transtate = 3      
+				begin      
+					if @@transtate = 2 rollback tran      
+					raiserror 55000 'Problemas ao atualizar a parceladebito'      
+					return      
+				end    
+				
+--				
+				update dbarrecadacao..MovimentoDebito set Usuario = 'consolid'  , Observacao = 'Reprocessamento autom. do consolid - consulta do auto'
+				where 	Debito 	= @Debito 
+				and 	Setor 	= @Setor 
+				and 	Usuario 	= suser_name() 
+				and 	convert(char(08),DataAtualizacao,112) =  convert(char(08),getdate(),112)
+				if @@transtate = 2 or @@transtate = 3      
+				begin      
+					if @@transtate = 2 rollback tran      
+					raiserror 55000 'Problemas ao corrigir o usuario'      
+					return       
+				end
+				  	
+				commit tran
+			end	
+				
+end			
+
+
+set rowcount  0 
+---------fim resolver problema processamento consolid errado
+ 
+declare @ArquivoRNF char(50), @DataGeracaoRNF datetime, @CodRetornoRNF char(50) 
+ 
+declare @ArquivoRNF413 char(50), @DataGeracaoRNF413 datetime, @CodRetornoRNF413 char(50),@sCodRetornoRNF412 char(50),@sCodRetornoRNF413 char(50) 
+		 
+/********** CRIAÇ+O TABELAS TEMPORARIAS *************/ 
+create table #Saida  
+(	 
+	DataAtualizacao datetime null, 	ProcessoRecurso int null, 		Movimento varchar(45) null,  
+	Descricao varchar(50) null, 	Restituicao char(1) null, 		Usuario char(7) null,  
+	Retorno varchar(255) null, 		Setor varchar(55) null, 		Caixa int null,  
+	DataPagamento datetime null, 	VigenciaRepasse datetime null, 	DataTransmissaoRENAINF datetime null, 
+	Arquivo char(50) null,			DataGeracao datetime null, 		CodRetorno char(50) null,
+	RetornoImg varchar(50) null,
+	NumeroBancario  varchar(40) null,    --afs 26-05-2023
+	NumeroAutorizacao numeric(10,0) null --afs 26-05-2023
+) 
+ 
+create table #MovBaixa  
+( 	 
+	Serie char(2) null, 			Auto numeric(10,0) null, 		Infracao numeric(6,0) null,  
+	OrgaoAutuante numeric(6,0) null,	Cod char(1) null,			TipoMovBaixa int null,  
+	NumBancario varchar(40) null, 		DescMovimentoBaixa varchar(45) null, 	VigenciaRepasse datetime null,  
+	DataAtualizacao datetime,
+	NumeroBancario  varchar(40) null,    --afs 26-05-2023
+	NumeroAutorizacao numeric(10,0) null --afs 26-05-2023
+) 
+ 
+-- Conversão 
+
+ 
+ 
+/************************* SELECT PARA INSERIR NA #MovBaixa *********************************/ 
+begin tran 
+	insert 	into #MovBaixa   
+	--	BAIXA RENAINF - OUTRA UF 
+		select 	@Serie,   
+			@Auto,   
+			@Infracao,   
+			@OrgaoAutuante,   
+			tm.Cod,   
+			mov.TipoMovDebito,   
+			mov.NumeroBancario,   
+			ltrim(rtrim(tmb.Descricao)) ,--|| ' - ' || ltrim(rtrim(tmb.Descricao)),   
+			convert(datetime,null) as DataVigenciaRepasse , --rb.DataVigenciaRepasse,   
+			mov.DataAtualizacao,
+			mov.NumeroBancario,    -- afs 26/05/2023		
+			mov.NumAutorizacao     -- afs 26-05-2023
+	from	dbinfracao..Auto a  
+		,  	dbinfracao..MovimentoAuto mov   
+		, 	dbarrecadacao..TipoMovBaixa tmb  
+		, 	dbinfracao..TipoMovimento tm   
+	where	a.OrgaoAutuante	 	= @OrgaoAutuante    
+	and 	a.Serie		 	= @Serie   
+	and 	a.Cod 		 	= @Auto   
+	and 	mov.OrgaoAutuante	= a.OrgaoAutuante   
+	and 	mov.Serie 	 	= a.Serie    
+	and 	mov.Auto 	 	= a.Cod   
+	and 	mov.TipoMovimento	= 'O'  
+	and  	mov.TipoMovDebito	= 16  
+	and  	tmb.Cod 		 	= mov.TipoMovDebito  
+	and 	tm.Cod			=	mov.TipoMovimento
+	 
+	UNION -- BAIXA local 
+	 
+	select 	@Serie,  
+			@Auto,  
+			@Infracao,  
+			@OrgaoAutuante,  
+			tm.Cod,  
+			mov.TipoMovDebito,  
+			mov.NumeroBancario,  
+			ltrim(rtrim(tm.Descricao)) || ' - ' || ltrim(rtrim(tmb.Descricao)),  
+			ar.VigenciaRepasse, 
+			DataAtualizacao,
+			mov.NumeroBancario,    -- afs 26/05/2023		
+			mov.NumAutorizacao     -- afs 26-05-2023
+	from	dbinfracao..Auto a 
+	,  	dbinfracao..MovimentoAuto mov  
+	, 	dbinfracao..TipoMovimento tm 
+	, 	dbarrecadacao..AutoRepasse ar  
+	, 	dbarrecadacao..MovimentoBaixa mb  
+	, 	dbarrecadacao..TipoMovBaixa tmb  
+	where	a.OrgaoAutuante	 	= @OrgaoAutuante   
+	and 	a.Serie		 	= @Serie  
+	and 	a.Cod 		 	= @Auto  
+	and 	mov.OrgaoAutuante	= a.OrgaoAutuante  
+	and 	mov.Serie 	 	= a.Serie   
+	and 	mov.Auto 	 	= a.Cod  
+	and 	mov.TipoMovimento	= 'O' 
+	and  	mov.TipoMovDebito	!= 16 
+	and  	tm.Cod 		 	= mov.TipoMovimento 
+	and 	ar.OrgaoAutuante	= a.OrgaoCompetencia  
+	and 	ar.Auto			= a.Cod  
+	and 	ar.Serie		= a.Serie  
+	and		mb.NumBancario		= mov.NumeroBancario  
+	and 	mb.TipoMovimento	= mov.TipoMovDebito 
+	and 	tmb.Cod			= mb.TipoMovimento 
+	and     ar.ValPriReal 		= mb.ValPriReal  
+	 
+	insert	into #MovBaixa  
+	select 	@Serie,  
+			@Auto,  
+			@Infracao,  
+			@OrgaoAutuante,  
+			tm.Cod,  
+			mov.TipoMovDebito,  
+			mov.NumeroBancario,  
+			(case when mov.TipoMovimento = 'O' and mov.TipoMovDebito=16
+				then (select t.Descricao from dbarrecadacao..TipoMovBaixa t where t.Cod=mov.TipoMovDebito) else  tm.Descricao end ) as Descricao, 
+			null, 
+			mov.DataAtualizacao,
+			mov.NumeroBancario,   -- afs 26/05/2023
+			mov.NumAutorizacao    -- afs 26/05/2023
+
+	from	dbinfracao..MovimentoAuto mov 
+		,  	dbinfracao..TipoMovimento tm 	  
+	where	mov.Serie = @Serie  
+	and 	mov.Auto = @Auto  
+	and 	mov.Infracao = @Infracao  
+	and 	mov.OrgaoAutuante = @OrgaoAutuante   
+	and 	mov.TipoMovimento = tm.Cod  
+	and 	not exists( select 1  
+						from 	#MovBaixa t  
+						where 	t.Serie = mov.Serie  
+						and 	t.Auto = mov.Auto  
+						and 	t.Infracao = mov.Infracao  
+						and 	t.OrgaoAutuante = mov.OrgaoAutuante  
+						and 	t.Cod = mov.TipoMovimento
+						and 	t.TipoMovBaixa  = mov.TipoMovDebito)  
+
+						 
+commit tran 
+ 
+/***********ATUALIZA A DATA DA VIGENCIA************** SELECT PARA INSERIR NA #tmpTMB *********************************/ 
+update  #MovBaixa set VigenciaRepasse = rb.DataVigenciaRepasse
+from	#MovBaixa m
+,	dbinfracao..Auto a  
+, 	dbarrecadacao..RNFPagamento rp   
+, 	dbarrecadacao..RNFBloqueto rb  
+, 	dbinfracao..OrgaoAutuante o
+where	a.OrgaoAutuante	 	= m.OrgaoAutuante    
+and 	a.Serie		 	= m.Serie   
+and 	a.Cod 		 	= m.Auto   
+and  	m.TipoMovBaixa		= 16  
+and 	m.OrgaoAutuante		= o.Cod
+and 	o.UF			= 'PE'
+and 	rp.OrgaoAutuante 	= a.OrgaoCompetencia   
+and 	rp.AutoRENAINF   	= a.AutoRENAINF   
+and 	rp.UFPagamento 		!= 'PE'   
+and 	rb.IdentificacaoRepasse	= rp.IdentificacaoRepasse   
+and 	rb.OrgaoAutuante	= rp.OrgaoAutuante   
+and 	rb.CodigoRetorno	= '000'   
+and  	(rb.Datapagamento is not null or rb.DataRepasse432 is not null)  
+	 
+select  distinct 
+		Serie 
+		,Auto 
+		,Infracao 
+		,OrgaoAutuante  
+		,TipoMovBaixa 
+		,NumBancario  
+		,DataAtualizacao 
+		,NumeroBancario     -- afs 26-05-2023
+		,NumeroAutorizacao  -- afs 26-05-2023
+
+into 	#tmpTMB 
+from 	#MovBaixa  
+where	TipoMovBaixa != null 
+ /******* SELECT PARA RETORNAR ARQUIVO, DTRANSMISSAO E COD RETORNO DA RNFArquivoBatch ******/  
+-- Se for o TipoMovimento = 'D' busque a transacao 412  
+select      @ArquivoRNF       = rnf.Arquivo,  
+            @DataGeracaoRNF = rnf.DataGeracao,  
+            @CodRetornoRNF    = convert(char(04),mov.CodRetorno), --+'-'+ltrim(rtrim(r.Descricao))  
+            @sCodRetornoRNF412 =ltrim(rtrim(r.Descricao))  
+from        dbinfracao..MovimentoAuto mov,  
+            dbinfracao..RNFArquivoTranBatch rnf,  
+            dbinfracao..RNFCodRetorno r  
+where       mov.Serie         = @Serie  
+and   mov.Auto          = @Auto  
+and   mov.OrgaoAutuante = @OrgaoAutuante  
+and   mov.TipoMovimento = 'D'  
+and   mov.Serie         = rnf.Serie  
+and   mov.Auto          = rnf.Auto  
+and   mov.OrgaoCompetencia = rnf.OrgaoCompetencia  
+and   rnf.Transacao     = 412  
+and   convert(int ,mov.CodRetorno) *= r.Cod  
+-- Se for o TipoMovimento = 'N' busque a transacao 413  
+select      @ArquivoRNF413    = rnf.Arquivo,  
+            @DataGeracaoRNF413 = rnf.DataGeracao,  
+            @CodRetornoRNF413       = convert(char(04),mov.CodRetorno) ,  
+            @sCodRetornoRNF413 =ltrim(rtrim(r.Descricao))  
+from        dbinfracao..MovimentoAuto mov,  
+            dbinfracao..RNFArquivoTranBatch rnf,  
+            dbinfracao..RNFCodRetorno r  
+where       mov.Serie         = @Serie  
+and   mov.Auto          = @Auto  
+and   mov.OrgaoAutuante       = @OrgaoAutuante  
+and   mov.TipoMovimento       = 'N'  
+and   mov.Serie         = rnf.Serie  
+and   mov.Auto          = rnf.Auto  
+and   mov.OrgaoCompetencia = rnf.OrgaoCompetencia  
+and   rnf.Transacao     = 413  
+and   convert(int ,mov.CodRetorno) *= r.Cod  
+
+	 
+/************************* SELECT PARA INSERIR NA #Saida *********************************/ 
+insert	into #Saida	 
+select	 
+	mov.DataAtualizacao, 
+	mov.ProcessoRecurso,  
+	(select distinct ltrim(rtrim(t.DescMovimentoBaixa))   
+			from 	#MovBaixa t   
+			where 	t.Cod= mov.TipoMovimento and (  (mov.NumeroBancario is null) or (mov.NumeroBancario is not null and t.NumBancario= mov.NumeroBancario)  
+			and t.TipoMovBaixa = tmb.TipoMovBaixa)  
+	) as 'Movimento',     
+	mot.Descricao,   
+	mov.Restituicao,   
+	mov.Usuario,   
+	isnull((select convert(char(03),r.Cod)+'-'+ltrim(rtrim(convert(char(50),r.Descricao)))   
+			from 	dbinfracao..Auto a,   
+			dbinfracao..RNFCodRetorno r  
+			where  	a.Serie = @Serie   
+			and 	a.Cod = @Auto   
+			and 	a.OrgaoAutuante = @OrgaoAutuante   
+			and 	mov.CodRetorno = r.Cod 
+			 
+	),(case when mov.TipoMovimento =  'D'  then ltrim(rtrim(@sCodRetornoRNF412)) else (case  when mov.TipoMovimento =  'N'  then ltrim(rtrim(@sCodRetornoRNF413)) else null end) end)) as 'Retorno',  
+	(select ltrim(rtrim(convert(char(10),s.CodReduzido)))+'-'+convert(char(01),s.Digito) + 	 ' - ' + s.Descricao  
+			from     dbvcen..CaixaProcesso cp, dbvcen..Setor s  
+			where    cp.TipoCaixa	= 4  
+			and  	 cp.Processo	= mov.ProcessoRecurso  
+			and      mov.TipoMovimento	= 'F'  
+			and      cp.Setor = s.Cod 
+	) as 'Setor',  		  
+	(select 	cp.Caixa  
+			from    dbvcen..CaixaProcesso cp  
+			where   cp.TipoCaixa	 = 4  
+			and  	cp.Processo	 = mov.ProcessoRecurso  
+			and     mov.TipoMovimento= 'F' 
+	) as 'Caixa', 
+	mov.DataPagamento,			 
+	(select  distinct t.VigenciaRepasse    
+			from   #MovBaixa t    
+			where  t.Cod= mov.TipoMovimento and ( (mov.NumeroBancario is null) or (mov.NumeroBancario is not null and t.NumBancario= mov.NumeroBancario and t.VigenciaRepasse !=null)  )   
+			and t.TipoMovBaixa = tmb.TipoMovBaixa 
+			and t.VigenciaRepasse = (select max(t1.VigenciaRepasse)  
+			from #MovBaixa t1 
+			where 	  
+			t1.Serie	= t.Serie and  
+			t1.Auto 	= t.Auto and  
+			t1.Infracao	= t.Infracao and 
+			t1.OrgaoAutuante = t.OrgaoAutuante  and  
+			t1.Cod =t.Cod and  
+			t1.TipoMovBaixa = t.TipoMovBaixa and  
+			t1.NumBancario = t.NumBancario) 
+	) as 'VigenciaRepasse', 
+	mov.DataTransmissaoRENAINF, 
+	(case when mov.TipoMovimento =  'D'  then ltrim(rtrim(@ArquivoRNF)) else (case  when mov.TipoMovimento =  'N'  then @ArquivoRNF413 else null end) end)   as 'Arquivo', 
+	(case when mov.TipoMovimento =  'D'  then @DataGeracaoRNF else (case  when mov.TipoMovimento =  'N'  then @DataGeracaoRNF413 else null end) end)   as 'DataGeracao', 
+	(case when mov.TipoMovimento =  'D'  then ltrim(rtrim(@CodRetornoRNF)) else (case  when mov.TipoMovimento =  'N'  then ltrim(rtrim(@CodRetornoRNF413)) else null end) end)   as 'CodRetorno',
+	(select rtrim(ltrim(convert(char(03),r.Cod)))+' - '+ltrim(rtrim(convert(char(50),r.Descricao)))   
+			from 	dbinfracao..Auto a,   
+			dbinfracao..RNFCodRetorno r  
+			where  	a.Serie = @Serie   
+			and 	a.Cod = @Auto   
+			and 	a.OrgaoAutuante = @OrgaoAutuante   
+			and 	mov.CodRetornoImg = r.Cod 			 
+	)as 'RetornoImg',
+	tmb.NumeroBancario,     -- afs 26-05-2023
+	tmb.NumeroAutorizacao   -- afs 26-05-2023
+	
+	 
+ 
+from	dbinfracao..MovimentoAuto mov,    
+		dbinfracao..MotivoCancelamento mot, 
+		#tmpTMB tmb 
+where	mov.Serie = @Serie  
+and 	mov.Auto = @Auto  
+and 	mov.Infracao = @Infracao    
+and 	mov.OrgaoAutuante = @OrgaoAutuante    
+and 	mov.MotivoCancelamento *= mot.Cod   
+and 	mov.Serie *= tmb.Serie 
+and 	mov.OrgaoAutuante *= tmb.OrgaoAutuante 
+and 	mov.Auto *= tmb.Auto 
+and 	mov.DataAtualizacao *=tmb.DataAtualizacao 
+ 
+UNION 
+		 
+select	 
+	mov.DataAtualizacao,  
+	mov.ProcessoRecurso,   
+	tm.Descricao as 'Movimento' ,      
+	null,    
+	mov.Restituicao,    
+	mov.Usuario ,    
+	null as 'Retorno',   
+	null as 'Setor',  		   
+	null as 'Caixa', 
+	mov.DataPagamento, 
+	null as 'VigenciaRepasse', 
+	mov.DataTransmissaoRENAINF, 
+	null as 'Arquivo',  
+	null as 'DataGeracao', 
+	null as 'CodRetorno',
+	null as 'RetornoImg', 
+	null as 'NumeroBancario',	-- afs 26-05-2023
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023
+from 	 dbinfracao..Auto a   
+		,dbinfracao..MovimentoAuto mov  
+		,dbinfracao..TipoMovimento tm  
+		,dbinfracao..InfracaoAuto ia  
+where 	mov.Serie = @Serie  
+and 	mov.Auto = @Auto  
+and 	mov.Infracao = @Infracao  
+and 	mov.OrgaoAutuante = @OrgaoAutuante     
+and   	tm.Cod	=	'D'  
+and 	mov.Serie = a.Serie  
+and 	mov.Auto = a.Cod  
+and 	mov.OrgaoAutuante = a.OrgaoAutuante     
+and 	mov.Serie = ia.Serie  
+and 	mov.Auto = ia.Auto  
+and 	mov.OrgaoAutuante = ia.OrgaoAutuante     
+--and 	ia.Situacao in ('D','N','P')  
+and 	a.IndAssinatura	=	'S'  
+and 	not exists			(select 1 from dbinfracao..MovimentoAuto ma   
+						where mov.Serie = ma.Serie  
+						and mov.Auto = ma.Auto  
+						and mov.OrgaoAutuante = ma.OrgaoAutuante  		  
+						and ma.TipoMovimento='D') 
+and 	mov.DataAtualizacao	= 	(select min(mmm.DataAtualizacao) from  dbinfracao..MovimentoAuto mmm where mov.Serie = mmm.Serie  
+					and 	mov.Auto = mmm.Auto  
+					and 	mov.Infracao = mmm.Infracao  
+					and 	mov.OrgaoAutuante = mmm.OrgaoAutuante )						 
+UNION  
+ 
+--select 	 
+--	p.DataDoReg, 
+--	c.Prot, 
+--	UPPER(a.DescrAss),  
+--	case     
+--	   when c.Deferido = 'I'  then 
+--		(select d.DescrDec    
+--                from Prot..Protocolo p, Prot..MovsDoProt m1, Prot..Decisao d    
+--                where p.Cod = c.Prot    
+--                and p.Cod = m1.Prot    
+--                and m1.NumSeq=  (select max(NumSeq) from Prot..MovsDoProt m2, Prot..Decisao d    
+--                                where m2.Prot = c.Prot    
+--                                and m2.TipDec = d.Cod    
+--                                and d.iExigeEncerramento='S')     
+--                and m1.TipDec=d.Cod    
+--         	and not exists 	(select 1 from Prot..MovsDoProt m3 --estorno   
+--	                         where m3.Prot = c.Prot   
+--	                         and   m3.NumSeq = m1.NumSeq+1   
+--	                         and   m3.LocUsuario = m3.LocDest   
+--	                         and   m3.LocUsuario = m1.LocUsuario   
+--	                         and   m3.Receb = 'S'))
+--
+--		
+--		
+--	   when c.Deferido = 'D'  then 'DEFERIDO'   
+--	   when c.Deferido = 'M'  then 'INADMISSIVEL'    
+--	   when c.Deferido = 'P'  then 'DEFERIDO SEM CANCELAMENTO'   
+--	   else 'EM ANALISE/JULGAMENTO'      
+--	end,		    
+--	null, 
+--	null, 
+--	null, 
+--	null, 
+--	null, 
+--	null, 
+--	null, 
+--	null, 
+--	null as 'Arquivo',  
+--	null as 'DataGeracao', 
+--	null as 'CodRetorno' 
+--from 	Prot..Comunicado c,  
+--		Prot..Protocolo p,  
+--		Prot..Assunto a  
+--where 	c.Serie = @Serie   
+--and   	c.OrgaoAutuante = @OrgaoAutuante   
+--and   	c.Auto = @Auto   
+--and   	c.Prot = p.Cod  
+--and   	p.CodDoAss = a.Cod  
+--and   	c.Infracao = @Infracao 
+select 	 
+	p.DataDoReg, 
+	c.Prot, 
+	UPPER(a.DescrAss), 
+	case 
+		when (select m.TipDec from Prot..MovsDoProt m       
+			where m.Prot= p.Cod       
+			and m.NumSeq = (select max(m1.NumSeq) from Prot..MovsDoProt m1   
+	                			 where m1.Prot = p.Cod)   
+	           	) = 10  --- Aguardando Requerente	                										    
+			        
+			then 'EM ANDAMENTO (AGUARDANDO O REQUERENTE)'   
+	     	else 'EM ANDAMENTO'	
+	
+	
+      
+	end,		    
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null as 'Arquivo',  
+	null as 'DataGeracao', 
+	null as 'CodRetorno',
+	null as 'RetornoImg' ,
+	null as 'NumeroBancario',	-- afs 26-05-2023  
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023  
+from 	Prot..Comunicado c,  
+		Prot..Protocolo p,  
+		Prot..Assunto a  
+where 	c.Serie = @Serie   
+and   	c.OrgaoAutuante = @OrgaoAutuante   
+and   	c.Auto = @Auto
+and   	c.Infracao = @Infracao
+and   	c.Prot = p.Cod  
+and     p.Encerrado = 0 -- em análise
+and   	p.CodDoAss = a.Cod 
+
+UNION
+
+
+select 	 
+	p.DataDoReg, 
+	c.Prot, 
+	UPPER(a.DescrAss), 
+	(select d.DescrDec from Prot..MovsDoProt mp, Prot..Decisao d       
+		where mp.Prot=p.Cod
+		and mp.NumSeq = (select max(m.NumSeq) from Prot..MovsDoProt m where m.Prot=p.Cod)
+		and d.Cod = mp.TipDec        
+		
+	),   
+		    
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null as 'Arquivo',  
+	null as 'DataGeracao', 
+	null as 'CodRetorno',
+	null as 'RetornoImg', 
+	null as 'NumeroBancario',	-- afs 26-05-2023  
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023  
+from 	Prot..Comunicado c,  
+		Prot..Protocolo p,  
+		Prot..Assunto a  
+where 	c.Serie = @Serie   
+and   	c.OrgaoAutuante = @OrgaoAutuante   
+and   	c.Auto = @Auto
+and   	c.Infracao = @Infracao   
+and   	c.Prot = p.Cod
+and     p.Encerrado = 1  -- encerrado 
+and   	p.CodDoAss = a.Cod 
+and     isnull(a.iAssProcAdm,'N') = 'N' -- não é PA
+
+
+UNION
+
+select 	 
+	p.DataDoReg, 
+	c.Prot, 
+	UPPER(a.DescrAss), 
+	(select d.DescrDec from Prot..Decisao d, Prot..MovsDoProt mp       
+		where mp.Prot=p.Cod       
+		and mp.NumSeq = (select max(m1.NumSeq) from Prot..MovsDoProt m1, Prot..Decisao d1     
+	                			 where m1.Prot = p.Cod       
+	                			 and m1.Encerramento = 'S'    
+	                			 and m1.TipDec = d1.Cod      
+	        				 and d1.iExigeEncerramento='S')   
+		and mp.TipDec=d.Cod
+	),	        	
+	
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null, 
+	null as 'Arquivo',  
+	null as 'DataGeracao', 
+	null as 'CodRetorno' ,
+	null as 'RetornoImg',
+	null as 'NumeroBancario',	-- afs 26-05-2023  
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023  
+from 	Prot..Comunicado c,  
+		Prot..Protocolo p,  
+		Prot..Assunto a,
+		Prot..MovsDoProt m,
+		Prot..Decisao d   
+where 	c.Serie = @Serie   
+and   	c.OrgaoAutuante = @OrgaoAutuante   
+and   	c.Auto = @Auto
+and   	c.Infracao = @Infracao   
+and   	c.Prot = p.Cod
+and     p.Encerrado = 1  -- Encerrado
+and   	p.CodDoAss = a.Cod 
+and     isnull(a.iAssProcAdm,'N') = 'S' -- PA
+and     m.Prot = p.Cod
+and     m.NumSeq = p.UltMov
+and     d.Cod = m.TipDec 
+ 
+UNION 
+  
+select    
+	isnull(isnull(isnull((select DataRegistro from dbinfracao..PontuacaoCNH    
+				where @OrgaoAutuante 	=  OrgaoAutuante    
+				and   @Serie 		=  Serie    
+				and   @Auto 		=  Auto    
+				and   @Infracao  	=  Infracao     
+				and   Tipo = 'Q'  
+				and   DataRegistro = (select max(DataRegistro) from dbinfracao..PontuacaoCNH    
+				where @OrgaoAutuante 	=  OrgaoAutuante    
+				and   @Serie 		=  Serie    
+				and   @Auto 		=  Auto    
+				and   @Infracao  	=  Infracao     
+				and   Tipo = 'Q')),(select DataRegistro from dbinfracao..PontuacaoCNH    
+				where @OrgaoAutuante 	=  OrgaoAutuante    
+				and   @Serie 		=  Serie    
+				and   @Auto 		=  Auto    
+				and   @Infracao  	=  Infracao     
+				and   Tipo = 'F'  
+				and   DataRegistro = (select max(DataRegistro) from dbinfracao..PontuacaoCNH    
+				where @OrgaoAutuante 	=  OrgaoAutuante    
+				and   @Serie 		=  Serie    
+				and   @Auto 		=  Auto    
+				and   @Infracao  	=  Infracao     
+				and   Tipo = 'F'))),  
+				(select DataRegistro   
+					from dbinfracao..PontuacaoCNH    
+					where @OrgaoAutuante 	=  OrgaoAutuante    
+					and   @Serie 		=  Serie    
+					and   @Auto 		=  Auto    
+					and   @Infracao  	=  Infracao     
+					and   Tipo = 'D' 
+					AND DataRegistro = (select max(DataRegistro) from dbinfracao..PontuacaoCNH    
+				where @OrgaoAutuante 	=  OrgaoAutuante    
+				and   @Serie 		=  Serie    
+				and   @Auto 		=  Auto    
+				and   @Infracao  	=  Infracao     
+				and   Tipo = 'D'))),DataRegistro),  
+	null,  
+	(case when (select 1 from dbinfracao..PontuacaoCNH    
+				where @OrgaoAutuante 	=  OrgaoAutuante    
+				and   @Serie 		=  Serie    
+				and   @Auto 		=  Auto    
+				and   @Infracao  	=  Infracao     
+				and   Tipo = 'Q'  
+				and   DataRegistro = (select max(DataRegistro) from dbinfracao..PontuacaoCNH    
+				where @OrgaoAutuante 	=  OrgaoAutuante    
+				and   @Serie 		=  Serie    
+				and   @Auto 		=  Auto    
+				and   @Infracao  	=  Infracao     
+				and   Tipo = 'Q')) =1  
+				then 'REGISTRO DE PONTUAÇ+O' else 'PR+-REGISTRO DE PONTUAÇ+O' end),  
+	UPPER( Nome ),  
+	null,  
+	null,  
+	null,  
+	null,  
+	null,  
+	null,  
+	null,  
+	null,  
+	null as 'Arquivo',   
+	null as 'DataGeracao',  
+	null as 'CodRetorno',
+	null as 'RetornoImg',
+	null as 'NumeroBancario',	-- afs 26-05-2023  
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023  
+from 	dbinfracao..PontuacaoCNH    
+where 	@OrgaoAutuante 	=  OrgaoAutuante    
+and   	@Serie 		=  Serie    
+and   	@Auto 		=  Auto    
+and   	@Infracao  	=  Infracao    
+and   	DataRegistro 	= (	select max(pp.DataRegistro) from dbinfracao..PontuacaoCNH  pp  
+							where @OrgaoAutuante =  OrgaoAutuante    
+							and   @Serie 		=  Serie    
+							and   @Auto 		=  Auto    
+							and   @Infracao  	=  Infracao )  
+							and   not exists 	(select 1 from dbinfracao..MovimentoAuto ma    
+												where @OrgaoAutuante 	=  ma.OrgaoAutuante    
+												and   @Serie 		=  ma.Serie    
+												and   @Auto 		=  ma.Auto    
+												and   @Infracao  	=  ma.Infracao     
+												and   TipoMovimento = 'C')  
+union 
+ 
+ 
+			 
+select	cd.DataInclusaoDesvinculacao   
+,    
+	cd.Protocolo,     
+	--'DESVINCULAÇ+O DE INFRACAO' as Movimento ,        
+	(SELECT tm.Descricao from dbinfracao..TipoMovimento  tm where Cod = '4') as Movimento ,  
+	substring(cd.Observacao,1,150) as Observacao,      
+	null,      
+	cd.Usuario ,       
+	    
+			(select convert(char(03),r.Cod)+'-'+ltrim(rtrim(convert(char(50),r.Descricao)))      
+			from 	dbinfracao..RNFCodRetorno r ,	dbvcen..DesvinculacaoDebito dd 
+			    
+			where 	@OrgaoAutuante 	=  dd.OrgaoAutuante       
+			and   	@Serie 		=  dd.Serie       
+			and   	@Auto 		=  dd.Auto       
+			and   	@Infracao  	=  dd.Infracao       
+			and     dd.CodigoDesvinculacao = cd.CodigoDesvinculacao
+			and     dd.CodigoRetornoDesvRenainf = r.Cod) as Retorno ,  
+	null as 'Setor',  		     
+	null as 'Caixa',   
+	null as 'Data',   
+	null as 'VigenciaRepasse',   
+	null as 'DataTransmissaoRENAINF',   
+	null as 'Arquivo',    
+	null as 'DataGeracao',   
+	null as 'CodRetorno',
+	null as 'RetornoImg',
+	null as 'NumeroBancario',	-- afs 26-05-2023  
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023   
+	from       
+		dbvcen..DesvinculacaoDebito dd,    
+		dbvcen..CadastroDesvinculacao cd,   
+		dbinfracao..OrgaoAutuante o,   
+		dbinfracao..Auto a 	         
+      
+	where 	@OrgaoAutuante 	=  dd.OrgaoAutuante      
+	and   	@Serie 		=  dd.Serie      
+	and   	@Auto 		=  dd.Auto      
+	and   	@Infracao  	=  dd.Infracao   
+	and   	dd.CodigoDesvinculacao = cd.CodigoDesvinculacao   
+	and   	dd.OrgaoAutuante 	= 	o.Cod   
+--	and   	o.UF			=	'PE'-----SÓ ENVIO DESVINCULAÇ+O DE ÓRG+O DE PE   
+	and   	a.Serie 		= 	dd.Serie         
+	and   	a.OrgaoAutuante 	= 	dd.OrgaoAutuante          
+	and   	a.Cod 			= 	dd.Auto     
+--	and 	cd.Situacao 		= 	'A' 	   
+--	AND  	(a.AutoRENAINF !=NULL or a.AutoINFRAEST !=null)       
+union   
+   
+   
+			   
+select	cd.DataInativacao   
+,    
+	cd.Protocolo,     
+--	'CANCELAMENTO DESVINCULAÇ+O DE INFRACAO' as Movimento ,        
+	(SELECT tm.Descricao from dbinfracao..TipoMovimento  tm where Cod = '5') as Movimento ,  
+	substring(cd.ObservacaoInativacao,1,150) as Observacao,      
+	null,      
+	cd.Usuario ,       
+	    
+		(select convert(char(03),r.Cod)+'-'+ltrim(rtrim(convert(char(50),r.Descricao)))      
+			from 	dbinfracao..RNFCodRetorno r,	dbvcen..DesvinculacaoDebito dd1    
+			    
+			where 	@OrgaoAutuante 	=  dd1.OrgaoAutuante       
+			and   	@Serie 		=  dd1.Serie       
+			and   	@Auto 		=  dd1.Auto       
+			and   	@Infracao  	=  dd1.Infracao  
+			and	dd1.CodigoDesvinculacao = dd.CodigoDesvinculacao   
+			and   	dd1.CodigoRetornoCancDesvRenainf = r.Cod) as Retorno ,   
+   
+	   
+	null as 'Setor',  		     
+	null as 'Caixa',   
+	null as 'Data',   
+	null as 'VigenciaRepasse',   
+	null as 'DataTransmissaoRENAINF',   
+	null as 'Arquivo',    
+	null as 'DataGeracao',   
+	null as 'CodRetorno',
+	null as 'RetornoImg',  
+	null as 'NumeroBancario',	-- afs 26-05-2023  
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023    
+	from       
+		dbvcen..DesvinculacaoDebito dd,    
+		dbvcen..CadastroDesvinculacao cd,   
+		dbinfracao..OrgaoAutuante o,   
+		dbinfracao..Auto a 	         
+      
+	where 	@OrgaoAutuante 	=  dd.OrgaoAutuante      
+	and   	@Serie 		=  dd.Serie      
+	and   	@Auto 		=  dd.Auto      
+	and   	@Infracao  	=  dd.Infracao   
+	and   	dd.CodigoDesvinculacao = cd.CodigoDesvinculacao   
+	and   	dd.OrgaoAutuante 	= 	o.Cod   
+--	and   	o.UF			=	'PE'-----SÓ ENVIO DESVINCULAÇ+O DE ÓRG+O DE PE   
+	and   	a.Serie 		= 	dd.Serie         
+	and   	a.OrgaoAutuante 	= 	dd.OrgaoAutuante          
+	and   	a.Cod 			= 	dd.Auto     
+	and 	cd.Situacao 		= 	'I'	   
+--	AND  	(a.AutoRENAINF !=NULL or a.AutoINFRAEST !=null)    
+
+union   ----Indicação do Condutor ---acesso logado
+
+select	ic.DataIndicacao,  
+	null,
+	(case when ic.Situacao = 'C' then 'CANCELAMENTO DO ACEITE DA INDICAÇ+O DO CONDUTOR'
+	      when ic.Situacao = 'A' then 'AGUARDANDO ACEITE DA INDICAÇ+O DO CONDUTOR'
+      	      when ic.Situacao = 'F' then 'CONDUTOR INDICADO PELO DETRAN Pessoal'
+	 end
+	) as Movimento ,      
+	ic.NomeCondutor,  -- as Observacao,    
+	null,    
+	null, --cd.Usuario ,     
+	null as 'Retorno',
+	null as 'Setor',  		   
+	null as 'Caixa', 
+	null as 'Data', 
+	null as 'VigenciaRepasse', 
+	null as 'DataTransmissaoRENAINF', 
+	null as 'Arquivo',  
+	null as 'DataGeracao', 
+	null as 'CodRetorno',
+	null as 'RetornoImg', 
+	null as 'NumeroBancario',	-- afs 26-05-2023  
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023  
+	from     
+		dbinfracao..IndicacaoCondutor ic,
+		dbinfracao..OrgaoAutuante o, 
+		dbinfracao..Auto a 	       
+    
+	where 	@OrgaoAutuante 	=  ic.OrgaoAutuante    
+	and   	@Serie 		=  ic.Serie    
+	and   	@Auto 		=  ic.Auto    
+	and   	@Infracao  	=  ic.Infracao 
+	and   	ic.OrgaoAutuante 	= 	o.Cod 
+	and   	o.UF			=	'PE'-----SÓ ENVIO DESVINCULAÇ+O DE ÓRG+O DE PE 
+	and   	a.Serie 		= 	ic.Serie      
+	and   	a.OrgaoAutuante 	= 	ic.OrgaoAutuante        
+	and   	a.Cod 			= 	ic.Auto   
+	and      ic.Situacao             in ('A','C','F')
+
+
+union
+------recolhimento 
+
+select	 
+	mov.DataAtualizacao,  
+	mov.ProcessoRecurso,   
+	tm.Descricao as 'Movimento' ,      
+	null,    
+	mov.Restituicao,    
+	mov.Usuario ,    
+	null as 'Retorno',   
+	null as 'Setor',  		   
+	null as 'Caixa', 
+	mov.DataPagamento, 
+	null as 'VigenciaRepasse', 
+	null as 'Data Transm RNF', 
+	null as 'Arquivo',  
+	null as 'DataGeracao', 
+	null as 'CodRetorno',
+	null as 'RetornoImg',
+	null as 'NumeroBancario',	-- afs 26-05-2023  
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023  
+from 	 dbinfracao..Auto a   
+		,dbinfracao..MovimentoAuto mov  
+		,dbinfracao..TipoMovimento tm  
+		,dbinfracao..InfracaoAuto ia  
+where 	mov.Serie = @Serie  
+and 	mov.Auto = @Auto  
+and 	mov.Infracao = @Infracao  
+and 	mov.OrgaoAutuante = @OrgaoAutuante     
+and   	tm.Cod	=	'D'  
+and 	mov.Serie = a.Serie  
+and 	mov.Auto = a.Cod  
+and 	mov.OrgaoAutuante = a.OrgaoAutuante     
+and 	mov.Serie = ia.Serie  
+and 	mov.Auto = ia.Auto  
+and 	mov.OrgaoAutuante = ia.OrgaoAutuante     
+--and 	ia.Situacao in ('D','N','P')  
+and 	'S' in (a.RemocaoVeiculo,a.RetencaoVeiculo) ------o veiculo PCK7248 foi removido e auto foi implantado com retenção - sem está emplacado.
+and 	not exists			(select 1 from dbinfracao..MovimentoAuto ma   
+						where mov.Serie = ma.Serie  
+						and mov.Auto = ma.Auto  
+						and mov.OrgaoAutuante = ma.OrgaoAutuante  		  
+						and ma.TipoMovimento='D') 
+and 	mov.DataAtualizacao	= 	(select min(mmm.DataAtualizacao) from  dbinfracao..MovimentoAuto mmm where mov.Serie = mmm.Serie  
+					and 	mov.Auto = mmm.Auto  
+					and 	mov.Infracao = mmm.Infracao  
+					and 	mov.OrgaoAutuante = mmm.OrgaoAutuante )	
+					
+and exists 	(select 1 from dbvcen..Processo p , dbvcen..ProcessoServico ps, dbvcen..TipoServico ts
+		where p.Placa = a.Placa
+		AND p.Setor = ps.Setor
+		and p.Cod = ps.Processo
+		and ps.TipoServico = ts.Cod
+		and ts.PrimEmplacamento = 'S'
+		and p.Placa = a.Placa
+		and p.DataAbertura>a.DataInfracao)
+--fim recolhimento 
+union
+
+select	cd.DataSolicitacao,   ------------desvinculação de infração recebida de outras UFS
+	null as Protocolo,    
+	(SELECT tm.Descricao from dbinfracao..TipoMovimento  tm where Cod = '4') as Movimento ,   
+	cd.Processo as Observacao,     
+	null,     
+	'renavam' ,      
+	null as Retorno ,  
+	null as 'Setor',  		    
+	null as 'Caixa',  
+	null as 'Data',  
+	null as 'VigenciaRepasse',  
+	null as 'DataTransmissaoRENAINF',  
+	null as 'Arquivo',   
+	null as 'DataGeracao',  
+	null as 'CodRetorno',
+	null as 'RetornoImg',  
+	null as 'NumeroBancario',	-- afs 26-05-2023
+	null as 'NumeroAutorizacao'     -- afs 26-05-2023  
+	from    dbinfracao..OrgaoAutuante o,  
+		dbinfracao..Auto a ,
+		dbinfracao..RNFAutoDesvinculacao cd	        
+     
+	where 	@OrgaoAutuante 	=  a.OrgaoAutuante     
+	and   	@Serie 		=  a.Serie     
+	and   	@Auto 		=  a.Cod     
+	and 	a.AutoRENAINF	=  cd.NumAutoInfracao
+	and     a.OrgaoAutuante =  cd.CodigoOrgaoAut
+	and     a.OrgaoAutuante =  o.Cod
+	and     cd.TipoLancamento = 1
+	and     not exists (select 1  
+                    from    dbinfracao..RNFAutoDesvinculacao dd   
+                    where   dd.CodigoOrgaoAut 	= cd.CodigoOrgaoAut   
+                    and     dd.NumAutoInfracao	= cd.NumAutoInfracao   
+                    and     dd.TipoLancamento		= 2   
+                   and     convert(char(08),dd.DataSolicitacao,112) >= convert(char(08),cd.DataSolicitacao,112))
+                     
+order by 1 desc   
+	 
+/********************************************** RETORNO FINAL DA PROCEDURE **********************************************/  
+--	saída dos dados	para a tela  
+if 	exists (select 1 from #Saida where Movimento like '%CONDUTOR INDICADO PELO DETRAN Pessoal%')
+begin 
+	update #Saida set Descricao = ltrim(rtrim(Descricao)) + 'PELO DETRAN Pessoal'	
+	where  Movimento = 'INDICAÇ+O DE CONDUTOR'
+	DELETE #Saida where Movimento like '%CONDUTOR INDICADO PELO DETRAN Pessoal%'
+end
+if	isnull(@Rel,'N') != 'S' 
+begin 
+	/* Adaptive Server has expanded all '*' elements in the following statement */ 
+	select 	#Saida.DataAtualizacao, #Saida.ProcessoRecurso, #Saida.Movimento, #Saida.Descricao, #Saida.Restituicao, 
+		#Saida.Usuario, substring(rtrim(ltrim(#Saida.Retorno)),1,254), #Saida.Setor, #Saida.Caixa, #Saida.DataPagamento, #Saida.VigenciaRepasse, 
+		#Saida.DataTransmissaoRENAINF, #Saida.Arquivo, #Saida.DataGeracao, #Saida.CodRetorno, #Saida.RetornoImg,
+		#Saida.NumeroBancario,   -- afs 26-05-2023
+	        #Saida.NumeroAutorizacao -- afs 26-05-2023
+
+	from #Saida 
+end 
+else --	saída dos dados para o relatório  
+begin 
+select 	 
+t.DataAtualizacao,  
+t.ProcessoRecurso,  
+t.Movimento,  
+t.Descricao, 
+(	select convert(numeric(15,2),(isnull(d.ValorMoeda,0) * mc.Valor))  
+	from 	dbarrecadacao..Debito d,  
+			dbinfracao..Infracao i,  
+			dbinfracao..ValorGrupo vg,  
+			dbarrecadacao..MoedaCotacao mc,  
+			dbinfracao..Auto a  
+	where 	d.OrgaoAutuante = @OrgaoAutuante  
+	and 	d.Serie = @Serie  
+	and 	d.Auto = @Auto 
+	and    	d.OrgaoAutuante = a.OrgaoAutuante  
+	and 	d.Serie = a.Serie  
+	and 	d.Auto = a.Cod 
+	and    	d.Infracao = i.Cod 
+	and 	d.Desdobramento = 	i.Desdobramento 
+	and 	i.Grupo = vg.Grupo 
+	and 	vg.Vigencia = (	select max(Vigencia) 
+							from 	dbinfracao..ValorGrupo vg1 
+							where vg1.Grupo = vg.Grupo 
+							and Vigencia <= a.DataInfracao 
+							) 
+		and vg.Moeda = mc.Moeda			  
+		and	mc.DataCad = (	select max(DataCad)  
+							from dbarrecadacao..MoedaCotacao mc1  
+							where mc1.Moeda = mc.Moeda  
+							and   mc1.DataCad <= a.DataInfracao 
+							) 
+) as 'ValorInfracao', 
+(select isnull(mb.ValPriReal,0)  
+		from 	dbarrecadacao..Debito d,  
+				dbarrecadacao..MovimentoBaixa mb,  
+				dbarrecadacao..TipoMovBaixa tmb 
+		where 	t.DataPagamento is not null  
+		and		d.OrgaoAutuante = @OrgaoAutuante  
+		and 	d.Auto = @Auto  
+		and 	d.Serie = @Serie 
+		and		mb.Setor= d.Setor  
+		and 	mb.Debito = d.Cod  
+		and 	mb.Parcela = 99  
+		and 	mb.Anulado = 0  
+		and 	mb.DataPagamento = t.DataPagamento 
+		and 	tmb.Cod = mb.TipoMovimento  
+		and 	tmb.Tipo = 'B' 
+) as 'ValorPago', 
+t.DataPagamento, 
+t.VigenciaRepasse 
+from #Saida t 
+end 
+  
+return
+GO
+
+execute sp_procxmode 'dbo.MovimentoAutoS_historico', 'unchained'
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.MovimentoAutoS_historico to desenvolvimento
+GO
+
+Grant Execute on dbo.MovimentoAutoS_historico to veiculo
+GO
+
+

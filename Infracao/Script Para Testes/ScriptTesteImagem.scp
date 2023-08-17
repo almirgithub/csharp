@@ -1,0 +1,117 @@
+--script para atualizar a imagem no auto
+
+    update dbvcen.dbo.AvisoRecebimento
+    set ImagemAR = '19878890000000032022091319.tif'   --@NomeArquivo
+    where ARCorreio = 'JC346956507BR' --@Ar
+
+    update dbvcen.dbo.AvisoRecebimento
+    set ImagemAR = '19878890000000032022091319.tif'   --@NomeArquivo
+    where ARCorreio = 'JC357288715BR' --@Ar
+    
+
+    
+select av.ARCorreio,av.ImagemAR, im.sNomeArquivo,im.sExtensao,  im.sCaminho + '\' + im.sGuid + im.sExtensao  
+from 	dbfisc01..ImagemArServidorArquivo im,  
+	dbvcen..AvisoRecebimento av 
+where 	av.ARCorreio 	= 'JC357288715BR'---	@ArCorreio  
+	and 	upper(av.ImagemAR) = 	upper('21410375000001912016022521.tif') --im.sNomeArquivo+im.sExtensao)
+
+ARCorreio      ImagemAR                                            sNomeArquivo                                        sExtensao                                                                                                                                                                                                                                                                                                                                                                      
+JC357288715BR  21435476000000472016040521.tif                      19878890000000032022091319                          .TIF      \\intranet\dfs\Arquivo\HOMOLOGACAO\ImagensAr\2022\10\9ae23362-e187-498f-aef1-af195daaa080.TIF                                                                                                                                                                                                                                                                        
+JC357288715BR  21435476000000472016040521.tif                      19878890000000042022091319                          .TIF      \\intranet\dfs\Arquivo\HOMOLOGACAO\ImagensAr\2022\10\4d3245b7-f968-48d6-8b42-7663a0b3f004.TIF                                                                                                                                                                                                                                                                        
+JC357288715BR  21435476000000472016040521.tif                      19878154000000302022091219                          .TIF      \\intranet\dfs\Arquivo\HOMOLOGACAO\ImagensAr\2022\10\4f937b0d-9639-472a-b79d-e9b554dda20b.TIF                                                                                                                                                                                                                                                                        
+----------------------------------------
+Results :
+ARCorreio      ImagemAR                                            sNomeArquivo                                        sExtensao                                                                                                                                                                                                                                                                                                                                                                      
+JC346956507BR  21410375000001912016022521.tif                      19878890000000032022091319                          .TIF      \\intranet\dfs\Arquivo\HOMOLOGACAO\ImagensAr\2022\10\9ae23362-e187-498f-aef1-af195daaa080.TIF                                                                                                                                                                                                                                                                        
+JC346956507BR  21410375000001912016022521.tif                      19878890000000042022091319                          .TIF      \\intranet\dfs\Arquivo\HOMOLOGACAO\ImagensAr\2022\10\4d3245b7-f968-48d6-8b42-7663a0b3f004.TIF                                                                                                                                                                                                                                                                        
+JC346956507BR  21410375000001912016022521.tif                      19878154000000302022091219                          .TIF      \\intranet\dfs\Arquivo\HOMOLOGACAO\ImagensAr\2022\10\4f937b0d-9639-472a-b79d-e9b554dda20b.TIF                                                                                                                                                                                                                                                                        
+ 
+----------------------------
+
+Script para gera‡Æo de massa:
+
+declare cAr cursor for
+select av.ARCorreio
+from dbinfracao.dbo.Auto a , dbinfracao.dbo.RNFDocNotifAut d,
+        dbvcen.dbo.AvisoRecebimento av (INDEX pkAvisoRecebimento)  
+where     a.NumNotifAutuacao is not null    
+and     d.Placa             = a.Placa    
+And         a.NumNotifAutuacao    = d.NumeroNotAut
+and         d.TipoDocumento            = 89     
+and          d.ARCorreio         = av.ARCorreio   
+and         av.TipoDocumento    = 89
+and     av.ImagemAR is not null
+and a.Placa = 'QYS2C18'     
+
+open cAr
+
+declare @Ar varchar(15)
+
+fetch cAr into @Ar
+
+while     @@sqlstatus != 2 and @@sqlstatus != 1      
+begin 
+    Declare @NomeArquivo varchar(254)
+    set rowcount 1
+    select  @NomeArquivo = a.Nome+a.Extensao
+    from     MPS.dbo.Arquivo a,
+            dbfisc01.dbo.ImagemArServidorArquivo i
+    where a.Nome = i.sNomeArquivo    
+    and not exists(select 1
+        from dbvcen.dbo.AvisoRecebimento ar
+        where ar.ImagemAR = a.Nome+a.Extensao)
+    set rowcount 0
+    
+    update dbvcen.dbo.AvisoRecebimento
+    set ImagemAR = @NomeArquivo
+    where ARCorreio = @Ar
+
+fetch cAr into @Ar
+end
+
+close cAr
+deallocate cursor cAr
+
+
+criamos um indice abaixo para conseguir gerar  a massa
+
+create index AvisoRecebimento_ImagemAR on dbvcen.dbo.AvisoRecebimento (
+    ImagemAR ASC
+)  on ind01
+go
+
+ARCorreio     
+BL828502843BR 
+BL828502857BR 
+BL828502865BR 
+BL828502874BR 
+BL828502888BR 
+BL828502891BR 
+BL828502905BR 
+BL828502914BR 
+BL828534378BR 
+BL828534381BR 
+BL828534395BR 
+BL828534404BR 
+BL828534418BR
+
+
+
+    
+
+exec dbinfracao..AutoS_EntregaNotificacao   @Serie =  'RA', @Auto =  571400, @OrgaoAutuante= 225310, @Maquina =  'DAT-038'
+Results :
+Controle                                  LoteAr                                    ArCorreios     DataEmissaoNotiticacaoPen    DataPostagemPenalidade       DataEntregaCorreios          DataEnvio                    DataDevolucaoPenalidade      Descricao                                           DataDefesaPenalidade         ImagemPenalidade                                    DataProcessamentoPEN         ArquivoRetornoPEN                                   DataProcessamento            ArquivoRetornoCoPEN                                 DataEntregaAiPropPen         Descr3                                             Descr4                                             ObsNaoImpNP                                                                                                                                                                                                                                                      DataPublicacaoEditalNP       DataAdesaoSNENOTIFICAO                                                                                                   Penaliddade 
+135941482                                 0                                         BL828534421BR  Sep 23 2022  4:25PM          NULL                         NULL                         NULL                         NULL                         NULL                                                Nov 14 2022 12:00AM          NULL                                                NULL                         NULL                                                NULL                         NULL                                                NULL                         NULL                                               NULL                                                                                                                                                                                                                                                                                                                NULL                         NULL                                                                                                                     1           
+84614609                                  NULL                                      BL828534404BR  Sep 23 2022 11:52AM          NULL                         NULL                         NULL                         NULL                         NULL                                                Nov  3 2022 12:00AM          19878706000000032022091319.TIF                      NULL                         NULL                                                NULL                         NULL                                                NULL                         NULL                                               NULL                                                                                                                                                                                                                                                                                                                NULL                         NULL                                                                                                                     2           
+                                                                                                                                                                 
+S  \\intranet\dfs\Arquivo\HOMOLOGACAO\ImagensAr\2022\10\04e372ce-15a3-4945-850c-df2e027bb63c.TIF    
+
+
+  exec dbinfracao..AutoS_EntregaNotificacao   @Serie =  'Q ', @Auto =  22643287, 
+  @OrgaoAutuante= 117200, @Maquina =  'DAT-038'
+  Results :
+Controle                                  LoteAr                                    ArCorreios     DataEmissaoNotiticacaoPen    DataPostagemPenalidade       DataEntregaCorreios          DataEnvio                    DataDevolucaoPenalidade      Descricao                                           DataDefesaPenalidade         ImagemPenalidade                                    DataProcessamentoPEN         ArquivoRetornoPEN                                   DataProcessamento            ArquivoRetornoCoPEN                                 DataEntregaAiPropPen         Descr3                                             Descr4                                             ObsNaoImpNP                                                                                                                                                                                                                                                      DataPublicacaoEditalNP       DataAdesaoSNENOTIFICAO                                                                                                   Penaliddade 
+122656580                                 0                                         BG929119828BR  Apr 23 2019 12:36AM          Apr 25 2019 12:00AM          Apr 25 2019 12:00AM          Apr 23 2019 12:00AM          Jul  4 2019 12:00AM          Ausente - Devolvido ao Remetente                    Jul 29 2019 12:00AM          21070347000002462019051421.tif                      Apr 24 2019  7:25AM          20190425SGDD2304003314-19-1.txt                     Jul  9 2019  7:55PM          SGDDPRET06679.TXT                                   NULL                         NULL                                               NULL                                                                                                                                                                                                                                                                                                                Jun 27 2019 12:00AM          Notifica‡Æo emitida para: ADILSON JOSE DOS SANTOS                                                                        1           
+55333737                                  NULL                                      BG869077244BR  Mar  8 2019  9:50PM          Mar 13 2019 12:00AM          Mar 13 2019 12:00AM          Mar  9 2019 12:00AM          NULL                         NULL                                                Apr 17 2019 12:00AM          21044867000000122019032521.tif                      Mar 12 2019 10:01AM          20190313SGDB0803214714-19-1.txt                     Mar 25 2019  7:24PM          SGDDPRET06578.TXT                                   Mar 20 2019 12:00AM          NULL                                               NULL                                                                                                                                                                                                                                                                                                                NULL                         Notifica‡Æo emitida para: ADILSON JOSE DOS SANTOS                                                                        2           

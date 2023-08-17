@@ -1,0 +1,62 @@
+/*  Database 'dbvcen'  */
+use dbinfracao
+GO
+
+
+/*
+  Procedure(s)
+*/
+
+PRINT 'STORED PROCEDURE : dbo.MaquinaTalaoEletronicoS'
+GO
+
+
+if exists (select 1 from dbo.sysobjects where id = Object_id('dbo.MaquinaTalaoEletronicoS') and (type = 'P' or type = 'RF'))
+begin
+ drop proc dbo.MaquinaTalaoEletronicoS
+end
+
+GO
+
+create proc dbo.MaquinaTalaoEletronicoS
+-- Funcao : Selecionar as máquinas eletrônicas
+-- Autor  : afs - 13/01/2021
+(	
+	@nOrgaoAutuante	numeric(6,0)
+
+) 
+  
+as  
+
+
+
+	select	t.OrgaoAutuante,
+		(select Descricao   from 	
+		dbinfracao..OrgaoAutuante  where Cod = t.OrgaoAutuante) as DescOrgao,
+		t.Maquina,
+		t.Serie, 
+		t.PrimeiroAuto,
+		t.UltimoAuto,
+		t.AgenteEquip,
+		(select 	a.Descricao  from dbinfracao..AgenteEquip a 
+			where 	a.Cod = t.AgenteEquip
+			and	a.OrgaoAutuante = t.OrgaoAutuante) as DescricaoAgent
+	from	dbinfracao..MaquinaTalaoEletronico t
+	where	t.OrgaoAutuante	=	@nOrgaoAutuante
+	order 	by	t.OrgaoAutuante, t.PrimeiroAuto
+--	order 	by	t.OrgaoAutuante,t.Maquina,t.AgenteEquip, t.PrimeiroAuto
+
+
+
+return  
+GO
+
+
+PRINT 'CREATING PRIVILEGE : '
+GO
+
+Grant Execute on dbo.MaquinaTalaoEletronicoS to desenvolvimento
+GO
+
+Grant Execute on dbo.MaquinaTalaoEletronicoS to veiculo
+GO
